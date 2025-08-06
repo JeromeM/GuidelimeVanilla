@@ -1,0 +1,136 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+
+    <Frame name="GLV_Main" parent="UIParent" toplevel="true" movable="true" resizable="false" frameStrata="DIALOG" enableMouse="true" hidden="false">
+
+        <Size>
+            <AbsDimension x="360" y="550"/>
+        </Size>
+        <Anchors>
+            <Anchor point="CENTER"/>
+        </Anchors>
+
+        <Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" edgeFile="Interface\DialogFrame\UI-DialogBox-Border" tile="true">
+            <EdgeSize>
+                <AbsValue val="16"/>
+            </EdgeSize>
+            <TileSize>
+                <AbsValue val="32"/>
+            </TileSize>
+            <BackgroundInsets>
+                <AbsInset left="5" right="5" top="5" bottom="5"/>
+            </BackgroundInsets>
+        </Backdrop>
+
+        <Scripts>
+            <OnLoad>
+                this:RegisterForDrag("LeftButton");
+            </OnLoad>
+            <OnDragStart>
+                this:StartMoving();
+            </OnDragStart>
+            <OnDragStop>
+                this:StopMovingOrSizing();
+            </OnDragStop>
+        </Scripts>        
+
+        <Layers>
+            <Layer level="OVERLAY">
+                <FontString name="$parentTitle" inherits="GameFontNormal">
+                    <Anchors>
+                        <Anchor point="TOP">
+                            <Offset x="0" y="-14"/>
+                        </Anchor>
+                    </Anchors>
+                    <Color r="0.396" g="0.42" b="0.737"/>
+                     <Shadow>
+                        <Offset>
+                            <AbsDimension x="2" y="2" />
+                        </Offset>
+                        <Color r="0" g="0" b="0" />
+                    </Shadow>
+                </FontString>
+            </Layer>
+        </Layers>
+
+        <Frames>
+
+            <Button name="$parentPrevStep" inherits="UIPanelButtonTemplate">
+                <Size>
+                    <AbsDimension x="24" y="24"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT">
+                        <Offset x="10" y="-8"/>
+                    </Anchor>
+                </Anchors>
+                <NormalTexture file="Interface\Buttons\UI-SpellbookIcon-PrevPage-Up"/>
+                <PushedTexture file="Interface\Buttons\UI-SpellbookIcon-PrevPage-Down"/>
+                <Scripts>
+                    <OnClick>GLV_NextPrevStep(false)</OnClick>
+                </Scripts>
+            </Button>
+
+            <Button name="$parentNextStep" inherits="UIPanelButtonTemplate">
+                <Size>
+                    <AbsDimension x="24" y="24"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPRIGHT">
+                        <Offset x="-10" y="-8"/>
+                    </Anchor>
+                </Anchors>
+                <NormalTexture file="Interface\Buttons\UI-SpellbookIcon-NextPage-Up"/>
+                <PushedTexture file="Interface\Buttons\UI-SpellbookIcon-NextPage-Down"/>
+                <Scripts>
+                    <OnClick>GLV_NextPrevStep(true)</OnClick>
+                </Scripts>
+            </Button>
+
+            <Frame name="$parentScrollFrame" inherits="UIPanelFrameTemplate">
+                <Size>
+                    <AbsDimension x="348" y="470"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT">
+                        <Offset x="6" y="-35"/>
+                    </Anchor>
+                </Anchors>
+            </Frame>
+
+            <Frame name="$parentDropdown" inherits="UIDropDownMenuTemplate">
+                <Anchors>
+                    <Anchor point="BOTTOMLEFT">
+                        <Offset x="0" y="7"/>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnLoad>
+                        UIDropDownMenu_SetWidth(200, GLV_MainDropdown)
+                        UIDropDownMenu_SetButtonWidth(200, GLV_MainDropdown)
+                    </OnLoad>
+                </Scripts>
+            </Frame>
+
+            <Button name="$parentSettings" inherits="UIPanelButtonTemplate">
+                <Size>
+                    <AbsDimension x="16" y="16"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="BOTTOMRIGHT">
+                        <Offset x="-15" y="17"/>
+                    </Anchor>
+                </Anchors>
+                <NormalTexture file="Interface\AddOns\GuideLimeVanilla\Textures\Settings"/>
+                <PushedTexture file="Interface\AddOns\GuideLimeVanilla\Textures\Settings"/>
+                <Scripts>
+                    <OnClick>GLV_ToggleSettings()</OnClick>
+                </Scripts>
+            </Button>
+
+        </Frames>
+
+    </Frame>
+
+</Ui>

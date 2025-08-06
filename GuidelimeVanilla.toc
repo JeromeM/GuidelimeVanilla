@@ -1,0 +1,19 @@
+## Interface: 11200
+## Title: Guidelime Vanilla
+## Notes: Guidelime, adapted for Vanilla
+## Author: Grommey
+## Version: 0.1.0
+## DefaultState: enabled
+## SavedVariables: GuidelimeVanillaDB
+
+libs\libs.xml
+
+Core.lua
+Helpers.lua
+GuideParser.lua
+GuideLibrary.lua
+Settings.lua
+
+Frames\Frames.lua
+Frames\MainFrame.xml
+Frames\SettingsFrame.xml

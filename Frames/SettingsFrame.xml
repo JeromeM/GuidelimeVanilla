@@ -1,0 +1,390 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+
+    <Frame name="GLV_Settings" parent="UIParent" hidden="false" movable="true" resizable="false" toplevel="true" frameStrata="DIALOG" enableMouse="true">
+        <Size>
+            <AbsDimension x="900" y="670"/>
+        </Size>
+        <Anchors>
+            <Anchor point="CENTER"/>
+        </Anchors>
+
+        <Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" edgeFile="Interface\DialogFrame\UI-DialogBox-Border" tile="true">
+            <EdgeSize>
+                <AbsValue val="16"/>
+            </EdgeSize>
+            <TileSize>
+                <AbsValue val="32"/>
+            </TileSize>
+            <BackgroundInsets>
+                <AbsInset left="5" right="5" top="5" bottom="5"/>
+            </BackgroundInsets>
+        </Backdrop>
+
+        <Scripts>
+            <OnLoad>
+                this:RegisterForDrag("LeftButton");
+            </OnLoad>
+            <OnDragStart>
+                this:StartMoving();
+            </OnDragStart>
+            <OnDragStop>
+                this:StopMovingOrSizing();
+            </OnDragStop>
+        </Scripts> 
+
+        <Frames>
+
+            <!-- HEADER -->
+            <Frame name="$parentHeader" inherits="UIPanelFrameTemplate">
+                <Size>
+                    <AbsDimension x="900" y="60"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                        <Offset x="0" y="0"/>
+                    </Anchor>
+                </Anchors>
+
+                <Layers>
+                    <Layer>
+                        <!-- TITLE -->
+                        <FontString name="$parentTitle" inherits="GameFontNormalLarge" text="Guidelime Vanilla Settings" font="Fonts\FRIZQT__.TTF">
+                            <FontHeight>
+                                <AbsValue val="20"/>
+                            </FontHeight>
+                            <Anchors>
+                                <Anchor point="TOP">
+                                    <Offset x="0" y="-25"/>
+                                </Anchor>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                </Layers>
+
+                <Frames>
+                    <!-- SEPARATOR -->
+                    <Frame name="$parentSeparator">
+                        <Size>
+                            <AbsDimension x="600" y="1"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="BOTTOM">
+                                <Offset x="0" y="-10"/>
+                            </Anchor>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture>
+                                    <Color r="0.79" g="0.79" b="0.79" a="0.8"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+                    </Frame>
+                </Frames>
+
+            </Frame>
+            <!-- END HEADER -->
+            
+            <!-- LEFT MENU -->
+            <Frame name="$parentMenu" inherits="UIPanelFrameTemplate">
+                <Size>
+                    <AbsDimension x="140" y="500"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsHeader" RelativePoint="BOTTOMLEFT">
+                        <Offset x="15" y="-60"/>
+                    </Anchor>
+                </Anchors>
+
+                <Frames>
+                    <!-- SEPARATOR -->
+                    <Frame name="$parentSeparator">
+                        <Size>
+                            <AbsDimension x="1" y="500"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="RIGHT">
+                                <Offset x="0" y="0"/>
+                            </Anchor>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture>
+                                    <Color r="0.49" g="0.49" b="0.49" a="0.8"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+                    </Frame>
+
+                    <!-- GUIDE BUTTON -->
+                    <Frame name="$parentGuides" inherits="">
+                        <Size>
+                            <AbsDimension x="140" y="30"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT">
+                                <Offset x="0" y="0"/>
+                            </Anchor>
+                        </Anchors>
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentText" inherits="GameFontNormalLarge" text="Guides"/>
+                            </Layer>
+                        </Layers>
+                        <Scripts>
+                            <OnMouseDown>
+                                GLV_ShowGuide(GLV_SettingsGuidesPage)
+                            </OnMouseDown>
+                            <OnEnter>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 1, 1)
+                            </OnEnter>
+                            <OnLeave>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 0.82, 0)
+                            </OnLeave>
+                        </Scripts>
+                    </Frame>
+
+                    <!-- DISPLAY BUTTON -->
+                    <Frame name="$parentDisplay" inherits="">
+                        <Size>
+                            <AbsDimension x="140" y="30"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsMenuGuides" RelativePoint="BOTTOMLEFT"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentText" inherits="GameFontNormalLarge" text="Display"/>
+                            </Layer>
+                        </Layers>
+                        <Scripts>
+                            <OnMouseDown>
+                                GLV_ShowGuide(GLV_SettingsDisplayPage)
+                            </OnMouseDown>
+                            <OnEnter>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 1, 1)
+                            </OnEnter>
+                            <OnLeave>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 0.82, 0)
+                            </OnLeave>
+                        </Scripts>
+                    </Frame>
+
+
+                    <!-- ABOUT BUTTON -->
+                    <Frame name="$parentAbout" inherits="">
+                        <Size>
+                            <AbsDimension x="140" y="30"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsMenuDisplay" RelativePoint="BOTTOMLEFT"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentText" inherits="GameFontNormalLarge" text="About"/>
+                            </Layer>
+                        </Layers>
+                        <Scripts>
+                            <OnMouseDown>
+                                GLV_ShowGuide(GLV_SettingsAboutPage)
+                            </OnMouseDown>
+                            <OnEnter>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 1, 1)
+                            </OnEnter>
+                            <OnLeave>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 0.82, 0)
+                            </OnLeave>
+                        </Scripts>
+                    </Frame>
+
+                </Frames>
+
+            </Frame>
+            <!-- END MENU -->
+
+            <!-- PAGES -->
+            <Frame>
+                <Size>
+                    <AbsDimension x="700" y="500"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPRIGHT" RelativeTo="GLV_SettingsHeader" RelativePoint="BOTTOMRIGHT">
+                        <Offset x="-25" y="-60"/>
+                    </Anchor>
+                </Anchors>
+
+                <Frames>
+
+                    <Frame name="$parentGuidesPage" hidden="false">
+
+                        <Size>
+                            <AbsDimension x="700" y="500"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT">
+                                <Offset x="0" y="0"/>
+                            </Anchor>
+                        </Anchors>
+
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentTitle" inherits="GameFontNormalLarge" text="Guides" font="Fonts\FRIZQT__.TTF">
+                                    <Anchors>
+                                        <Anchor point="TOP" RelativeTo="$parent" RelativePoint="TOP"/>
+                                    </Anchors>
+                                    <FontHeight>
+                                        <AbsValue val="20"/>
+                                    </FontHeight>
+                                </FontString>
+                                <Texture>
+                                    <Color r="0" g="1" b="1" a="0.5"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+
+                    </Frame>
+
+                    <Frame name="$parentDisplayPage" hidden="true">
+
+                        <Size>
+                            <AbsDimension x="700" y="500"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT">
+                                <Offset x="0" y="0"/>
+                            </Anchor>
+                        </Anchors>
+
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentTitle" inherits="GameFontNormalLarge" text="Display settings" font="Fonts\FRIZQT__.TTF">
+                                    <Anchors>
+                                        <Anchor point="TOP" RelativeTo="$parent" RelativePoint="TOP"/>
+                                    </Anchors>
+                                    <FontHeight>
+                                        <AbsValue val="20"/>
+                                    </FontHeight>
+                                </FontString>
+                                <Texture>
+                                    <Color r="1" g="1" b="0" a="0.5"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+
+                    </Frame>
+
+                    <Frame name="$parentAboutPage" hidden="true">
+
+                         <Size>
+                            <AbsDimension x="700" y="500"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT">
+                                <Offset x="0" y="0"/>
+                            </Anchor>
+                        </Anchors>
+
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentTitle" inherits="GameFontNormalLarge" text="About the addon" font="Fonts\FRIZQT__.TTF">
+                                    <Anchors>
+                                        <Anchor point="TOP" RelativeTo="$parent" RelativePoint="TOP"/>
+                                    </Anchors>
+                                    <FontHeight>
+                                        <AbsValue val="20"/>
+                                    </FontHeight>
+                                </FontString>
+                                <FontString name="$parentContent" inherits="GameFontNormal">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                            <Offset x="0" y="-40"/>
+                                        </Anchor>
+                                    </Anchors>
+                                </FontString>
+                            </Layer>
+                        </Layers>
+
+                        <Frames>
+                            <Button name="$parentLinkOriginal">
+                                <Size>
+                                    <AbsDimension x="300" y="20"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsAboutPageContent">
+                                        <Offset x="203" y="-188"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Layers>
+                                    <Layer>
+                                        <FontString name="$parentText" inherits="GameFontNormal" text="https://code.google.com/archive/p/vanillaguide/">
+                                            <Color r="1" g="1" b="1"/>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+                                <Scripts>
+                                    <OnClick>
+                                        if ChatFrameEditBox then
+                                            ChatFrameEditBox:SetText("https://code.google.com/archive/p/vanillaguide/");
+                                            ChatFrameEditBox:Show();
+                                            ChatFrameEditBox:HighlightText();
+                                        end
+                                    </OnClick>
+                                    <OnEnter>
+                                        getglobal(this:GetName().."Text"):SetTextColor(0.2, 0.6, 1);
+                                    </OnEnter>
+                                    <OnLeave>
+                                        getglobal(this:GetName().."Text"):SetTextColor(1, 1, 1);
+                                    </OnLeave>
+                                </Scripts>
+                            </Button>
+                            <Button name="$parentLinkGithub">
+                                <Size>
+                                    <AbsDimension x="300" y="20"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsAboutPageContent">
+                                        <Offset x="335" y="-212"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Layers>
+                                    <Layer>
+                                        <FontString name="$parentText" inherits="GameFontNormal" text="https://github.com/JeromeM/VanillaGuideReloaded">
+                                            <Color r="1" g="1" b="1"/>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+                                <Scripts>
+                                    <OnClick>
+                                        if ChatFrameEditBox then
+                                            ChatFrameEditBox:SetText("https://github.com/JeromeM/VanillaGuideReloaded");
+                                            ChatFrameEditBox:Show();
+                                            ChatFrameEditBox:HighlightText();
+                                        end
+                                    </OnClick>
+                                    <OnEnter>
+                                        getglobal(this:GetName().."Text"):SetTextColor(0.2, 0.6, 1);
+                                    </OnEnter>
+                                    <OnLeave>
+                                        getglobal(this:GetName().."Text"):SetTextColor(1, 1, 1);
+                                    </OnLeave>
+                                </Scripts>
+                            </Button>
+                        </Frames>
+
+                        <Scripts>
+                            <OnShow>GLV_SettingsAboutPage_OnLoad()</OnShow>
+                        </Scripts>
+
+                    </Frame>
+
+                </Frames>
+
+            </Frame>
+           
+        </Frames>
+        
+    </Frame>
+
+</Ui>
