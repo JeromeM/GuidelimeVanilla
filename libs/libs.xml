@@ -10,4 +10,7 @@
     <Include file="AceDB-2.0\AceDB-2.0.lua"/>
     <Include file="AceHook-2.1\AceHook-2.1.lua"/>
 
+    <Include file ="GetSpellInfoVanilla\GetSpellInfoVanilla.xml"/>
+    <Include file ="GetSpellInfoVanilla\spells.lua"/>
+
 </Ui>

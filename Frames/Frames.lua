@@ -48,6 +48,7 @@ Thanks to :
 - |cFFFF0000mrmr|r for the original addon
 - |cFFFF0000Shagu|r for the PfQuest databases
 - |cFFFF0000cladhaire|r for the backport of TomTom
+- |cFFFF0000Schaka|r for the Spell DB : https://github.com/Schaka
 
 
 Original source for VanillaGuide :
