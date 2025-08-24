@@ -42,7 +42,7 @@ function GLV:RegisterGuide(guideText, group)
                 description = guide.description
             }
             
-            self.Settings:SetOption(group, {"Guide", "CurrentGroup"})
+            GLV.Ace.db.char.Guide.CurrentGroup = group
             
             if scrollChild then
                 self:PopulateDropdown(group)
@@ -155,7 +155,7 @@ function GLV:LoadGuide(group, guideId)
         return
     end
     
-    GLV.Settings:SetOption(guideId, {"Guide", "CurrentGuide"})
+    GLV.Ace.db.char.Guide.CurrentGuide = guideId
     
     GLV.CurrentGuide = guide
     
@@ -167,8 +167,8 @@ function GLV:LoadGuide(group, guideId)
         scrollFrame:SetVerticalScroll(0)
     end
     
-    local savedStepState = GLV.Settings:GetOption({"Guide", "Guides", guideId, "StepState"}) or {}
-    local savedCurrentStep = GLV.Settings:GetOption({"Guide", "Guides", guideId, "CurrentStep"}) or 0
+    local savedStepState = GLV.Ace.db.char.Guide.Guides[guideId].StepState or {}
+    local savedCurrentStep = GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep or 0
     
     if savedStepState and next(savedStepState) then
         for stepIndex, isCompleted in pairs(savedStepState) do
@@ -192,7 +192,7 @@ function GLV:LoadGuide(group, guideId)
     end
     
     if savedCurrentStep > 0 then
-        GLV.Settings:SetOption(savedCurrentStep, {"Guide", "Guides", guideId, "CurrentStep"})
+        GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep = savedCurrentStep
         if GLV.QuestTracker then
             GLV.QuestTracker:RefreshHighlighting()
         end
@@ -208,14 +208,14 @@ function GLV:LoadGuide(group, guideId)
                 end
             end
         end
-        GLV.Settings:SetOption(firstUnchecked, {"Guide", "Guides", guideId, "CurrentStep"})
+        GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep = firstUnchecked
         if GLV.QuestTracker then
             GLV.QuestTracker:RefreshHighlighting()
         end
     end
     
     if GLV.TomTomIntegration then
-        local currentStep = GLV.Settings:GetOption({"Guide", "Guides", guideId, "CurrentStep"}) or 0
+        local currentStep = GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep or 0
         
         if currentStep > 0 then
             local stepData = nil

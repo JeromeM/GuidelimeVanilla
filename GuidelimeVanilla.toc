@@ -11,7 +11,6 @@ libs\libs.xml
 db\initdb.xml
 
 Core.lua
-Settings.lua
 
 Helpers\Helpers.lua
 Helpers\DBTools.lua

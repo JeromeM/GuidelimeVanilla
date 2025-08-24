@@ -11,17 +11,43 @@ This is the main file.
 local _ADDON_NAME = "GuidelimeVanilla"
 local _VERSION = GetAddOnMetadata(_ADDON_NAME, "Version")
 
+local addon = LibStub("AceAddon-3.0"):NewAddon(_ADDON_NAME, "AceConsole-3.0", "AceEvent-3.0", "AceHook-3.0")
+
 local GLV = LibStub:NewLibrary(_ADDON_NAME, 1)
 if not GLV then return end
 
-local addon = AceLibrary("AceAddon-2.0"):new(
-    "AceConsole-2.0",
-    "AceEvent-2.0",
-    "AceDB-2.0",
-    "AceHook-2.1"
-)
-GLV.Addon = addon
+local defaults = {
+    char = {
+        Locale = "enUS",
+        TomTomEnabled = true,
+        UI = {
+            Locked = false,
+            Opacity = 1,
+            Scale = 1,
+            Layer = "HIGH",
+        },
+        CharInfo = {
+            Realm = "Unknown",
+            Name = "Unknown",
+            Faction = "Unknown",
+            Race = "Unknown",
+            Class = "Unknown",
+        },
+        Guide = {
+            CurrentGroup = "Unknown",
+            CurrentGuide = "Unknown",
+            CurrentStep = 0,
+            Guides = {},
+        },
+        QuestTracker = {
+            Accepted = {},
+            Completed = {},
+            AutoObjectiveTracking = true,
+        }
+    }
+}
 
+GLV.Ace = addon
 
 --[[ DEFAULT ACE2 EVENTS ]]--
 
@@ -32,14 +58,8 @@ function addon:OnInitialize()
     -- Set debug mode for testing
     GLV.Debug = true
     
-    -- Set GLV.Ace first so other modules can access it
-    GLV.Ace = self
-    
     -- Initialize settings
-    Settings = GLV.Settings
-    self:RegisterDB(_ADDON_NAME .. "DB")
-    self:RegisterDefaults("char", Settings:GetDefaults())
-    Settings:InitializeDB()
+    self.db = LibStub('AceDB-3.0'):New('GuidelimeVanillaDB', defaults)
     
     -- Set title after settings are initialized
     if GLV_MainTitle then
@@ -65,10 +85,10 @@ function addon:OnEnable()
     }
 
     for key, val in pairs(charInfo) do
-        Settings:SetOption(val, {"CharInfo", key})
+        self.db.char.CharInfo[key] = val
     end
 
-    Settings:SetOption(GetLocale(), "Locale")
+    self.db.char.Locale = GetLocale()
 
     -- Register events for proper timing
     self:RegisterEvent("VARIABLES_LOADED", function() self:OnVariablesLoaded() end)
@@ -93,8 +113,8 @@ function addon:OnEnable()
                 -- Force update the waypoint for the current step after a delay
                 self:ScheduleEvent(function()
                     if GLV.TomTomIntegration and GLV.CurrentGuide then
-                        local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
-                        local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+                        local currentGuideId = GLV.Settings.Guide.CurrentGuide or "Unknown"
+                        local currentStep = GLV.Settings.Guide.Guides[currentGuideId].CurrentStep or 0
                         
                         if currentStep > 0 and GLV.CurrentDisplaySteps and GLV.CurrentDisplaySteps[currentStep] then
                             local stepData = GLV.CurrentDisplaySteps[currentStep]
@@ -124,7 +144,7 @@ end
 
 -- Event handler for PLAYER_LOGIN
 function addon:OnPlayerLogin()
-    local defaultGroup = Settings:GetOption({"Guide", "CurrentGroup"}) or "Sage Guide"
+    local defaultGroup = self.db.char.Guide.CurrentGroup or "Sage Guide"
     
     local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
     if scrollChild and GLV and GLV.loadedGuides then
@@ -169,7 +189,7 @@ end
 function addon:LoadDefaultGuideForRace(race)
     if not race then return end
     
-    local savedGuideId = Settings:GetOption({"Guide", "CurrentGuide"})
+    local savedGuideId = self.db.char.Guide.CurrentGuide
     if savedGuideId and savedGuideId ~= "Unknown" then
         if GLV.loadedGuides and GLV.loadedGuides["Sage Guide"] then
             for guideId, guideData in pairs(GLV.loadedGuides["Sage Guide"]) do

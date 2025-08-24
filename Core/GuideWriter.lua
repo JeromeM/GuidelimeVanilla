@@ -158,7 +158,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     local totalHeight = 0
     -- Use the passed guideId instead of guide.id
     local currentGuideId = guideId or guide.id or "Unknown"
-    local stepState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepState"}) or {}
+    local stepState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState or {}
     local displaySteps = {}
     -- expose current guide to other modules (e.g., quest tracker)
     GLV.CurrentGuide = guide
@@ -227,7 +227,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     end
 
     -- Get the current step for this specific guide
-    local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+    local currentStep = GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep or 0
     GLV_MainLoadedGuideCounter:SetText("("..currentStep.."/"..safe_tablelen(displaySteps)..")")
 
     -- publish mapping and display metadata for other modules
@@ -345,7 +345,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                 if origIdx then
                     stepState[origIdx] = checked
                 end
-                GLV.Settings:SetOption(stepState, {"Guide","Guides", currentGuideId, "StepState"})
+                GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState = stepState
                 -- recompute activeStep as first unchecked
                 local totalSteps = table.getn(displaySteps)
                 local newActiveStep = 0
@@ -358,7 +358,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                         end
                     end
                 end
-                GLV.Settings:SetOption(newActiveStep, {"Guide", "Guides", currentGuideId, "CurrentStep"})
+                GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep = newActiveStep
                 GLV_MainLoadedGuideCounter:SetText("("..tostring(newActiveStep).."/"..tostring(totalSteps)..")")
                 -- visually highlight the new active step and reset others
                 for i2 = 1, totalSteps do
@@ -370,7 +370,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                 end
                 
                 -- Also update the global CurrentStep for other modules
-                GLV.Settings:SetOption(newActiveStep, {"Guide", "Guides", currentGuideId, "CurrentStep"})
+                GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep = newActiveStep
                 
                 -- Update TomTom waypoint for the new active step
                 if newActiveStep > 0 and GLV.TomTomIntegration then
@@ -416,7 +416,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     scrollChild:SetHeight(math.max(1, totalHeight))
     -- Use the saved CurrentStep for this guide, or calculate first unchecked if none saved
     local totalSteps = table.getn(displaySteps)
-    local activeStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+    local activeStep = GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep or 0
     
     -- If no saved step, find first unchecked
     if activeStep == 0 then
@@ -431,7 +431,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
         end
         -- Save the calculated step
         if activeStep > 0 then
-            GLV.Settings:SetOption(activeStep, {"Guide", "Guides", currentGuideId, "CurrentStep"})
+            GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep = activeStep
         end
     end
     

@@ -8,9 +8,8 @@ Description:
 Guide Parser.
 This file is used to extract every steps in the guide and format it
 ]]--
-local GLV = LibStub("GuidelimeVanilla")
-
-local Parser = {}
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
+local Parser = GLV.Ace:NewModule("Parser")
 
 local codes = {
     N   = "NAME",
@@ -39,6 +38,12 @@ local codes = {
 }
 local reverseCodes = {}
 for k, v in pairs(codes) do reverseCodes[v] = k end
+
+
+function Parser:OnInitialize()
+    self.settings = GLV.Ace.db.char or {}
+    self.cache = {}
+end
 
 
 --[[ CORE PARSING FUNCTIONS ]]--
@@ -363,8 +368,8 @@ end
 
 -- Filter lines based on player class and race
 function Parser:filterClassRace(line)
-    local playerClass = GLV.Settings:GetOption({"CharInfo", "Class"}) or ""
-    local playerRace = GLV.Settings:GetOption({"CharInfo", "Race"}) or ""
+    local playerClass = self.settings.CharInfo.Class or ""
+    local playerRace = self.settings.CharInfo.Race or ""
     
     local classRaceTags = {}
     for tag in string.gfind(line, "%[A ([^%]]+)%]") do
@@ -409,5 +414,3 @@ function Parser:replaceClassRace(content)
 
     end 
 end
-
-GLV.Parser = Parser

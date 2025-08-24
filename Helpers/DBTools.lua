@@ -15,8 +15,8 @@ local GLV = LibStub("GuidelimeVanilla")
 -- Get current locale for database queries
 local function getLocalizedKey()
     local loc = nil
-    if GLV and GLV.Settings and GLV.Settings.GetOption then
-        loc = GLV.Settings:GetOption("Locale")
+    if GLV and GLV.Ace and GLV.Ace.db and GLV.Ace.db.char and GLV.Ace.db.char.Locale then
+        loc = GLV.Ace.db.char.Locale
     end
     if not loc and GetLocale then
         loc = GetLocale()

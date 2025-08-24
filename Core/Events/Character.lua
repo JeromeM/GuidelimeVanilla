@@ -77,8 +77,8 @@ function CharacterTracker:CheckExperienceRequirements()
         return false
     end
     
-    local currentGuideId = GLV.Settings:GetOption({"Guide","CurrentGuide"}) or "Unknown"
-    local stepState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepState"}) or {}
+    local currentGuideId = GLV.Ace.db.char.Guide.CurrentGuide or "Unknown"
+    local stepState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState or {}
     local diCount = GLV.CurrentDisplayStepsCount or 0
     local diToOrig = GLV.CurrentDisplayToOriginal or {}
     
@@ -127,7 +127,7 @@ function CharacterTracker:CheckExperienceRequirements()
                     
                     if requirementMet then
                         stepState[origIdx] = true
-                        GLV.Settings:SetOption(stepState, {"Guide","Guides", currentGuideId, "StepState"})
+                        GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState = stepState
                         
                         if GLV.QuestTracker then
                             GLV.QuestTracker:UpdateStepNavigation(true, false)

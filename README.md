@@ -10,30 +10,35 @@ A comprehensive World of Warcraft Classic (1.12) addon that provides an enhanced
 - **Step Highlighting**: Active steps are highlighted with a distinctive color scheme
 - **Auto-scrolling**: Automatically scrolls to show the current active step
 - **Built-in Guides**: Includes Sage 1-60 Alliance leveling guides
+- **Multi-action Steps**: Supports steps with multiple quest actions (accept, complete, turnin)
 
 ### 🗺️ TomTom Integration
 - **Automatic Waypoints**: Creates TomTom waypoints for quest objectives
 - **Smart Coordinate Selection**: Automatically selects the most relevant coordinates based on step type
 - **Multi-part Quest Support**: Handles complex quests with multiple objectives
 - **Zone-aware Navigation**: Prioritizes coordinates within the quest's zone
+- **Target-based Waypoints**: Supports [TAR] tags for specific NPC targeting
 
 ### 🎯 Quest Tracking
 - **Automatic Progress**: Automatically checks off completed quest steps
 - **Quest State Persistence**: Saves progress between sessions
 - **Real-time Updates**: Updates automatically when quests are accepted or completed
 - **Quest Abandonment Handling**: Properly manages quest state when quests are abandoned
+- **XP Requirements**: Supports [XP] tags with level and percentage requirements
 
 ### 🎨 Enhanced User Interface
 - **Modern Design**: Clean, organized interface with consistent styling
 - **Icon Integration**: Clickable icons for special actions (e.g., Hearthstone usage)
 - **Responsive Layout**: Adapts to different content lengths and screen sizes
 - **Color-coded Steps**: Visual distinction between different step types
+- **Settings Interface**: Built-in settings page for customization
 
 ### 🔧 Technical Features
 - **Lua 5.0 Compatibility**: Fully compatible with WoW Classic 1.12
 - **Efficient Memory Management**: Optimized for performance
 - **Modular Architecture**: Clean separation of concerns
 - **Error Handling**: Robust error handling and fallbacks
+- **Ace2 Framework**: Built on the reliable Ace2 library
 
 ## 📦 Installation
 
@@ -77,9 +82,12 @@ A comprehensive World of Warcraft Classic (1.12) addon that provides an enhanced
 - **REPAIR**: Equipment repair steps
 - **VENDOR**: Vendor interaction steps
 - **HEARTHSTONE**: Hearthstone usage steps (clickable icon)
+- **BIND_HEARTHSTONE**: Automatic hearthstone binding steps
 
 ### Special Steps
 - **Multi-line Steps**: Steps with multiple objectives or instructions
+- **XP Requirements**: Steps with level or experience requirements
+- **Target Steps**: Steps with specific NPC targeting [TAR]
 
 ## ⚙️ Configuration
 
@@ -88,6 +96,7 @@ The addon automatically saves your progress and preferences:
 - **Step State**: Tracks which steps are completed
 - **Current Step**: Remembers your current position in guides
 - **Quest Progress**: Maintains quest acceptance and completion states
+- **Character Info**: Stores race, class, and faction information
 
 ### Customization
 - **Colors**: Step highlighting colors can be modified in the code
@@ -101,6 +110,8 @@ The addon automatically saves your progress and preferences:
 - **Guide Parser**: Parses guide text and extracts step information
 - **Guide Writer**: Renders the UI and manages user interactions
 - **Quest Tracker**: Monitors quest state changes
+- **Character Tracker**: Monitors XP and level changes
+- **Gossip Tracker**: Handles innkeeper interactions
 - **TomTom Integration**: Handles waypoint creation and management
 - **Database Tools**: Manages coordinate and quest data
 
@@ -112,14 +123,19 @@ The addon automatically saves your progress and preferences:
 ```
 GuideLimeVanilla/
 ├── Core.lua                 # Main addon initialization
-├── Settings.lua             # Settings and saved variables management
 ├── Core/                    # Core addon functionality
 │   ├── GuideLibrary.lua     # Guide loading and management
 │   ├── GuideParser.lua      # Guide text parsing
 │   ├── GuideWriter.lua      # UI rendering and management
 │   ├── TomTomIntegration.lua # TomTom waypoint integration
 │   └── Events/
+│       ├── Character.lua    # Character event handling (XP, level)
+│       ├── Gossip.lua       # Gossip event handling
 │       └── Quests.lua       # Quest event handling
+├── Frames/                  # UI frame definitions
+│   ├── Frames.lua          # Frame manipulation functions
+│   ├── MainFrame.xml       # Main UI frame
+│   └── SettingsFrame.xml   # Settings UI frame
 ├── Guides/                  # Guide files
 │   ├── Sage/                # Sage 1-60 Alliance guides
 │   │   ├── Sage_Guide_1-11_Dun_Morogh.lua
@@ -129,12 +145,14 @@ GuideLimeVanilla/
 ├── Helpers/
 │   ├── DBTools.lua          # Database query functions
 │   └── Helpers.lua          # Utility functions
+├── libs/                    # Ace2 library files
 └── DB/                      # Quest and coordinate databases
     ├── units.lua            # NPC coordinates
     ├── objects.lua          # Object coordinates
     ├── quests.lua           # Quest information
     ├── zones.lua            # Zone data
-    └── items.lua            # Item information
+    ├── items.lua            # Item information
+    └── spells.lua           # Spell information
 ```
 
 ## 📚 Adding New Guides
@@ -149,6 +167,9 @@ Guides use the standard Guidelime format:
 [QA 123 Quest Accept]
 [QC 123 Quest Complete]
 [QT 123 Quest Turn In]
+[XP 3] Level requirement
+[XP 3.5] Level with XP percentage
+[TAR 456] Target specific NPC
 [NX 11-13 Next Guide]
 ```
 

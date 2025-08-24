@@ -39,8 +39,8 @@ end
 
 -- Automatically use hearthstone if current step requires binding
 function GossipTracker:AutoUseHearthstone()
-    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
-    local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+    local currentGuideId = GLV.Ace.db.char.Guide.CurrentGuide or "Unknown"
+    local currentStep = GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep or 0
     
     if currentStep > 0 and GLV.CurrentGuide and GLV.CurrentGuide.steps then
         local stepData = GLV.CurrentGuide.steps[currentStep]

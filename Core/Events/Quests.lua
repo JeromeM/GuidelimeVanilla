@@ -14,7 +14,7 @@ GLV.QuestTracker = QuestTracker
 
 -- Initialize quest tracking, hook original functions and register event handlers
 function QuestTracker:Init()
-    local store = GLV.Settings:GetOption({"QuestTracker"}) or {}
+    local store = GLV.Ace.db.char.QuestTracker or {}
     self.store = store
 
     if GLV.Ace then
@@ -63,7 +63,7 @@ function QuestTracker:OnQuestLogUpdate()
         return
     end
     
-    local autoObjectiveTracking = GLV.Settings:GetOption({"QuestTracker", "AutoObjectiveTracking"}) or true
+    local autoObjectiveTracking = GLV.Ace.db.char.QuestTracker.AutoObjectiveTracking or true
     if autoObjectiveTracking == false then
         return
     end
@@ -134,7 +134,7 @@ function QuestTracker:TrackAccepted(id, title)
         return
     end
 
-    local store = self.store or GLV.Settings:GetOption({"QuestTracker"}) or {}
+    local store = self.store or GLV.Ace.db.char.QuestTracker or {}
     if not store.Accepted then store.Accepted = {} end
 
     if id and not store.Accepted[id] then
@@ -142,7 +142,7 @@ function QuestTracker:TrackAccepted(id, title)
             title = title,
             timestamp = time()
         }
-        GLV.Settings:SetOption(store, {"QuestTracker"})
+        GLV.Ace.db.char.QuestTracker = store
         
         self:HandleQuestAction(id, title, "ACCEPT")
     end
@@ -151,9 +151,9 @@ end
 -- Centralized function to handle quest actions (accept, complete, turnin)
 function QuestTracker:HandleQuestAction(questId, title, actionType)
     
-    local currentGuideId = GLV.Settings:GetOption({"Guide","CurrentGuide"}) or "Unknown"
-    local stepState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepState"}) or {}
-    local stepQuestState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepQuestState"}) or {}
+    local currentGuideId = GLV.Ace.db.char.Guide.CurrentGuide or "Unknown"
+    local stepState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState or {}
+    local stepQuestState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepQuestState or {}
     
     local stepMarked = false
     local multiActionStepFound = false
@@ -194,7 +194,7 @@ function QuestTracker:HandleQuestAction(questId, title, actionType)
                 end
                 
                 if hasMatchingAction then
-                    GLV.Settings:SetOption(stepQuestState, {"Guide","Guides", currentGuideId, "StepQuestState"})
+                    GLV.Ace.db.char.Guide.Guides[currentGuideId].StepQuestState = stepQuestState
                     
                     if allActionsDone then
                         stepState[origIdx] = true
@@ -208,7 +208,7 @@ function QuestTracker:HandleQuestAction(questId, title, actionType)
     end
     
     if stepMarked then
-        GLV.Settings:SetOption(stepState, {"Guide","Guides", currentGuideId, "StepState"})
+        GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState = stepState
     end
     
     self:UpdateStepNavigation(stepMarked, multiActionStepFound)
@@ -220,9 +220,9 @@ end
 
 -- Handle navigation between steps and update UI highlighting
 function QuestTracker:UpdateStepNavigation(stepMarked, multiActionStepFound)
-    local currentGuideId = GLV.Settings:GetOption({"Guide","CurrentGuide"}) or "Unknown"
-    local stepState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepState"}) or {}
-    local stepQuestState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepQuestState"}) or {}
+    local currentGuideId = GLV.Ace.db.char.Guide.CurrentGuide or "Unknown"
+    local stepState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState or {}
+    local stepQuestState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepQuestState or {}
     
     local diCount = GLV.CurrentDisplayStepsCount or 0
     local hasCb = GLV.CurrentDisplayHasCheckbox or {}
@@ -261,7 +261,7 @@ function QuestTracker:UpdateStepNavigation(stepMarked, multiActionStepFound)
         end
     end
     
-    GLV.Settings:SetOption(firstUnchecked, {"Guide", "Guides", currentGuideId, "CurrentStep"})
+    GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep = firstUnchecked
     
     if firstUnchecked > 0 then
         local scrollChild = GLV_MainScrollFrameScrollChild
@@ -315,8 +315,8 @@ end
 function QuestTracker:RefreshHighlighting()
     local scrollChild = getglobal("GLV_MainScrollFrameScrollChild")
     if scrollChild then
-        local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
-        local activeStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+        local currentGuideId = GLV.Ace.db.char.Guide.CurrentGuide or "Unknown"
+        local activeStep = GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep or 0
         if activeStep > 0 then
             applyHighlighting(scrollChild, activeStep)
         end
@@ -343,10 +343,10 @@ function HookQuestComplete()
     local id = GLV:GetQuestIDByName(title)
     local numId = tonumber(id)
     
-    local store = GLV.QuestTracker and GLV.QuestTracker.store or GLV.Settings:GetOption({"QuestTracker"}) or GLV.Settings:GetDefaults().char.QuestTracker
+    local store = GLV.QuestTracker and GLV.QuestTracker.store or GLV.Ace.db.char.QuestTracker or GLV.Ace.db.char.QuestTracker
     if store and store.Completed and numId then
         store.Completed[numId] = { title = title, timestamp = time() }
-        GLV.Settings:SetOption(store, {"QuestTracker"})
+        GLV.Ace.db.char.QuestTracker = store
     end
     
     if numId then
@@ -363,10 +363,10 @@ function HookQuestAbandon()
         local id = GLV:GetQuestIDByName(title)
         local numId = tonumber(id)
         if numId and GLV.QuestTracker then
-            local store = GLV.QuestTracker.store or GLV.Settings:GetOption({"QuestTracker"}) or {}
+            local store = GLV.QuestTracker.store or GLV.Ace.db.char.QuestTracker or {}
             if store.Accepted and store.Accepted[numId] then
                 store.Accepted[numId] = nil
-                GLV.Settings:SetOption(store, {"QuestTracker"})
+                GLV.Ace.db.char.QuestTracker = store
             end
         end
     end
