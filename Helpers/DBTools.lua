@@ -406,6 +406,17 @@ end
 
 --[[ ZONE RELATED FUNCTIONS ]]--
 
+-- Get current zone name
+function GLV:GetCurrentZoneName()
+    local zoneName = GetZoneText();
+    return zoneName
+end
+
+function GLV:GetCurrentZoneID()
+    local zoneName = GetZoneText();
+    return self:GetZoneIDByName(zoneName)
+end
+
 -- Get zone name by zone ID
 function GLV:GetZoneNameByID(zoneID)
     if not zoneID then return nil end
@@ -418,6 +429,23 @@ function GLV:GetZoneNameByID(zoneID)
     return VGDB["zones"][Localized][tonumber(zoneID)]
 end
 
+-- Get zone ID by name
+function GLV:GetZoneIDByName(zoneName)
+    if not zoneName then return nil end
+    
+    local Localized = getLocalizedKey()
+    if not VGDB or not VGDB["zones"] or not VGDB["zones"][Localized] then 
+        return nil
+    end
+
+    for id, name in pairs(VGDB["zones"][Localized]) do
+        if name == zoneName then
+            return id
+        end
+    end
+    
+    return nil
+end
 
 --[[ ITEM RELATED FUNCTIONS ]]--
 

@@ -9,6 +9,13 @@ Helpers and Compat functions
 ]]--
 local GLV = LibStub("GuidelimeVanilla")
 
+
+function GetPlayerFacing()
+	local p = Minimap
+	local m = ({p:GetChildren()})[9]
+	return m:GetFacing()
+end
+
 -- string.gmatch
 if not string.gmatch then
     string.gmatch = string.gfind
