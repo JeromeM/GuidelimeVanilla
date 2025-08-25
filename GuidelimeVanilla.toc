@@ -5,7 +5,6 @@
 ## Version: 0.1.0
 ## DefaultState: enabled
 ## SavedVariablesPerCharacter: GuidelimeVanillaDB
-## OptionalDeps: Ace2, TomTom
 
 libs\libs.xml
 db\initdb.xml
