@@ -12,57 +12,66 @@ GLV:RegisterGuide(TEXT GUIDE, "Group Name")
 ]]--
 local _G = _G or getfenv()
 local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
-local Library = GLV:NewModule("Library") 
+
+local prototype = {
+    OnEnable = function(self)
+        self.settings = GLV.db.char or {}
+    end
+}
+local Library = GLV:NewModule("Library", prototype)
 
 Library.loadedGuides = Library.loadedGuides or {}
 
 
 --[[ GUIDE REGISTRATION FUNCTIONS ]]--
 
--- Register a new guide with the system
-function GLV:RegisterGuide(guideText, group)
-    local guide = self.Parser:parseGuide(guideText, group)
-    if not guide then
-        return
-    end
+-- Activate all registered guides (parse and process them)
+function Library:ActivateGuides()
+    DEFAULT_CHAT_FRAME:AddMessage("ActivateGuides")
+    local parser = GLV:GetModule("Parser")
     
-    local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
-    if not scrollChild then
-    end
-
-    if not self.loadedGuides[group] then
-        self.loadedGuides[group] = {}
-    end
-
-    if guide.name ~= nil and guide.id ~= nil then
-        if not self.loadedGuides[group][guide.id] then
-            self.loadedGuides[group][guide.id] = {
-                text = guideText,
-                name = guide.name,
-                minLevel = guide.minLevel,
-                maxLevel = guide.maxLevel,
-                description = guide.description
-            }
-            
-            GLV.db.char.Guide.CurrentGroup = group
-            
-            if scrollChild then
-                Library:PopulateDropdown(group)
+    -- Clear existing loaded guides
+    self.loadedGuides = {}
+    
+    -- Process each raw guide
+    for group, guides in pairs(GLV.rawGuides) do
+        if not self.loadedGuides[group] then
+            self.loadedGuides[group] = {}
+        end
+        
+        for guideId, rawGuide in pairs(guides) do
+            -- Parse the guide
+            local guide = parser:parseGuide(rawGuide.text, group)
+            if guide and guide.name and guide.id then
+                -- Store the processed guide
+                self.loadedGuides[group][guide.id] = {
+                    text = rawGuide.text,
+                    name = guide.name,
+                    minLevel = guide.minLevel,
+                    maxLevel = guide.maxLevel,
+                    description = guide.description
+                }
             end
         end
     end
+    
+    -- Update global reference for compatibility
+    GLV.loadedGuides = self.loadedGuides
+    
+    -- Populate dropdown for the current group
+    local currentGroup = GLV.db.char.Guide.CurrentGroup
+    if currentGroup and self.loadedGuides[currentGroup] then
+        self:PopulateDropdown(currentGroup)
+    end
 end
 
-function Library:OnInitialize()
-    self.settings = GLV.db.char or {}
-end
 
 --[[ DROPDOWN MANAGEMENT FUNCTIONS ]]--
 
 -- Function factory to create the dropdown callback function
 local function createDropdownCallback(group, guideId, guideData, displayName, dropdown)
     return function()
-        Lbrary:LoadGuide(group, guideId)
+        Library:LoadGuide(group, guideId)
         UIDropDownMenu_SetSelectedValue(dropdown, guideId)
         UIDropDownMenu_SetText(displayName, dropdown)
     end
@@ -168,6 +177,7 @@ function Library:LoadGuide(group, guideId)
     
     GLV.CurrentGuide = guide
     
+    DEFAULT_CHAT_FRAME:AddMessage("CreateGuideSteps: " .. guideId)
     writer:CreateGuideSteps(scrollChild, guide, guideId)
     
     local scrollFrame = _G["GLV_MainScrollFrame"]

@@ -1,4 +1,4 @@
-GLV = LibStub("GuidelimeVanilla")
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
 GLV:RegisterGuide(
 [[
 [N 11-19 Darkshore]

@@ -40,7 +40,10 @@ local reverseCodes = {}
 for k, v in pairs(codes) do reverseCodes[v] = k end
 
 
+--[[ INITIALIZATION ]]--
+
 function Parser:OnInitialize()
+    DEFAULT_CHAT_FRAME:AddMessage("Parser initialized")
     self.settings = GLV.db.char or {}
 end
 
@@ -335,6 +338,7 @@ end
 
 -- Get quest information including coordinates
 function Parser:GetQuestInfo(content)
+    local dbTools = GLV:GetModule("DBTools")
     local questID, _, questPart = string.match(content, "(%d+)(,?)(%d?)")
     local questName = dbTools:GetQuestNameByID(questID)
     
@@ -347,6 +351,7 @@ end
 
 -- Get spell name for learn tags
 function Parser:Learn(content)
+    local dbTools = GLV:GetModule("DBTools")
     -- SP XXXX
     local subcode, id = string.match(content, "(SP)%s(%d+)")
     id = string.gsub(id, "%s+", "")
@@ -359,6 +364,7 @@ end
 
 -- Get item name for collect item tags
 function Parser:CollectItem(content)
+    local dbTools = GLV:GetModule("DBTools")
     local itemID, itemCount = string.match(content, "(%d+)(,?)(%d?)")
     local itemName = dbTools:GetItemNameById(itemID)
     return itemName

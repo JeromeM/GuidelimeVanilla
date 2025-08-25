@@ -12,7 +12,7 @@ local _G = _G or getfenv()
 local _ADDON_NAME = "GuidelimeVanilla"
 local _VERSION = GetAddOnMetadata(_ADDON_NAME, "Version")
 
-local GLV = LibStub("AceAddon-3.0"):NewAddon(_ADDON_NAME, "AceConsole-3.0", "AceEvent-3.0", "AceHook-3.0")
+local GLV = LibStub("AceAddon-3.0"):NewAddon(_ADDON_NAME, "AceConsole-3.0", "AceEvent-3.0", "AceTimer-3.0")
 
 local defaults = {
     char = {
@@ -44,7 +44,10 @@ local defaults = {
         }
     }
 }
+-- Initialize settings
+GLV.db = LibStub('AceDB-3.0'):New('GuidelimeVanillaDB', defaults)
 
+GLV.rawGuides = {}
 
 --[[ DEFAULT ACE3 EVENTS ]]--
 
@@ -55,15 +58,15 @@ function GLV:OnInitialize()
     -- Set debug mode for testing
     GLV.Debug = true
     
-    -- Initialize settings
-    self.db = LibStub('AceDB-3.0'):New('GuidelimeVanillaDB', defaults)
-    
     -- Set title after settings are initialized
     local mainTitle = _G["GLV_MainTitle"]
     if mainTitle then
         mainTitle:SetText(string.format("|cFF5B5FA4GuideLime|r |cFFA83E25Vanilla|r    |cFFFFFFFFv%s|r", _VERSION))
     end
 
+    -- Register events for proper timing
+    self:RegisterEvent("VARIABLES_LOADED", "OnVariablesLoaded")
+    self:RegisterEvent("PLAYER_LOGIN", "OnPlayerLogin")
 end
 
 -- Enable addon and initialize all modules
@@ -88,15 +91,11 @@ function GLV:OnEnable()
         self.db.char.CharInfo[key] = val
     end
 
-    self.db.char.Locale = GetLocale()
+    self.db.char.Locale = GetLocale()  
 
-    -- Register events for proper timing
-    self:RegisterEvent("VARIABLES_LOADED", "OnVariablesLoaded")
-    self:RegisterEvent("PLAYER_LOGIN", "OnPlayerLogin")
-       
     -- Wait a bit for TomTom to load, then initialize
     self:ScheduleTimer(function()
-        navigation:Init()
+        -- navigation:Init()
         
         -- Force update the waypoint for the current step after a delay
         self:ScheduleTimer(function()
@@ -114,13 +113,31 @@ function GLV:OnEnable()
 end
 
 
+-- Register a new guide with the system (only stores the raw data)
+function GLV:RegisterGuide(guideText, group)
+    if not self.rawGuides[group] then
+        self.rawGuides[group] = {}
+    end
+    
+    -- Generate a unique ID for the guide
+    local guideId = "guide_" .. math.random(1000,9999)
+    
+    -- Store only the raw guide data
+    self.rawGuides[group][guideId] = {
+        text = guideText,
+        group = group
+    }
+end
+
+
 --[[ EVENTS ]]--
 
 -- Event handler for VARIABLES_LOADED
 function GLV:OnVariablesLoaded()
-    if GLV.loadedGuides then
+    local library = self:GetModule("Library")
+    if library and library.loadedGuides then
         local totalGuides = 0
-        for group, guides in pairs(GLV.loadedGuides) do
+        for group, guides in pairs(library.loadedGuides) do
             if guides then
                 for _ in pairs(guides) do totalGuides = totalGuides + 1 end
             end
@@ -131,40 +148,23 @@ end
 -- Event handler for PLAYER_LOGIN
 function GLV:OnPlayerLogin()
     local library = self:GetModule("Library")
+
+    DumpTable(self.rawGuides)
+    
+    -- Activate all registered guides first
+    library:ActivateGuides()
+    
     local defaultGroup = self.db.char.Guide.CurrentGroup or "Sage Guide"
     
     local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
-    if scrollChild and GLV.loadedGuides then
-        for group, guides in pairs(GLV.loadedGuides) do
+    if scrollChild and library.loadedGuides then
+        for group, guides in pairs(library.loadedGuides) do
             if guides and next(guides) then
                 library:PopulateDropdown(group)
                 
                 local _, race = UnitRace("player")
                 self:LoadDefaultGuideForRace(race)
                 break
-            end
-        end
-    else
-        self:RegisterEvent("ADDON_LOADED", "OnAddonLoaded")
-    end
-end
-
--- Event handler for ADDON_LOADED (one-time use)
-function GLV:OnAddonLoaded(_, addonName)
-    local library = self:GetModule("Library")
-    if addonName == _ADDON_NAME then
-        self:UnregisterEvent("ADDON_LOADED")
-        
-        local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
-        if scrollChild and GLV.loadedGuides then
-            for group, guides in pairs(GLV.loadedGuides) do
-                if guides and next(guides) then
-                    library:PopulateDropdown(group)
-                    
-                    local _, race = UnitRace("player")
-                    self:LoadDefaultGuideForRace(race)
-                    break
-                end
             end
         end
     end
@@ -180,8 +180,8 @@ function GLV:LoadDefaultGuideForRace(race)
     local library = self:GetModule("Library")
     local savedGuideId = self.db.char.Guide.CurrentGuide
     if savedGuideId and savedGuideId ~= "Unknown" then
-        if GLV.loadedGuides and GLV.loadedGuides["Sage Guide"] then
-            for guideId, guideData in pairs(GLV.loadedGuides["Sage Guide"]) do
+        if library.loadedGuides and library.loadedGuides["Sage Guide"] then
+            for guideId, guideData in pairs(library.loadedGuides["Sage Guide"]) do
                 if guideId == savedGuideId then
                     library:LoadGuide("Sage Guide", guideId)
                     return
@@ -202,8 +202,8 @@ function GLV:LoadDefaultGuideForRace(race)
         return
     end
     
-    if GLV.loadedGuides and GLV.loadedGuides["Sage Guide"] then
-        for guideId, guideData in pairs(GLV.loadedGuides["Sage Guide"]) do
+    if library.loadedGuides and library.loadedGuides["Sage Guide"] then
+        for guideId, guideData in pairs(library.loadedGuides["Sage Guide"]) do
             if guideData.name == defaultGuideName then
                 library:LoadGuide("Sage Guide", guideId)
                 break

@@ -41,6 +41,7 @@ local CONFIG = {
 --[[ INITIALIZATION FUNCTIONS ]]--
 
 function Writer:OnInitialize()
+    DEFAULT_CHAT_FRAME:AddMessage("Writer initialized")
     self.settings = GLV.db.char or {}
 end
 

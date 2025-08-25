@@ -9,13 +9,13 @@ Character events tracker (XP, Level, etc.)
 ]]--
 
 local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
-local CharacterTracker = GLV:NewModule("CharacterTracker")
+local CharacterTracker = GLV:NewModule("CharacterTracker", "AceEvent-3.0")
 
 
 --[[ INITIALIZATION FUNCTIONS ]]--
 
 -- Initialize character tracking and register event handlers
-function CharacterTracker:OnInitialize()
+function CharacterTracker:OnEnable()
     self.settings = GLV.db.char or {}
     
     self:RegisterEvent("PLAYER_XP_UPDATE", "OnPlayerXPUpdate")

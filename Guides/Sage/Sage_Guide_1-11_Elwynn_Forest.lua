@@ -1,4 +1,4 @@
-GLV = LibStub("GuidelimeVanilla")
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
 GLV:RegisterGuide(
 [[
 [N 1-11 Elwynn Forest]

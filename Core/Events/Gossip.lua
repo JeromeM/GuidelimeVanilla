@@ -8,13 +8,13 @@ Description:
 Gossip Event Handler. Handle gossip events like innkeeper conversations.
 ]]--
 local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
-local GossipTracker = GLV:NewModule("GossipTracker")
+local GossipTracker = GLV:NewModule("GossipTracker", "AceEvent-3.0")
 
 
 --[[ INITIALIZATION FUNCTIONS ]]--
 
 -- Initialize gossip tracking and register event handlers
-function GossipTracker:OnInitialize()
+function GossipTracker:OnEnable()
     self.settings = GLV.db.char or {}
 
     self:RegisterEvent("GOSSIP_SHOW", "OnGossipShow")

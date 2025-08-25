@@ -9,19 +9,19 @@ Quest Tracker. Track when quests are accepted / completed
 ]]--
 local _G = _G or getfenv()
 local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
-local QuestTracker = GLV:NewModule("QuestTracker")
+local QuestTracker = GLV:NewModule("QuestTracker", "AceHook-3.0", "AceEvent-3.0")
 
 
 --[[ INITIALIZATION FUNCTIONS ]]--
 
 -- Initialize quest tracking, hook original functions and register event handlers
---function QuestTracker:Init()
-function QuestTracker:OnInitialize()
+function QuestTracker:OnEnable()
+    DEFAULT_CHAT_FRAME:AddMessage("QuestTracker enabled")
     self.settings = GLV.db.char or {}
 
-    self:Hook("QuestDetailAcceptButton_OnClick", "HookQuestAccept")
-    self:Hook("QuestRewardCompleteButton_OnClick", "HookQuestComplete")
-    self:Hook("AbandonQuest", "HookQuestAbandon")
+    self:Hook("QuestDetailAcceptButton_OnClick", function() HookQuestAccept() end)
+    self:Hook("QuestRewardCompleteButton_OnClick", function() HookQuestComplete() end)
+    self:Hook("AbandonQuest", function() HookQuestAbandon() end)
 
     self:RegisterEvent("QUEST_LOG_UPDATE", "OnQuestLogUpdate")
     

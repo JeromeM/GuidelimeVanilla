@@ -18,8 +18,8 @@ local currentWaypoint = nil
 --[[ INITIALIZATION FUNCTIONS ]]--
 
 -- Initialize integration
---function Navigation:Init()
 function Navigation:OnInitialize()
+    DEFAULT_CHAT_FRAME:AddMessage("Navigation initialized")
     self.settings = GLV.db.char or {}
 
     if self:IsAvailable() then
