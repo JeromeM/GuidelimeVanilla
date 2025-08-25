@@ -8,19 +8,20 @@ Description:
 Character events tracker (XP, Level, etc.)
 ]]--
 
-local GLV = LibStub("GuidelimeVanilla")
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
+local CharacterTracker = GLV:NewModule("CharacterTracker")
 
-local CharacterTracker = {}
-GLV.CharacterTracker = CharacterTracker
+
+--[[ INITIALIZATION FUNCTIONS ]]--
 
 -- Initialize character tracking and register event handlers
-function CharacterTracker:Init()
-    if GLV.Ace then
-        GLV.Ace:RegisterEvent("PLAYER_XP_UPDATE", function() self:OnPlayerXPUpdate() end)
-        GLV.Ace:RegisterEvent("PLAYER_LEVEL_UP", function() self:OnPlayerXPUpdate() end)
-        GLV.Ace:RegisterEvent("LEARNED_SPELL_IN_TAB", function() self:OnSpellLearned() end)
-    end
+function CharacterTracker:OnInitialize()
+    self.settings = GLV.db.char or {}
     
+    self:RegisterEvent("PLAYER_XP_UPDATE", "OnPlayerXPUpdate")
+    self:RegisterEvent("PLAYER_LEVEL_UP", "OnPlayerXPUpdate")
+    self:RegisterEvent("LEARNED_SPELL_IN_TAB", "OnSpellLearned")
+
     self.previousPlayerLevel = UnitLevel("player")
     self.previousPlayerXP = UnitXP("player")
 end
@@ -76,9 +77,11 @@ function CharacterTracker:CheckExperienceRequirements()
     if not GLV.CurrentDisplaySteps then
         return false
     end
+
+    local questTracker = GLV:GetModule("QuestTracker")
     
-    local currentGuideId = GLV.Ace.db.char.Guide.CurrentGuide or "Unknown"
-    local stepState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState or {}
+    local currentGuideId = self.settings.Guide.CurrentGuide or "Unknown"
+    local stepState = self.settings.Guide.Guides[currentGuideId].StepState or {}
     local diCount = GLV.CurrentDisplayStepsCount or 0
     local diToOrig = GLV.CurrentDisplayToOriginal or {}
     
@@ -127,11 +130,9 @@ function CharacterTracker:CheckExperienceRequirements()
                     
                     if requirementMet then
                         stepState[origIdx] = true
-                        GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState = stepState
+                        self.settings.Guide.Guides[currentGuideId].StepState = stepState
                         
-                        if GLV.QuestTracker then
-                            GLV.QuestTracker:UpdateStepNavigation(true, false)
-                        end
+                        questTracker:UpdateStepNavigation(true, false)
                         stepCompleted = true
                         break
                     end
@@ -155,23 +156,19 @@ function CharacterTracker:ManageXPTimer(hasXPRequirements)
     if hasXPRequirements then
         if self.xpCheckTimer then
             if not self.xpCheckTimer then
-                if GLV.Ace then
-                    if GLV.Debug then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime XP]|r Starting XP check timer")
-                    end
-                    self.xpCheckTimer = GLV.Ace:ScheduleRepeatingEvent("XPCheckUpdate", function() self:CheckForXPChanges() end, 2)
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime XP]|r Starting XP check timer")
                 end
+                self.xpCheckTimer = GLV:ScheduleRepeatingEvent("XPCheckUpdate", function() self:CheckForXPChanges() end, 2)
             end
         end
     else
         if self.xpCheckTimer then
             if not self.xpCheckTimer then
-                if GLV.Ace then
-                    if GLV.Debug then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime XP]|r Stopping XP check timer")
-                    end
-                    self.xpCheckTimer = GLV.Ace:CancelScheduledEvent("XPCheckUpdate")
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime XP]|r Stopping XP check timer")
                 end
+                self.xpCheckTimer = GLV:CancelScheduledEvent("XPCheckUpdate")
             end
         end
     end

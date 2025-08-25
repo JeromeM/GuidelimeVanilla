@@ -16,7 +16,7 @@ Helpers\Helpers.lua
 Helpers\DBTools.lua
 Helpers\Colors.lua
 
-Core\TomTomIntegration.lua
+Core\GuideNavigation.lua
 Core\GuideParser.lua
 Core\GuideLibrary.lua
 Core\GuideWriter.lua

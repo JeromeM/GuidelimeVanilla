@@ -10,9 +10,11 @@ A Guide is another Addon, and every lua (guides) file must begins with :
 local GLV = LibStub("GuidelimeVanilla")
 GLV:RegisterGuide(TEXT GUIDE, "Group Name")
 ]]--
-local GLV = LibStub("GuidelimeVanilla")
+local _G = _G or getfenv()
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
+local Library = GLV:NewModule("Library") 
 
-GLV.loadedGuides = GLV.loadedGuides or {}
+Library.loadedGuides = Library.loadedGuides or {}
 
 
 --[[ GUIDE REGISTRATION FUNCTIONS ]]--
@@ -42,29 +44,32 @@ function GLV:RegisterGuide(guideText, group)
                 description = guide.description
             }
             
-            GLV.Ace.db.char.Guide.CurrentGroup = group
+            GLV.db.char.Guide.CurrentGroup = group
             
             if scrollChild then
-                self:PopulateDropdown(group)
+                Library:PopulateDropdown(group)
             end
         end
     end
 end
 
+function Library:OnInitialize()
+    self.settings = GLV.db.char or {}
+end
 
 --[[ DROPDOWN MANAGEMENT FUNCTIONS ]]--
 
 -- Function factory to create the dropdown callback function
 local function createDropdownCallback(group, guideId, guideData, displayName, dropdown)
     return function()
-        GLV:LoadGuide(group, guideId)
+        Lbrary:LoadGuide(group, guideId)
         UIDropDownMenu_SetSelectedValue(dropdown, guideId)
         UIDropDownMenu_SetText(displayName, dropdown)
     end
 end
 
 -- Populate the guide selection dropdown with all available guides
-function GLV:PopulateDropdown(group)
+function Library:PopulateDropdown(group)
     local dropdown = _G["GLV_MainDropdown"]
     if not dropdown then
         return
@@ -135,17 +140,21 @@ end
 --[[ GUIDE LOADING FUNCTIONS ]]--
 
 -- Load and display a specific guide
-function GLV:LoadGuide(group, guideId)
-    if GLV.TomTomIntegration then
-        GLV.TomTomIntegration:ClearAllWaypoints()
-    end
+function Library:LoadGuide(group, guideId)
+    local parser = GLV:GetModule("Parser")
+    local writer = GLV:GetModule("Writer")
+    local navigation = GLV:GetModule("Navigation")
+    local characterTracker = GLV:GetModule("CharacterTracker")
+    local questTracker = GLV:GetModule("QuestTracker")
+
+    navigation:ClearAllWaypoints()
     
     local guideData = GLV.loadedGuides[group] and GLV.loadedGuides[group][guideId]
     if not guideData then
         return
     end
     
-    local guide = GLV.Parser:parseGuide(guideData.text, group)
+    local guide = parser:parseGuide(guideData.text, group)
     if not guide then
         return
     end
@@ -155,11 +164,11 @@ function GLV:LoadGuide(group, guideId)
         return
     end
     
-    GLV.Ace.db.char.Guide.CurrentGuide = guideId
+    self.settings.Guide.CurrentGuide = guideId
     
     GLV.CurrentGuide = guide
     
-    GLV:CreateGuideSteps(scrollChild, guide, guideId)
+    writer:CreateGuideSteps(scrollChild, guide, guideId)
     
     local scrollFrame = _G["GLV_MainScrollFrame"]
     if scrollFrame then
@@ -167,8 +176,8 @@ function GLV:LoadGuide(group, guideId)
         scrollFrame:SetVerticalScroll(0)
     end
     
-    local savedStepState = GLV.Ace.db.char.Guide.Guides[guideId].StepState or {}
-    local savedCurrentStep = GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep or 0
+    local savedStepState = self.settings.Guide.Guides[guideId].StepState or {} 
+    local savedCurrentStep = self.settings.Guide.Guides[guideId].CurrentStep or 0
     
     if savedStepState and next(savedStepState) then
         for stepIndex, isCompleted in pairs(savedStepState) do
@@ -192,10 +201,8 @@ function GLV:LoadGuide(group, guideId)
     end
     
     if savedCurrentStep > 0 then
-        GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep = savedCurrentStep
-        if GLV.QuestTracker then
-            GLV.QuestTracker:RefreshHighlighting()
-        end
+        self.settings.Guide.Guides[guideId].CurrentStep = savedCurrentStep
+        questTracker:RefreshHighlighting()
     else
         local firstUnchecked = 1
         for i = 1, table.getn(guide.steps) do
@@ -208,41 +215,33 @@ function GLV:LoadGuide(group, guideId)
                 end
             end
         end
-        GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep = firstUnchecked
-        if GLV.QuestTracker then
-            GLV.QuestTracker:RefreshHighlighting()
-        end
+        self.settings.Guide.Guides[guideId].CurrentStep = firstUnchecked
+        questTracker:RefreshHighlighting()
     end
     
-    if GLV.TomTomIntegration then
-        local currentStep = GLV.Ace.db.char.Guide.Guides[guideId].CurrentStep or 0
+    local currentStep = self.settings.Guide.Guides[guideId].CurrentStep or 0
+    
+    if currentStep > 0 then
+        local stepData = nil
         
-        if currentStep > 0 then
-            local stepData = nil
-            
-            if GLV.CurrentDisplaySteps and GLV.CurrentDisplaySteps[currentStep] then
-                stepData = GLV.CurrentDisplaySteps[currentStep]
-            elseif guide and guide.steps and guide.steps[currentStep] then
-                stepData = guide.steps[currentStep]
-            end
-            
-            if stepData and TomTom and TomTom.AddMFWaypoint then
-                local success, err = pcall(function()
-                    GLV.TomTomIntegration:OnStepChanged(stepData)
-                end)
-                if not success then
-                end
+        if GLV.CurrentDisplaySteps and GLV.CurrentDisplaySteps[currentStep] then
+            stepData = GLV.CurrentDisplaySteps[currentStep]
+        elseif guide and guide.steps and guide.steps[currentStep] then
+            stepData = guide.steps[currentStep]
+        end
+        
+        if stepData and TomTom and TomTom.AddMFWaypoint then
+            local success, err = pcall(function()
+                navigation:OnStepChanged(stepData)
+            end)
+            if not success then
             end
         end
     end
     
-    if GLV.QuestTracker then
-        GLV.QuestTracker:RefreshHighlighting()
-    end
+    questTracker:RefreshHighlighting()
     
-    if GLV.CharacterTracker then
-        GLV.CharacterTracker:CheckCurrentStepXPRequirements()
-    end
+    characterTracker:CheckCurrentStepXPRequirements()
     
     local dropdown = _G["GLV_MainDropdown"]
     if dropdown then
@@ -262,7 +261,7 @@ end
 --[[ DEBUG FUNCTIONS ]]--
 
 -- Debug command to display loaded guides information
-function GLV:DebugGuides()
+function Library:DebugGuides()
     if not self.loadedGuides then
         return
     end

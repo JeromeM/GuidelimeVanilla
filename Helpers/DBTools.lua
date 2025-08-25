@@ -7,16 +7,16 @@ Version: 0.1
 Description:
 DB Query functions
 ]]--
-local GLV = LibStub("GuidelimeVanilla")
-
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
+local DBTools = GLV:NewModule("DBTools")
 
 --[[ LOCAL FUNCTIONS ]]--
 
 -- Get current locale for database queries
 local function getLocalizedKey()
     local loc = nil
-    if GLV and GLV.Ace and GLV.Ace.db and GLV.Ace.db.char and GLV.Ace.db.char.Locale then
-        loc = GLV.Ace.db.char.Locale
+    if GLV and GLV.db and GLV.db.char and GLV.db.char.Locale then
+        loc = GLV.db.char.Locale
     end
     if not loc and GetLocale then
         loc = GetLocale()
@@ -29,7 +29,7 @@ end
 --[[ UNIT RELATED FUNCTIONS ]]--
 
 -- Get NPC name by unit ID
-function GLV:getTargetName(id)
+function DBTools:getTargetName(id)
     npcName = "UNKNOWN_NAME"
     local Localized = getLocalizedKey()
     if not VGDB or not VGDB["units"] or not VGDB["units"][Localized] then 
@@ -41,7 +41,7 @@ function GLV:getTargetName(id)
 end
 
 -- Get NPC coordinates by unit ID
-function GLV:GetNPCCoordinates(npcID)
+function DBTools:GetNPCCoordinates(npcID)
     if not npcID then return nil end
     
     local npcData = VGDB and VGDB["units"] and VGDB["units"]["data"] and VGDB["units"]["data"][tonumber(npcID)]
@@ -64,7 +64,7 @@ end
 --[[ SPELL RELATED FUNCTIONS ]]--
 
 -- Get spell name by spell ID
-function GLV:getSpellName(id)
+function DBTools:getSpellName(id)
     if not VGDB or not VGDB.spells then
         return "UNKNOWN_SPELL"
     end
@@ -83,7 +83,7 @@ end
 --[[ QUEST RELATED FUNCTIONS ]]--
 
 -- Get quest ID by quest name
-function GLV:GetQuestIDByName(name)
+function DBTools:GetQuestIDByName(name)
     local Localized = getLocalizedKey()
     if not VGDB or not VGDB.quests or not VGDB.quests[Localized] then
         return nil
@@ -99,7 +99,7 @@ function GLV:GetQuestIDByName(name)
 end
 
 -- Get quest name by quest ID
-function GLV:GetQuestNameByID(id)
+function DBTools:GetQuestNameByID(id)
     local Localized = getLocalizedKey()
     if not VGDB or not VGDB.quests or not VGDB.quests[Localized] then
         return "UNKNOWN_QUEST"
@@ -119,7 +119,7 @@ function GLV:GetQuestNameByID(id)
 end
 
 -- Get all coordinates for a quest (start, end, objectives)
-function GLV:GetQuestAllCoords(id, questPart)
+function DBTools:GetQuestAllCoords(id, questPart)
     if not id then 
         return nil 
     end
@@ -407,7 +407,7 @@ end
 --[[ ZONE RELATED FUNCTIONS ]]--
 
 -- Get zone name by zone ID
-function GLV:GetZoneNameByID(zoneID)
+function DBTools:GetZoneNameByID(zoneID)
     if not zoneID then return nil end
     
     local Localized = getLocalizedKey()
@@ -422,7 +422,7 @@ end
 --[[ ITEM RELATED FUNCTIONS ]]--
 
 -- Get item name by item ID
-function GLV:GetItemNameById(itemID)
+function DBTools:GetItemNameById(itemID)
     if not itemID then return "UNKNOWN_ITEM" end
     
     local Localized = getLocalizedKey()
@@ -435,7 +435,7 @@ function GLV:GetItemNameById(itemID)
 end
 
 -- Get item coordinates by item ID
-function GLV:GetItemCoordinates(itemID)
+    function DBTools:GetItemCoordinates(itemID)
     if not itemID then return nil end
     
     local itemData = VGDB and VGDB["items"] and VGDB["items"]["data"] and VGDB["items"]["data"][tonumber(itemID)]

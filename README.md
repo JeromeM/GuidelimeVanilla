@@ -127,7 +127,7 @@ GuideLimeVanilla/
 │   ├── GuideLibrary.lua     # Guide loading and management
 │   ├── GuideParser.lua      # Guide text parsing
 │   ├── GuideWriter.lua      # UI rendering and management
-│   ├── TomTomIntegration.lua # TomTom waypoint integration
+│   ├── GuideNavigation.lua # TomTom waypoint integration
 │   └── Events/
 │       ├── Character.lua    # Character event handling (XP, level)
 │       ├── Gossip.lua       # Gossip event handling
@@ -192,7 +192,7 @@ Guides use the standard Guidelime format:
 
 ### Debug Commands
 - `/reload`: Reloads the UI and addon state
-- `/run GLV:DebugGuides()`: Shows debug information about loaded guides
+- `/run Library:DebugGuides()`: Shows debug information about loaded guides
 - Check chat for any error messages or debug information
 
 ## 🤝 Contributing

@@ -7,17 +7,17 @@ Version: 0.1
 Description:
 Gossip Event Handler. Handle gossip events like innkeeper conversations.
 ]]--
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
+local GossipTracker = GLV:NewModule("GossipTracker")
 
-local GLV = LibStub("GuidelimeVanilla")
 
-local GossipTracker = {}
-GLV.GossipTracker = GossipTracker
+--[[ INITIALIZATION FUNCTIONS ]]--
 
 -- Initialize gossip tracking and register event handlers
-function GossipTracker:Init()
-    if GLV.Ace then
-        GLV.Ace:RegisterEvent("GOSSIP_SHOW", function() self:OnGossipShow() end)
-    end
+function GossipTracker:OnInitialize()
+    self.settings = GLV.db.char or {}
+
+    self:RegisterEvent("GOSSIP_SHOW", "OnGossipShow")
 end
 
 
@@ -39,8 +39,8 @@ end
 
 -- Automatically use hearthstone if current step requires binding
 function GossipTracker:AutoUseHearthstone()
-    local currentGuideId = GLV.Ace.db.char.Guide.CurrentGuide or "Unknown"
-    local currentStep = GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep or 0
+    local currentGuideId = self.settings.Guide.CurrentGuide or "Unknown"
+    local currentStep = self.settings.Guide.Guides[currentGuideId].CurrentStep or 0
     
     if currentStep > 0 and GLV.CurrentGuide and GLV.CurrentGuide.steps then
         local stepData = GLV.CurrentGuide.steps[currentStep]

@@ -11,22 +11,25 @@ multiple Frames with the same dimensions but not the same content.
 When we click on a menu "button", it will hide all the Frames except
 the one linked to this "button".
 ]]--
+local _G = _G or getfenv()
 
 -- Toggle settings frame visibility
 function GLV_ToggleSettings()
-    if GLV_Settings:IsVisible() then
-            GLV_Settings:Hide()
+    local settingsFrame = _G["GLV_Settings"]
+    if not settingsFrame then return end
+    if settingsFrame:IsVisible() then
+        settingsFrame:Hide()
     else
-            GLV_Settings:Show()
+        settingsFrame:Show()
     end
 end
 
 -- Show specific guide page and hide all others
 function GLV_ShowGuide(frame)
     local frames = {
-        GLV_SettingsGuidesPage,
-        GLV_SettingsDisplayPage,
-        GLV_SettingsAboutPage,
+        _G["GLV_SettingsGuidesPage"],
+        _G["GLV_SettingsDisplayPage"],
+        _G["GLV_SettingsAboutPage"],
     }
 
     -- Hide all other frames first
@@ -61,7 +64,8 @@ Original source for VanillaGuide :
 My rewrite of VanillaGuide to VanillaGuideReloaded :
 ]]
 
-    local content = GLV_SettingsAboutPageContent
+    local content = _G["GLV_SettingsAboutPageContent"]
+    if not content then return end
     content:SetWidth(700)                -- Max width before line break
     content:SetNonSpaceWrap(true)        -- Allows cutting even without spaces
     content:SetJustifyH("LEFT")          -- Horizontal alignment

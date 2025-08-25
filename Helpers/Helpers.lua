@@ -7,7 +7,7 @@ Version: 0.1
 Description:
 Helpers and Compat functions
 ]]--
-local GLV = LibStub("GuidelimeVanilla")
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
 
 -- string.gmatch
 if not string.gmatch then
@@ -67,21 +67,21 @@ function DumpTable(tbl, indent)
     for key, value in pairs(tbl) do
         local line = indentStr .. tostring(key) .. " = "
         if type(value) == "table" then
-            if GLV and GLV.Debug then
+            if GLV.Debug then
                 DEFAULT_CHAT_FRAME:AddMessage(line .. "{")
             end
             DumpTable(value, indent + 1)
-            if GLV and GLV.Debug then
+            if GLV.Debug then
                 DEFAULT_CHAT_FRAME:AddMessage(indentStr .. "}")
             end
         elseif type(value) == "string" then
             local preview = string.sub(value, 1, 100)
             preview = string.gsub(preview, "\n", "\\n")
-            if GLV and GLV.Debug then
+            if GLV.Debug then
                 DEFAULT_CHAT_FRAME:AddMessage(line .. '"' .. preview .. '"...')
             end
         else
-            if GLV and GLV.Debug then
+            if GLV.Debug then
                 DEFAULT_CHAT_FRAME:AddMessage(line .. tostring(value))
             end
         end

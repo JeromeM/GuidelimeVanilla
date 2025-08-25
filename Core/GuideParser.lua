@@ -9,7 +9,7 @@ Guide Parser.
 This file is used to extract every steps in the guide and format it
 ]]--
 local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
-local Parser = GLV.Ace:NewModule("Parser")
+local Parser = GLV:NewModule("Parser")
 
 local codes = {
     N   = "NAME",
@@ -41,8 +41,7 @@ for k, v in pairs(codes) do reverseCodes[v] = k end
 
 
 function Parser:OnInitialize()
-    self.settings = GLV.Ace.db.char or {}
-    self.cache = {}
+    self.settings = GLV.db.char or {}
 end
 
 
@@ -120,6 +119,8 @@ end
 
 -- Main guide parsing function
 function Parser:parseGuide(guide, group)
+    local dbTools = GLV:GetModule("DBTools")
+
     local parsedGuide = {}
     
     parsedGuide.steps = {}
@@ -178,7 +179,7 @@ function Parser:parseGuide(guide, group)
                             return "|c" .. GLV.Colors[tag] .. self:replaceClassRace(tagContent) .. "|r"
 
                         elseif tag == "TARGET_ID" then
-                            return GLV:getTargetName(tagContent)
+                            return dbTools:getTargetName(tagContent)
 
                         elseif tag == "LEARN" then
                             return "|c" .. GLV.Colors[tag] .. self:Learn(tagContent) .. "|r"
@@ -335,11 +336,11 @@ end
 -- Get quest information including coordinates
 function Parser:GetQuestInfo(content)
     local questID, _, questPart = string.match(content, "(%d+)(,?)(%d?)")
-    local questName = GLV:GetQuestNameByID(questID)
+    local questName = dbTools:GetQuestNameByID(questID)
     
     -- Get quest coordinates from database using DBTools
     -- Pass questPart to get coordinates for the specific part
-    local coords = GLV:GetQuestAllCoords(questID, questPart)
+    local coords = dbTools:GetQuestAllCoords(questID, questPart)
     
     return questName, questID, coords
 end
@@ -351,7 +352,7 @@ function Parser:Learn(content)
     id = string.gsub(id, "%s+", "")
     
     if subcode == "SP" then
-         return GLV:getSpellName(id)
+         return dbTools:getSpellName(id)
     end
     return "Unknown Spell"
 end
@@ -359,7 +360,7 @@ end
 -- Get item name for collect item tags
 function Parser:CollectItem(content)
     local itemID, itemCount = string.match(content, "(%d+)(,?)(%d?)")
-    local itemName = GLV:GetItemNameById(itemID)
+    local itemName = dbTools:GetItemNameById(itemID)
     return itemName
 end
 

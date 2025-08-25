@@ -7,7 +7,9 @@ Description:
 Guide Writer rework.
 Display steps in a single frame with multiple lines, icon beside line, checkbox at right.
 ]]--
-local GLV = LibStub("GuidelimeVanilla")
+local _G = _G or getfenv()
+local GLV = LibStub('AceAddon-3.0'):GetAddon('GuidelimeVanilla')
+local Writer = GLV:NewModule("Writer")
 
 local CONFIG = {
     spacing = -4,
@@ -32,15 +34,24 @@ local CONFIG = {
         odd = {0.1,0.1,0.1,0.8},
         active = {0.8,0.8,0.2,0.9}
     },
-    titleFrame = GLV_MainLoadedGuideTitle
+    titleFrame = _G["GLV_MainLoadedGuideTitle"]
 }
+
+
+--[[ INITIALIZATION FUNCTIONS ]]--
+
+function Writer:OnInitialize()
+    self.settings = GLV.db.char or {}
+end
 
 
 --[[ UI CREATION FUNCTIONS ]]--
 
 -- Create and set the guide title
 local function createTitle(guide)
-    GLV_MainLoadedGuideTitle:SetText(guide.name .. " (" .. guide.minLevel .. "-" .. guide.maxLevel .. ")")
+    local titleFrame = _G["GLV_MainLoadedGuideTitle"]
+    if not titleFrame then return end
+    titleFrame:SetText(guide.name .. " (" .. guide.minLevel .. "-" .. guide.maxLevel .. ")")
 end
 
 -- Wrap text to fit within specified width
@@ -129,21 +140,24 @@ end
 --[[ MAIN GUIDE FUNCTIONS ]]--
 
 -- Public: rebuild the guide UI using the current guide and main scroll child
-function GLV:RefreshGuide()
+function Writer:RefreshGuide()
     local guide = GLV.CurrentGuide
     if not guide then return end
-    local scrollChild = GLV_MainScrollFrameScrollChild
-    if not scrollChild and GLV_MainScrollFrame and GLV_MainScrollFrame.GetScrollChild then
-        scrollChild = GLV_MainScrollFrame:GetScrollChild()
+    local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
+    local mainScrollFrame = _G["GLV_MainScrollFrame"]
+    if not scrollChild and mainScrollFrame and mainScrollFrame.GetScrollChild then
+        scrollChild = mainScrollFrame:GetScrollChild()
     end
     if not scrollChild then return end
     self:CreateGuideSteps(scrollChild, guide, guide.id)
 end
 
 -- Create and display all guide steps in the UI
-function GLV:CreateGuideSteps(scrollChild, guide, guideId)
+function Writer:CreateGuideSteps(scrollChild, guide, guideId)
     if not scrollChild or not scrollChild.GetNumChildren then return end
     if not guide or not guide.steps then return end
+
+    local navigation = GLV:GetModule("Navigation")
 
     -- Cleanup previous children
     local children = {scrollChild:GetChildren()}
@@ -158,7 +172,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     local totalHeight = 0
     -- Use the passed guideId instead of guide.id
     local currentGuideId = guideId or guide.id or "Unknown"
-    local stepState = GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState or {}
+    local stepState = self.settings.Guide.Guides[currentGuideId].StepState or {} 
     local displaySteps = {}
     -- expose current guide to other modules (e.g., quest tracker)
     GLV.CurrentGuide = guide
@@ -227,8 +241,10 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     end
 
     -- Get the current step for this specific guide
-    local currentStep = GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep or 0
-    GLV_MainLoadedGuideCounter:SetText("("..currentStep.."/"..safe_tablelen(displaySteps)..")")
+    local counterFrame = _G["GLV_MainLoadedGuideCounter"]
+    if not counterFrame then return end
+    local currentStep = self.settings.Guide.Guides[currentGuideId].CurrentStep or 0
+    counterFrame:SetText("("..currentStep.."/"..safe_tablelen(displaySteps)..")")
 
     -- publish mapping and display metadata for other modules
     GLV.CurrentStepIndexMap = originalIndexToDisplayIndex
@@ -345,7 +361,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                 if origIdx then
                     stepState[origIdx] = checked
                 end
-                GLV.Ace.db.char.Guide.Guides[currentGuideId].StepState = stepState
+                self.settings.Guide.Guides[currentGuideId].StepState = stepState
                 -- recompute activeStep as first unchecked
                 local totalSteps = table.getn(displaySteps)
                 local newActiveStep = 0
@@ -358,8 +374,8 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                         end
                     end
                 end
-                GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep = newActiveStep
-                GLV_MainLoadedGuideCounter:SetText("("..tostring(newActiveStep).."/"..tostring(totalSteps)..")")
+                self.settings.Guide.Guides[currentGuideId].CurrentStep = newActiveStep
+                counterFrame:SetText("("..tostring(newActiveStep).."/"..tostring(totalSteps)..")")
                 -- visually highlight the new active step and reset others
                 for i2 = 1, totalSteps do
                     local f = getglobal(scrollChild:GetName().."Step"..i2)
@@ -370,18 +386,18 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                 end
                 
                 -- Also update the global CurrentStep for other modules
-                GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep = newActiveStep
+                self.settings.Guide.Guides[currentGuideId].CurrentStep = newActiveStep
                 
                 -- Update TomTom waypoint for the new active step
-                if newActiveStep > 0 and GLV.TomTomIntegration then
+                if newActiveStep > 0 then
                     local activeStepData = displaySteps[newActiveStep]
                     if activeStepData then
-                        GLV.TomTomIntegration:OnStepChanged(activeStepData)
+                        navigation:OnStepChanged(activeStepData)
                     end
                 end
                 
                 -- Scroll to show the new active step at the top (only when checking a box)
-                if checked and newActiveStep > 0 and GLV_MainScrollFrame then
+                if checked and newActiveStep > 0 and mainScrollFrame then
                     -- Calculate the exact position: sum of all previous step heights + spacing
                     local targetScroll = 0
                     for i = 1, newActiveStep - 1 do
@@ -397,11 +413,11 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                     -- Ensure we don't scroll below 0
                     targetScroll = math.max(0, targetScroll)
                     -- Adjust scroll to leave some space above for manual scrolling
-                    local maxScroll = GLV_MainScrollFrame:GetVerticalScrollRange()
+                    local maxScroll = mainScrollFrame:GetVerticalScrollRange()
                     if maxScroll and maxScroll > 0 then
                         targetScroll = math.min(targetScroll, maxScroll)
                     end
-                    GLV_MainScrollFrame:SetVerticalScroll(targetScroll)
+                    mainScrollFrame:SetVerticalScroll(targetScroll)
                 end
                  
              end)
@@ -416,7 +432,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     scrollChild:SetHeight(math.max(1, totalHeight))
     -- Use the saved CurrentStep for this guide, or calculate first unchecked if none saved
     local totalSteps = table.getn(displaySteps)
-    local activeStep = GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep or 0
+    local activeStep = self.settings.Guide.Guides[currentGuideId].CurrentStep or 0
     
     -- If no saved step, find first unchecked
     if activeStep == 0 then
@@ -431,11 +447,11 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
         end
         -- Save the calculated step
         if activeStep > 0 then
-            GLV.Ace.db.char.Guide.Guides[currentGuideId].CurrentStep = activeStep
+            self.settings.Guide.Guides[currentGuideId].CurrentStep = activeStep
         end
     end
     
-    GLV_MainLoadedGuideCounter:SetText("("..tostring(activeStep).."/"..tostring(totalSteps)..")")
+    counterFrame:SetText("("..tostring(activeStep).."/"..tostring(totalSteps)..")")
     
     -- highlight active frame at initial render and normalize others
     for i2 = 1, totalSteps do
@@ -447,18 +463,18 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     end
     
     -- Set initial TomTom waypoint
-    if activeStep > 0 and GLV.TomTomIntegration then
+    if activeStep > 0 then
         local activeStepData = displaySteps[activeStep]
         if activeStepData then
-            GLV.TomTomIntegration:OnStepChanged(activeStepData)
+            navigation:OnStepChanged(activeStepData)
         end
     end
     
     -- Scroll to show the active step at the top (initial load)
-    if activeStep > 0 and GLV_MainScrollFrame then
+    if activeStep > 0 and mainScrollFrame then
         -- Wait 1 second for UI to stabilize, then scroll to active step
-        GLV.Ace:ScheduleEvent(function()
-            if GLV_MainScrollFrame then
+        Writer:ScheduleTimer(function()
+            if mainScrollFrame then
                 -- Same calculation as checkbox click: sum of all previous step heights + spacing
                 local targetScroll = 0
                 for i = 1, activeStep - 1 do
@@ -474,11 +490,11 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
                 -- Ensure we don't scroll below 0
                 targetScroll = math.max(0, targetScroll)
                 -- Adjust scroll to leave some space above for manual scrolling
-                local maxScroll = GLV_MainScrollFrame:GetVerticalScrollRange()
+                local maxScroll = mainScrollFrame:GetVerticalScrollRange()
                 if maxScroll and maxScroll > 0 then
                     targetScroll = math.min(targetScroll, maxScroll)
                 end
-                GLV_MainScrollFrame:SetVerticalScroll(targetScroll)
+                mainScrollFrame:SetVerticalScroll(targetScroll)
             end
         end, 1)
     end
@@ -486,11 +502,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
      createTitle(guide)
     
     -- Initialize TomTom integration AFTER the guide is completely displayed and parsed
-    GLV.Ace:ScheduleEvent(function()
-        if GLV.TomTomIntegration then
-            GLV.TomTomIntegration:Init()
-        end
-        
-
+    Writer:ScheduleTimer(function()
+        navigation:Init()
     end, 1.0)
 end
