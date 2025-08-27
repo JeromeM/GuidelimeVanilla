@@ -268,7 +268,7 @@ function GLV:LoadGuide(group, guideId)
                 stepData = guide.steps[currentStep]
             end
             
-            if stepData and TomTom and TomTom.AddMFWaypoint then
+            if stepData then
                 local success, err = pcall(function()
                     GLV.GuideNavigation:OnStepChanged(stepData)
                 end)
