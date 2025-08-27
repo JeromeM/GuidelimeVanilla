@@ -264,24 +264,17 @@ function Parser:parseGuide(guide, group)
                         stepText = line
                     end
                     parsedLine.text = stepText
-                     
-                     -- Inherit questId from previous step if this step doesn't have one
-                     if not parsedLine.questId and parsedGuide.steps and table.getn(parsedGuide.steps) > 0 then
-                         local lastStep = parsedGuide.steps[table.getn(parsedGuide.steps)]
-                         if lastStep.questId then
-                             parsedLine.questId = lastStep.questId
-                         end
-                     end
-                 else
-                     parsedLine = {
-                         text = "",
-                         emptyLine = true
-                     }
-                 end
 
-                 if parsedLine.text ~= "" or parsedLine.emptyLine == true then
-                     table.insert(parsedGuide.steps, parsedLine)
-                 end
+                else
+                    parsedLine = {
+                        text = "",
+                        emptyLine = true
+                    }
+                end
+
+                if parsedLine.text ~= "" or parsedLine.emptyLine == true then
+                    table.insert(parsedGuide.steps, parsedLine)
+                end
             end
         end
     end

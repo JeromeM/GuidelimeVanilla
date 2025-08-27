@@ -88,21 +88,8 @@ function addon:OnEnable()
         self:ScheduleEvent(function()
             if GLV.GuideNavigation then
                 GLV.GuideNavigation:Init()
-                
-                -- Force update the waypoint for the current step after a delay
-                self:ScheduleEvent(function()
-                    if GLV.GuideNavigation and GLV.CurrentGuide then
-                        local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
-                        local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
-                        
-                        if currentStep > 0 and GLV.CurrentDisplaySteps and GLV.CurrentDisplaySteps[currentStep] then
-                            local stepData = GLV.CurrentDisplaySteps[currentStep]
-                            GLV.GuideNavigation:OnStepChanged(stepData)
-                        end
-                    end
-                end, 1.0)
             end
-        end, 2.0) -- 2 seconds delay to ensure everything is loaded properly
+        end, 2.0)
     end
 end
 

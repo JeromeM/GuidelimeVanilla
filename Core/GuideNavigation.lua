@@ -521,7 +521,7 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     
     local targetCoords = nil
     local stepType = self:GetStepType(stepData)
-    
+
     -- Get current player position once for consistency
     playerPos = self:GetPlayerPosition()
     if not playerPos then
