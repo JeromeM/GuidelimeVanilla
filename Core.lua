@@ -85,7 +85,6 @@ function addon:OnEnable()
     
     -- Initialize Guide Navigation integration AFTER the guide is loaded
     if GLV.GuideNavigation then
-        -- Wait a bit for TomTom to load, then initialize
         self:ScheduleEvent(function()
             if GLV.GuideNavigation then
                 GLV.GuideNavigation:Init()
