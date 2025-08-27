@@ -47,12 +47,11 @@ Guidelime Vanilla is a total overhaul of the official Guidelime, which is not co
 The original project is a rewrite of the VanillaGuide from mrmr. But I wanted to have something more functionnal and with the possibility to use actual Guidelime's guide available on CurseForge.
 
 I've tried to automatize a lot of things like auto-complete steps with Quest Accept or Quest Complete (as much as the WoW 1.12 API let me do it).
-It's using TomTom Vanilla for the moment, but I think of implementing my own navigation system. I can already find coordinates of quests, NPCs and a lot of other things, thanks to PfQuest DB.
+It's using it's own navigation system.
 
 Thanks to :
 - |cFFFF0000mrmr|r for the original addon
 - |cFFFF0000Shagu|r for the PfQuest databases
-- |cFFFF0000Laytya|r for the backport of TomTom
 - |cFFFF0000Laytya|r for the Spells DB
 
 
