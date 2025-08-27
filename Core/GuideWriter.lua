@@ -233,7 +233,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId)
     -- publish mapping and display metadata for other modules
     GLV.CurrentStepIndexMap = originalIndexToDisplayIndex
     GLV.CurrentDisplayStepsCount = safe_tablelen(displaySteps)
-    GLV.CurrentDisplaySteps = displaySteps  -- Expose the grouped steps for TomTom integration
+    GLV.CurrentDisplaySteps = displaySteps
     GLV.CurrentDisplayHasCheckbox = {}
     for di, st in ipairs(displaySteps) do
         GLV.CurrentDisplayHasCheckbox[di] = st.hasCheckbox and true or false
