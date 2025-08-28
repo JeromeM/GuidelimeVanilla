@@ -5,7 +5,7 @@
     <Frame name="GLV_Main" parent="UIParent" toplevel="true" movable="true" resizable="false" frameStrata="DIALOG" enableMouse="true" hidden="false">
 
         <Size>
-            <AbsDimension x="450" y="400"/>
+            <AbsDimension x="320" y="400"/>
         </Size>
         <Anchors>
             <Anchor point="CENTER"/>
@@ -75,11 +75,11 @@
             <Frame name="$parentLoadedGuide" hidden="false">
 
                 <Size>
-                    <AbsDimension x="400" y="30"/>
+                    <AbsDimension x="300" y="30"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOP" RelativeTo="$parentTitle" RelativePoint="BOTTOM">
-                        <Offset x="-10" y="-5"/>
+                        <Offset x="0" y="-5"/>
                     </Anchor>
                 </Anchors>
 
@@ -112,7 +112,7 @@
 
             <ScrollFrame name="$parentScrollFrame" inherits="UIPanelScrollFrameTemplate">
                 <Size>
-                    <AbsDimension x="400" y="285"/>
+                    <AbsDimension x="275" y="285"/>
                 </Size>
                 <Anchors>
                     <Anchor point="TOPLEFT">
@@ -123,7 +123,7 @@
                 <ScrollChild>
                     <Frame name="$parentScrollChild">
                         <Size>
-                            <AbsDimension x="300" y="1"/>
+                            <AbsDimension x="175" y="1"/>
                         </Size>
                         <Anchors>
                             <Anchor point="TOPLEFT"/>
