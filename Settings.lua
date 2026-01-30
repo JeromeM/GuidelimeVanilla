@@ -31,6 +31,7 @@ local defaults = {
             Class = "Unknown",
         },
         Guide = {
+            ActivePack = nil,
             CurrentGroup = "Unknown",
             CurrentGuide = "Unknown",
             CurrentStep = 0,

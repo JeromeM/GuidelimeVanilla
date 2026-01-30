@@ -28,8 +28,6 @@ Core\Events\Gossip.lua
 Core\Events\Equipment.lua
 Core\Events\Items.lua
 
-Guides\guides.xml
-
 Frames\Frames.lua
 Frames\MainFrame.xml
 Frames\SettingsFrame.xml

@@ -15,10 +15,129 @@ local GLV = LibStub("GuidelimeVanilla")
 GLV.loadedGuides = GLV.loadedGuides or {}
 
 
+--[[ GUIDE PACK MANAGEMENT FUNCTIONS ]]--
+
+-- Get list of available guide packs (groups with at least one guide)
+function GLV:GetAvailableGuidePacks()
+    local packs = {}
+    for group, guides in pairs(self.loadedGuides) do
+        if guides and next(guides) then
+            table.insert(packs, group)
+        end
+    end
+    table.sort(packs)
+    return packs
+end
+
+-- Get the currently active guide pack (only if explicitly set by user)
+function GLV:GetActiveGuidePack()
+    local activePack = self.Settings:GetOption({"Guide", "ActivePack"})
+
+    -- Verify the pack still exists
+    if activePack and self.loadedGuides[activePack] and next(self.loadedGuides[activePack]) then
+        return activePack
+    end
+
+    -- No fallback - user must explicitly select a pack
+    return nil
+end
+
+-- Set the active guide pack
+function GLV:SetActiveGuidePack(packName)
+    if self.loadedGuides[packName] and next(self.loadedGuides[packName]) then
+        self.Settings:SetOption(packName, {"Guide", "ActivePack"})
+        self:PopulateDropdown(packName)
+        return true
+    end
+    return false
+end
+
+-- Show message when no guides are available
+function GLV:ShowNoGuideMessage()
+    local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
+    if not scrollChild then return end
+
+    -- Clear existing content
+    local children = {scrollChild:GetChildren()}
+    for _, child in pairs(children) do
+        if child and child.Hide then
+            child:Hide()
+            child:SetParent(nil)
+        end
+    end
+
+    -- Count available packs
+    local packs = self:GetAvailableGuidePacks()
+    local packCount = table.getn(packs)
+
+    local message
+    if packCount == 0 then
+        message = "|cFFFFFF00No guide pack installed.|r\n\nDownload a guide pack addon to get started."
+    else
+        message = "|cFFFFFF00No guide pack selected.|r\n\nGo to Settings > Guides to choose one."
+    end
+
+    -- Create or reuse message frame (styled like a guide step)
+    local msgFrame = _G["GLV_NoGuideMessage"]
+    if not msgFrame then
+        msgFrame = CreateFrame("Frame", "GLV_NoGuideMessage", scrollChild)
+
+        local msgText = msgFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        msgText:SetPoint("TOPLEFT", msgFrame, "TOPLEFT", 5, -5)
+        msgText:SetJustifyH("LEFT")
+        msgFrame.text = msgText
+    end
+
+    -- Set width based on parent scroll frame
+    local scrollFrame = _G["GLV_MainScrollFrame"]
+    local width = scrollFrame and scrollFrame:GetWidth() or 400
+    msgFrame:SetWidth(width - 30)
+    msgFrame:SetHeight(80)
+    msgFrame.text:SetWidth(width - 50)
+
+    msgFrame:SetParent(scrollChild)
+    msgFrame:ClearAllPoints()
+    msgFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 5, -5)
+    msgFrame.text:SetText(message)
+    msgFrame:Show()
+
+    -- Disable main dropdown
+    local dropdown = _G["GLV_MainDropdown"]
+    if dropdown then
+        UIDropDownMenu_ClearAll(dropdown)
+        UIDropDownMenu_SetText("", dropdown)
+        local button = _G[dropdown:GetName().."Button"]
+        if button then button:Disable() end
+    end
+
+    -- Clear guide name and step counter
+    local guideTitle = _G["GLV_MainLoadedGuideTitle"]
+    if guideTitle then
+        guideTitle:SetText("")
+    end
+    local stepCounter = _G["GLV_MainLoadedGuideCounter"]
+    if stepCounter then
+        stepCounter:SetText("")
+    end
+end
+
+-- Hide the no guide message
+function GLV:HideNoGuideMessage()
+    local msgFrame = _G["GLV_NoGuideMessage"]
+    if msgFrame then
+        msgFrame:Hide()
+    end
+end
+
+
 --[[ GUIDE REGISTRATION FUNCTIONS ]]--
 
+-- Store addon names for each guide pack
+GLV.guidePackAddons = GLV.guidePackAddons or {}
+
 -- Register a new guide with the system
-function GLV:RegisterGuide(guideText, group)
+-- addonName is optional - if provided, it's used to fetch addon metadata (Notes, etc.)
+function GLV:RegisterGuide(guideText, group, addonName)
     local guide = self.Parser:parseGuide(guideText, group)
     if not guide then
         return
@@ -26,6 +145,11 @@ function GLV:RegisterGuide(guideText, group)
 
     if not self.loadedGuides[group] then
         self.loadedGuides[group] = {}
+    end
+
+    -- Store addon name for this pack (only once per pack)
+    if addonName and not self.guidePackAddons[group] then
+        self.guidePackAddons[group] = addonName
     end
 
     if guide.name ~= nil and guide.id ~= nil then
@@ -61,92 +185,108 @@ local function createDropdownCallback(group, guideId, guideData, displayName, dr
     end
 end
 
--- Populate the guide selection dropdown with all available guides
+-- Populate the guide selection dropdown with guides from active pack only
 function GLV:PopulateDropdown(group)
     local dropdown = _G["GLV_MainDropdown"]
     if not dropdown then
         return
     end
 
-    UIDropDownMenu_Initialize(dropdown, function()
-        local totalGuides = 0
-        for g, guides in pairs(self.loadedGuides) do
-            if guides then
-                for _ in pairs(guides) do totalGuides = totalGuides + 1 end
-            end
-        end
-        
-        if totalGuides == 0 then
+    -- Get active pack (or use provided group as fallback)
+    local activePack = self:GetActiveGuidePack()
+    if not activePack then
+        -- No guides available at all
+        UIDropDownMenu_Initialize(dropdown, function()
             local info = {}
             info.text = "No guides available"
             info.disabled = 1
             UIDropDownMenu_AddButton(info)
-            return
+        end)
+        UIDropDownMenu_SetText("Select a guide", dropdown)
+        self:ShowNoGuideMessage()
+        return
+    end
+
+    -- Hide the no guide message if it was shown
+    self:HideNoGuideMessage()
+
+    -- Enable the dropdown
+    local button = _G[dropdown:GetName().."Button"]
+    if button then button:Enable() end
+
+    local guides = self.loadedGuides[activePack]
+    if not guides or not next(guides) then
+        UIDropDownMenu_Initialize(dropdown, function()
+            local info = {}
+            info.text = "No guides in this pack"
+            info.disabled = 1
+            UIDropDownMenu_AddButton(info)
+        end)
+        UIDropDownMenu_SetText("Select a guide", dropdown)
+        return
+    end
+
+    UIDropDownMenu_Initialize(dropdown, function()
+        -- Create a sorted list of guides by minLevel then by name
+        local sortedGuides = {}
+        for guideId, guideData in pairs(guides) do
+            table.insert(sortedGuides, {id = guideId, data = guideData})
         end
-        
-        for g, guides in pairs(self.loadedGuides) do
-            if guides and next(guides) then
-                local groupInfo = {}
-                groupInfo.text = "--- " .. g .. " ---"
-                groupInfo.disabled = 1
-                UIDropDownMenu_AddButton(groupInfo)
-                
-                -- Create a sorted list of guides by minLevel then by name
-                local sortedGuides = {}
-                for guideId, guideData in pairs(guides) do
-                    table.insert(sortedGuides, {id = guideId, data = guideData})
-                end
-                
-                -- Sort by minLevel first, then by name
-                table.sort(sortedGuides, function(a, b)
-                    local aMinLevel = tonumber(a.data.minLevel) or 0
-                    local bMinLevel = tonumber(b.data.minLevel) or 0
-                    
-                    if aMinLevel ~= bMinLevel then
-                        return aMinLevel < bMinLevel
-                    else
-                        return (a.data.name or "") < (b.data.name or "")
-                    end
-                end)
-                
-                -- Add sorted guides to dropdown
-                for _, guideEntry in pairs(sortedGuides) do
-                    local guideId = guideEntry.id
-                    local guideData = guideEntry.data
-                    local info = {}
-                    local displayName = guideData.name
-                    if guideData.minLevel and guideData.maxLevel then
-                        displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
-                    end
-                    info.text = displayName
-                    info.value = guideId
-                    info.func = createDropdownCallback(g, guideId, guideData, displayName, dropdown)
-                    UIDropDownMenu_AddButton(info)
-                end
+
+        -- Sort by minLevel first, then by name
+        table.sort(sortedGuides, function(a, b)
+            local aMinLevel = tonumber(a.data.minLevel) or 0
+            local bMinLevel = tonumber(b.data.minLevel) or 0
+
+            if aMinLevel ~= bMinLevel then
+                return aMinLevel < bMinLevel
+            else
+                return (a.data.name or "") < (b.data.name or "")
             end
+        end)
+
+        -- Add sorted guides to dropdown
+        for _, guideEntry in pairs(sortedGuides) do
+            local guideId = guideEntry.id
+            local guideData = guideEntry.data
+            local info = {}
+            local displayName = guideData.name
+            if guideData.minLevel and guideData.maxLevel then
+                displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
+            end
+            info.text = displayName
+            info.value = guideId
+            info.func = createDropdownCallback(activePack, guideId, guideData, displayName, dropdown)
+            UIDropDownMenu_AddButton(info)
         end
     end)
-    
+
+    -- Set default selection to first guide if none selected
+    local currentGuide = self.Settings:GetOption({"Guide", "CurrentGuide"})
     local selected = false
-    for g, guides in pairs(self.loadedGuides) do
-        if guides and next(guides) then
-            for guideId, guideData in pairs(guides) do
-                local displayName = guideData.name
-                if guideData.minLevel and guideData.maxLevel then
-                    displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
-                end
-                
-                UIDropDownMenu_SetSelectedValue(dropdown, guideId)
-                UIDropDownMenu_SetText(displayName, dropdown)
-                selected = true
-                break
-            end
-            if selected then break end
+
+    if currentGuide and guides[currentGuide] then
+        local guideData = guides[currentGuide]
+        local displayName = guideData.name
+        if guideData.minLevel and guideData.maxLevel then
+            displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
         end
+        UIDropDownMenu_SetSelectedValue(dropdown, currentGuide)
+        UIDropDownMenu_SetText(displayName, dropdown)
+        selected = true
     end
-    
+
     if not selected then
-        UIDropDownMenu_SetText("Choisir un guide", dropdown)
+        -- Select first guide
+        for guideId, guideData in pairs(guides) do
+            local displayName = guideData.name
+            if guideData.minLevel and guideData.maxLevel then
+                displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
+            end
+            UIDropDownMenu_SetSelectedValue(dropdown, guideId)
+            UIDropDownMenu_SetText(displayName, dropdown)
+            break
+        end
     end
 end
 

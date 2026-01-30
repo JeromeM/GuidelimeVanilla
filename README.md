@@ -6,11 +6,21 @@
 
 </div>
 
-A World of Warcraft Classic (1.12) addon providing an enhanced guide system with automatic quest tracking and autonomous navigation. **Includes Sage 1-60 Alliance leveling guides!**
+A World of Warcraft Classic (1.12) addon providing an enhanced guide system with automatic quest tracking and autonomous navigation.
 
 ## Requirements
 
 - **[Nampower](https://github.com/pepopo978/nampower)** - Required for spell learning detection and other advanced features
+
+## Guide Packs
+
+GuidelimeVanilla is a guide engine - guides are provided as separate addons:
+
+| Guide Pack | Description |
+|------------|-------------|
+| **[GuidelimeVanilla_Sage](https://github.com/JeromeM/GuidelimeVanilla_Sage)** | Sage 1-60 Alliance leveling guides |
+
+Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **Settings > Guides**.
 
 ## Screenshots
 
@@ -32,7 +42,7 @@ A World of Warcraft Classic (1.12) addon providing an enhanced guide system with
 - **Auto-scrolling**: Automatically scrolls to show the current active step
 - **Ongoing Steps**: Special steps stay pinned at top (in blue) while you continue the guide - perfect for "kill X mobs" objectives that span multiple steps
 - **XP Tracking**: Shows progress for grind/XP requirement steps
-- **Built-in Guides**: Includes Sage 1-60 Alliance leveling guides
+- **Guide Pack System**: Install guide packs as separate addons
 
 ### 🗺️ Autonomous Navigation System
 - **Custom Arrow Display**: Built-in navigation arrow (no TomTom needed!)
@@ -84,48 +94,65 @@ A World of Warcraft Classic (1.12) addon providing an enhanced guide system with
 3. Navigation arrow guides you to objectives
 4. Click checkboxes manually if needed
 
-## Creating Custom Guides
+## Creating Custom Guide Packs
 
-GuideLime Vanilla supports custom guide creation using a simple tagged format. Create a `.lua` file in the `Guides/` folder and use the guide syntax to define steps.
+Guide packs are separate addons that register guides with GuidelimeVanilla.
 
-### Basic Example
+### Guide Pack Structure
+
+```
+GuidelimeVanilla_MyGuides/
+├── GuidelimeVanilla_MyGuides.toc
+├── init.lua
+├── Guide_Zone1.lua
+└── Guide_Zone2.lua
+```
+
+### Example .toc file
+
+```
+## Interface: 11200
+## Title: Guidelime Vanilla - My Guides
+## Notes: Custom leveling guides
+## Dependencies: GuidelimeVanilla
+
+init.lua
+Guide_Zone1.lua
+Guide_Zone2.lua
+```
+
+### Example init.lua
 
 ```lua
+local GLV = LibStub("GuidelimeVanilla")
+if not GLV then
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[My Guides]|r GuidelimeVanilla is required!")
+    return
+end
+```
+
+### Example Guide File
+
+```lua
+local GLV = LibStub("GuidelimeVanilla")
 GLV:RegisterGuide([[
-[N 1-10 My Guide Name]
+[N 1-10 My Zone Guide]
 [GA Alliance]
 [D Guide description\\Line 2\\Line 3]
 
 Accept quest example step
 Complete quest objectives step
 Turn in quest step
-Ongoing step - stays pinned while you continue
-Go to specific coordinates in Westfall
-Navigate to an NPC
-Get flight path at Stormwind
-Fly to Stormwind - auto-completes when flight is taken
-Use hearthstone at Stormwind - auto-completes when you arrive
-Learn a spell - auto-completes when spell is learned
-Link to next guide (shows clickable button on final step)
-
-Multi-line step text example:\\Take the boat and wait for it to depart.\\Craft bandages or fish while you wait.
 ]], "My Guides")
-```
-
-Add your guide file to `Guides/guides.xml`:
-```xml
-<Script file="MyGuides\My_Guide.lua"/>
 ```
 
 ### Guide Formatting Tips
 
 - **Line Breaks**: Use `\\` (double backslash) to create line breaks in step text and descriptions
-  - Example in description: `[D Guide info\\Website: example.com\\Discord: link]`
-  - Example in steps: `Take the boat to Auberdine\\Craft bandages while you wait`
 - **Special Tags**: The guide format uses bracketed tags to indicate actions (quest accept, turnin, navigation targets, etc.)
 - **Multiple Actions**: A single step can contain multiple quest actions that all need completion
 
-For detailed guide syntax documentation, see the [TAGS.md](TAGS.md) file or examine existing guides in the `Guides/` folder.
+For detailed guide syntax documentation, see the [TAGS.md](TAGS.md) file.
 
 ## Acknowledgments
 

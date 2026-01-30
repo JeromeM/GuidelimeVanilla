@@ -151,8 +151,48 @@ The addon handles multi-part quests (same name, different IDs) with fallback mat
 - Quest completion detection supports both `isComplete == 1` (numeric) and `isComplete == true` (boolean)
 - This ensures quest chains like "In Defense of the King's Lands" work correctly across different quest IDs
 
-## Adding New Guides
+## Guide Pack Architecture
 
-1. Create `.lua` file in `Guides/` subdirectory
-2. Register with: `GLV:RegisterGuide([[guide text]], "Group Name")`
-3. Add to `Guides/guides.xml`: `<Script file="SubDir\Guide_Name.lua"/>`
+Guides are distributed as separate addons (guide packs) that depend on GuidelimeVanilla:
+
+### How Guide Packs Work
+
+1. Guide pack addon declares `## Dependencies: GuidelimeVanilla` in its .toc
+2. Pack's init.lua gets GLV reference: `local GLV = LibStub("GuidelimeVanilla")`
+3. Each guide file calls `GLV:RegisterGuide(text, "Pack Name")`
+4. Guides are stored in `GLV.loadedGuides["Pack Name"][guideId]`
+5. User selects active pack in Settings > Guides
+
+### Guide Pack Management Functions
+
+```lua
+GLV:GetAvailableGuidePacks()     -- Returns list of installed pack names
+GLV:GetActiveGuidePack()         -- Returns currently selected pack name
+GLV:SetActiveGuidePack(name)     -- Set active pack and refresh dropdown
+GLV:ShowNoGuideMessage()         -- Display "no guides" message in UI
+```
+
+### Creating a Guide Pack Addon
+
+```
+GuidelimeVanilla_MyPack/
+├── GuidelimeVanilla_MyPack.toc
+├── init.lua
+└── Guide_Zone.lua
+```
+
+**init.lua:**
+```lua
+local GLV = LibStub("GuidelimeVanilla")
+if not GLV then return end
+```
+
+**Guide file:**
+```lua
+local GLV = LibStub("GuidelimeVanilla")
+GLV:RegisterGuide([[
+[N 1-10 Zone Name]
+[GA Alliance]
+...
+]], "My Pack Name")
+```

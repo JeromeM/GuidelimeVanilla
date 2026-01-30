@@ -111,18 +111,24 @@ end
 
 -- Event handler for PLAYER_LOGIN
 function addon:OnPlayerLogin()
-    local defaultGroup = Settings:GetOption({"Guide", "CurrentGroup"}) or "Sage Guide"
-    
     local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
     if scrollChild and GLV and GLV.loadedGuides then
+        local hasGuides = false
         for group, guides in pairs(GLV.loadedGuides) do
             if guides and next(guides) then
-                GLV:PopulateDropdown(group)
-                
-                local _, race = UnitRace("player")
-                self:LoadDefaultGuideForRace(race)
+                hasGuides = true
                 break
             end
+        end
+
+        local activePack = GLV:GetActiveGuidePack()
+        if activePack then
+            GLV:PopulateDropdown(activePack)
+            local _, race = UnitRace("player")
+            self:LoadDefaultGuideForRace(race)
+        else
+            -- No pack selected (or no packs installed)
+            GLV:ShowNoGuideMessage()
         end
     else
         self:RegisterEvent("ADDON_LOADED", function() self:OnAddonLoaded() end)
@@ -133,17 +139,25 @@ end
 function addon:OnAddonLoaded(addonName)
     if addonName == _ADDON_NAME then
         self:UnregisterEvent("ADDON_LOADED")
-        
+
         local scrollChild = _G["GLV_MainScrollFrameScrollChild"]
         if scrollChild and GLV and GLV.loadedGuides then
+            local hasGuides = false
             for group, guides in pairs(GLV.loadedGuides) do
                 if guides and next(guides) then
-                    GLV:PopulateDropdown(group)
-                    
-                    local _, race = UnitRace("player")
-                    self:LoadDefaultGuideForRace(race)
+                    hasGuides = true
                     break
                 end
+            end
+
+            local activePack = GLV:GetActiveGuidePack()
+            if activePack then
+                GLV:PopulateDropdown(activePack)
+                local _, race = UnitRace("player")
+                self:LoadDefaultGuideForRace(race)
+            else
+                -- No pack selected (or no packs installed)
+                GLV:ShowNoGuideMessage()
             end
         end
     end
@@ -185,103 +199,103 @@ end
 
 -- Function to automatically load the appropriate guide based on player level and race
 function addon:LoadDefaultGuideForRace(race)
-    if not race then return end
-    
+    local activePack = GLV:GetActiveGuidePack()
+    if not activePack then return end
+
+    local guides = GLV.loadedGuides[activePack]
+    if not guides then return end
+
+    -- First, try to load saved guide
     local savedGuideId = Settings:GetOption({"Guide", "CurrentGuide"})
-    if savedGuideId and savedGuideId ~= "Unknown" then
-        if GLV.loadedGuides and GLV.loadedGuides["Sage Guide"] then
-            for guideId, guideData in pairs(GLV.loadedGuides["Sage Guide"]) do
-                if guideId == savedGuideId then
-                    GLV:LoadGuide("Sage Guide", guideId)
-                    self:SyncQuestJournalWithGuide()
-                    return
-                end
-            end
-        end
+    if savedGuideId and savedGuideId ~= "Unknown" and guides[savedGuideId] then
+        GLV:LoadGuide(activePack, savedGuideId)
+        self:SyncQuestJournalWithGuide()
+        return
     end
-    
+
     -- Load guide based on player level and race
     local playerLevel = UnitLevel("player")
     local bestGuide = nil
-    
+
     -- For low level players (1-11), use race-based starting guides
-    if playerLevel <= 11 then
-        bestGuide = self:FindStartingGuideForRace(race)
+    if playerLevel <= 11 and race then
+        bestGuide = self:FindStartingGuideForRace(race, activePack)
     end
-    
+
     -- For higher level players, or if no race guide found, use level-based selection
     if not bestGuide then
-        bestGuide = self:FindBestGuideForLevel(playerLevel, race)
+        bestGuide = self:FindBestGuideForLevel(playerLevel, activePack)
     end
-    
+
     if bestGuide then
-        GLV:LoadGuide(bestGuide.group, bestGuide.id)
+        GLV:LoadGuide(activePack, bestGuide.id)
         self:SyncQuestJournalWithGuide()
     end
 end
 
 -- Find starting guide based on player race for new characters
-function addon:FindStartingGuideForRace(race)
-    if not GLV.loadedGuides or not GLV.loadedGuides["Sage Guide"] then
-        return nil
-    end
-    
+function addon:FindStartingGuideForRace(race, packName)
+    local guides = GLV.loadedGuides[packName]
+    if not guides then return nil end
+
+    -- Map races to typical starting zone names
     local raceGuides = {
         ["Human"] = "Elwynn Forest",
-        ["Dwarf"] = "Dun Morogh", 
+        ["Dwarf"] = "Dun Morogh",
         ["Gnome"] = "Dun Morogh",
-        ["NightElf"] = "Teldrassil"
+        ["NightElf"] = "Teldrassil",
+        ["Orc"] = "Durotar",
+        ["Troll"] = "Durotar",
+        ["Tauren"] = "Mulgore",
+        ["Undead"] = "Tirisfal Glades",
     }
-    
+
     local targetGuideName = raceGuides[race]
-    if not targetGuideName then
-        return nil
-    end
-    
-    for guideId, guideData in pairs(GLV.loadedGuides["Sage Guide"]) do
+    if not targetGuideName then return nil end
+
+    for guideId, guideData in pairs(guides) do
         if guideData.name == targetGuideName then
             if GLV.Debug then
                 DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Guide Loading]|r Selected starting guide: " .. guideData.name .. " for " .. race)
             end
-            return {group = "Sage Guide", id = guideId, data = guideData}
+            return {id = guideId, data = guideData}
         end
     end
-    
+
     return nil
 end
 
 -- Find the best guide for player's current level
-function addon:FindBestGuideForLevel(playerLevel, race)
-    if not GLV.loadedGuides or not GLV.loadedGuides["Sage Guide"] then
-        return nil
-    end
-    
+function addon:FindBestGuideForLevel(playerLevel, packName)
+    local guides = GLV.loadedGuides[packName]
+    if not guides then return nil end
+
     local bestGuide = nil
     local bestMatch = 999
-    
-    for guideId, guideData in pairs(GLV.loadedGuides["Sage Guide"]) do
+
+    for guideId, guideData in pairs(guides) do
         if guideData.minLevel and guideData.maxLevel then
             local minLevel = tonumber(guideData.minLevel)
             local maxLevel = tonumber(guideData.maxLevel)
-            
+
             if minLevel and maxLevel then
                 -- Check if player level fits in guide range
                 if playerLevel >= minLevel and playerLevel <= maxLevel then
                     -- Perfect match - player level is in guide range
-                    bestGuide = {group = "Sage Guide", id = guideId, data = guideData}
+                    bestGuide = {id = guideId, data = guideData}
                     break
                 elseif minLevel <= playerLevel then
                     -- Guide is below player level, but could be close
                     local levelDiff = playerLevel - maxLevel
                     if levelDiff < bestMatch then
                         bestMatch = levelDiff
-                        bestGuide = {group = "Sage Guide", id = guideId, data = guideData}
+                        bestGuide = {id = guideId, data = guideData}
                     end
                 end
             end
         end
     end
-    
+
     if GLV.Debug then
         if bestGuide then
             DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Guide Loading]|r Selected guide: " .. bestGuide.data.name .. " for level " .. playerLevel)
@@ -289,7 +303,7 @@ function addon:FindBestGuideForLevel(playerLevel, race)
             DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Guide Loading]|r No suitable guide found for level " .. playerLevel)
         end
     end
-    
+
     return bestGuide
 end
 

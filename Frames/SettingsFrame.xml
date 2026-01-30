@@ -25,6 +25,7 @@
         <Scripts>
             <OnLoad>
                 this:RegisterForDrag("LeftButton");
+                tinsert(UISpecialFrames, "GLV_Settings");
             </OnLoad>
             <OnShow>
                 GLV_ResetDisplaySettingsChanged();
@@ -264,11 +265,20 @@
                                         <AbsValue val="20"/>
                                     </FontHeight>
                                 </FontString>
+                                <!-- Guide Pack Section Title -->
+                                <FontString name="$parentGuidePackTitle" inherits="GameFontNormal" text="Guide Pack">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                            <Offset x="20" y="-50"/>
+                                        </Anchor>
+                                    </Anchors>
+                                    <Color r="1" g="0.82" b="0"/>
+                                </FontString>
                                 <!-- Automation Section Title -->
                                 <FontString name="$parentAutomationTitle" inherits="GameFontNormal" text="Automation">
                                     <Anchors>
                                         <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
-                                            <Offset x="20" y="-50"/>
+                                            <Offset x="20" y="-150"/>
                                         </Anchor>
                                     </Anchors>
                                     <Color r="1" g="0.82" b="0"/>
@@ -277,11 +287,89 @@
                         </Layers>
 
                         <Frames>
+                            <!-- Guide Pack Dropdown -->
+                            <Frame name="$parentGuidePackDropdown" inherits="UIDropDownMenuTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsGuidesPageGuidePackTitle" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="-15" y="-5"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        UIDropDownMenu_SetWidth(200, this);
+                                    </OnLoad>
+                                    <OnShow>
+                                        GLV_InitGuidePackDropdown(this);
+                                    </OnShow>
+                                </Scripts>
+                            </Frame>
+
+                            <!-- Load Button -->
+                            <Button name="$parentLoadPackButton" inherits="UIPanelButtonTemplate">
+                                <Size>
+                                    <AbsDimension x="80" y="22"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="LEFT" RelativeTo="GLV_SettingsGuidesPageGuidePackDropdown" RelativePoint="RIGHT">
+                                        <Offset x="-10" y="2"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        this:SetText("Load");
+                                    </OnLoad>
+                                    <OnClick>
+                                        GLV_LoadSelectedGuidePack();
+                                    </OnClick>
+                                </Scripts>
+                            </Button>
+
+                            <!-- Guide Pack Notes -->
+                            <Frame name="$parentGuidePackNotes">
+                                <Size>
+                                    <AbsDimension x="400" y="40"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsGuidesPageGuidePackDropdown" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="20" y="-10"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Layers>
+                                    <Layer>
+                                        <FontString name="$parentText" inherits="GameFontNormalSmall">
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT"/>
+                                            </Anchors>
+                                            <Color r="0.8" g="0.8" b="0.8"/>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+                            </Frame>
+
+                            <!-- Separator between Guide Pack and Automation -->
+                            <Frame name="$parentSeparator">
+                                <Size>
+                                    <AbsDimension x="300" y="1"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="BOTTOMLEFT" RelativeTo="GLV_SettingsGuidesPageAutomationTitle" RelativePoint="TOPLEFT">
+                                        <Offset x="0" y="7"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Layers>
+                                    <Layer level="BACKGROUND">
+                                        <Texture>
+                                            <Color r="0.5" g="0.5" b="0.5" a="0.8"/>
+                                        </Texture>
+                                    </Layer>
+                                </Layers>
+                            </Frame>
+
                             <!-- Auto Accept Quests Checkbox -->
                             <CheckButton name="$parentAutoAcceptQuests" inherits="OptionsCheckButtonTemplate">
                                 <Anchors>
                                     <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsGuidesPageAutomationTitle" RelativePoint="BOTTOMLEFT">
-                                        <Offset x="0" y="-10"/>
+                                        <Offset x="0" y="-5"/>
                                     </Anchor>
                                 </Anchors>
                                 <Scripts>
@@ -336,6 +424,26 @@
                                     </OnClick>
                                 </Scripts>
                             </CheckButton>
+
+                            <!-- Unload Guide Button -->
+                            <Button name="$parentUnloadGuideButton" inherits="UIPanelButtonTemplate">
+                                <Size>
+                                    <AbsDimension x="140" y="22"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="BOTTOMLEFT" RelativeTo="GLV_SettingsGuidesPage" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="20" y="20"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        this:SetText("Unload current guide");
+                                    </OnLoad>
+                                    <OnClick>
+                                        GLV_UnloadCurrentGuide();
+                                    </OnClick>
+                                </Scripts>
+                            </Button>
                         </Frames>
 
                     </Frame>

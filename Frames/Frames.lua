@@ -160,6 +160,160 @@ function GLV_OnAutomationCheckboxClick(checkbox, settingKeys)
     GLV.Settings:SetOption(isChecked, settingKeys)
 end
 
+-- Store selected pack name (not yet loaded)
+GLV_SelectedGuidePack = nil
+
+-- Factory function to create dropdown callback (avoids closure issue in Lua 5.0)
+local function createPackDropdownCallback(dropdown, packName)
+    return function()
+        GLV_SelectedGuidePack = packName
+        UIDropDownMenu_SetSelectedValue(dropdown, packName)
+        UIDropDownMenu_SetText(packName, dropdown)
+        -- Update notes display
+        GLV_UpdateGuidePackNotes(packName)
+    end
+end
+
+-- Initialize guide pack dropdown
+function GLV_InitGuidePackDropdown(dropdown)
+    local packs = GLV:GetAvailableGuidePacks()
+    local activePack = GLV:GetActiveGuidePack()
+
+    -- Initialize selected pack to active pack
+    GLV_SelectedGuidePack = activePack
+
+    UIDropDownMenu_Initialize(dropdown, function()
+        if table.getn(packs) == 0 then
+            local info = {}
+            info.text = "No guide packs installed"
+            info.disabled = 1
+            UIDropDownMenu_AddButton(info)
+            return
+        end
+
+        for _, packName in ipairs(packs) do
+            local info = {}
+            info.text = packName
+            info.value = packName
+            info.func = createPackDropdownCallback(dropdown, packName)
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    if activePack then
+        UIDropDownMenu_SetSelectedValue(dropdown, activePack)
+        UIDropDownMenu_SetText(activePack, dropdown)
+        GLV_UpdateGuidePackNotes(activePack)
+    else
+        UIDropDownMenu_SetText("Select a guide pack", dropdown)
+        GLV_UpdateGuidePackNotes(nil)
+    end
+end
+
+-- Update the notes display for a guide pack
+function GLV_UpdateGuidePackNotes(packName)
+    local notesText = _G["GLV_SettingsGuidesPageGuidePackNotesText"]
+    if not notesText then return end
+
+    if not packName then
+        notesText:SetText("")
+        return
+    end
+
+    -- Try to get addon name from pack metadata
+    local addonName = GLV.guidePackAddons and GLV.guidePackAddons[packName]
+    if addonName then
+        local notes = GetAddOnMetadata(addonName, "Notes")
+        if notes then
+            notesText:SetText(notes)
+            return
+        end
+    end
+
+    -- Fallback: show number of guides
+    local guides = GLV.loadedGuides[packName]
+    local count = 0
+    if guides then
+        for _ in pairs(guides) do count = count + 1 end
+    end
+    notesText:SetText(count .. " guides available")
+end
+
+-- Load the selected guide pack
+function GLV_LoadSelectedGuidePack()
+    if not GLV_SelectedGuidePack then return end
+
+    local packName = GLV_SelectedGuidePack
+    GLV:SetActiveGuidePack(packName)
+
+    -- Load appropriate guide
+    local guides = GLV.loadedGuides[packName]
+    if not guides then return end
+
+    local currentGuide = GLV.Settings:GetOption({"Guide", "CurrentGuide"})
+    if currentGuide and guides[currentGuide] then
+        GLV:LoadGuide(packName, currentGuide)
+    else
+        -- Load based on race/level
+        local _, race = UnitRace("player")
+        GLV.Addon:LoadDefaultGuideForRace(race)
+    end
+
+    -- Close settings
+    GLV_Settings:Hide()
+end
+
+-- Unload the current guide and reset selection
+function GLV_UnloadCurrentGuide()
+    -- Clear active pack
+    GLV.Settings:SetOption(nil, {"Guide", "ActivePack"})
+    GLV.Settings:SetOption("Unknown", {"Guide", "CurrentGuide"})
+
+    -- Clear current guide data
+    GLV.CurrentGuide = nil
+    GLV.CurrentDisplaySteps = nil
+    GLV.CurrentDisplayStepsCount = 0
+
+    -- Clear navigation
+    if GLV.GuideNavigation then
+        GLV.GuideNavigation:ClearAllWaypoints()
+        GLV.GuideNavigation:HideNextGuide()
+    end
+
+    -- Clear ongoing steps
+    if GLV.OngoingStepsManager then
+        GLV.OngoingStepsManager:Clear()
+    end
+
+    -- Disable main dropdown
+    local dropdown = _G["GLV_MainDropdown"]
+    if dropdown then
+        UIDropDownMenu_ClearAll(dropdown)
+        UIDropDownMenu_SetText("", dropdown)
+        local button = _G[dropdown:GetName().."Button"]
+        if button then button:Disable() end
+    end
+
+    -- Reset guide name and step counter
+    local guideTitle = _G["GLV_MainLoadedGuideTitle"]
+    if guideTitle then
+        guideTitle:SetText("")
+    end
+    local stepCounter = _G["GLV_MainLoadedGuideCounter"]
+    if stepCounter then
+        stepCounter:SetText("")
+    end
+
+    -- Show the "no guide" message
+    GLV:ShowNoGuideMessage()
+
+    -- Reset dropdown selection
+    GLV_SelectedGuidePack = nil
+
+    -- Close settings
+    GLV_Settings:Hide()
+end
+
 -- Initialize scale slider from settings
 function GLV_InitScaleSlider(slider, settingKeys)
     local value = GLV.Settings:GetOption(settingKeys) or 1
