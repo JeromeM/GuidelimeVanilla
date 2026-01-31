@@ -36,6 +36,7 @@ Key global objects:
 - `GLV.CurrentDisplaySteps` - Filtered/displayed steps array
 - `GLV.loadedGuides` - Table of registered guides organized by pack: `GLV.loadedGuides[packName][guideId]`
 - `GLV.guidePackAddons` - Maps pack names to addon names for metadata lookup: `GLV.guidePackAddons["Pack Name"] = "AddonName"`
+- `GLV.guidePackStartingGuides` - Maps pack names to race-to-guide mappings: `GLV.guidePackStartingGuides[packName][race] = "Guide Name"`
 
 ### Data Flow
 
@@ -177,11 +178,44 @@ Guides are distributed as separate addons (guide packs) that depend on Guidelime
 ### Guide Pack Management Functions
 
 ```lua
-GLV:GetAvailableGuidePacks()     -- Returns list of installed pack names
-GLV:GetActiveGuidePack()         -- Returns currently selected pack name
-GLV:SetActiveGuidePack(name)     -- Set active pack and refresh dropdown
-GLV:ShowNoGuideMessage()         -- Display "no guides" message in UI
+GLV:GetAvailableGuidePacks()              -- Returns list of installed pack names
+GLV:GetActiveGuidePack()                  -- Returns currently selected pack name
+GLV:SetActiveGuidePack(name)              -- Set active pack and refresh dropdown
+GLV:ShowNoGuideMessage()                  -- Display "no guides" message in UI
+GLV:RegisterStartingGuides(pack, mapping) -- Register race-to-guide mappings for a pack
+GLV:GetStartingGuideForRace(pack, race)   -- Get starting guide name for a race in a pack
 ```
+
+### Starting Guide System
+
+Guide packs can register race-specific starting guides to automatically suggest appropriate guides for new characters:
+
+**Registration:**
+```lua
+GLV:RegisterStartingGuides("Pack Name", {
+    ["Human"] = "1-11 Elwynn Forest",
+    ["Dwarf"] = "1-11 Dun Morogh",
+    ["Night Elf"] = "1-11 Teldrassil",
+    ["Gnome"] = "1-11 Dun Morogh",
+    ["Orc"] = "1-12 Durotar",
+    ["Troll"] = "1-12 Durotar",
+    ["Tauren"] = "1-12 Mulgore",
+    ["Undead"] = "1-12 Tirisfal Glades"
+})
+```
+
+**Usage:**
+```lua
+local race = UnitRace("player")
+local guideName = GLV:GetStartingGuideForRace("Pack Name", race)
+-- Returns guide name or nil if no mapping exists
+```
+
+**Key Points:**
+- Race names must match WoW API strings exactly (case-sensitive)
+- Guide names should match the display name in the guide's `[N]` tag
+- Multiple races can map to the same starting guide
+- Optional feature - packs work fine without starting guide registration
 
 ### Creating a Guide Pack Addon
 
@@ -214,6 +248,14 @@ end
 GLV.guidePackAddons = GLV.guidePackAddons or {}
 GLV.guidePackAddons["My Pack Name"] = "GuidelimeVanilla_MyPack"
 
+-- Register starting guides for each race (optional but recommended)
+GLV:RegisterStartingGuides("My Pack Name", {
+    ["Human"] = "1-11 Elwynn Forest",
+    ["Dwarf"] = "1-11 Dun Morogh",
+    ["Night Elf"] = "1-11 Teldrassil",
+    -- Add more races as needed
+})
+
 DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[My Pack]|r Loaded successfully")
 ```
 
@@ -232,3 +274,6 @@ GLV:RegisterGuide([[
 - Addon name in metadata must match the .toc filename (without .toc extension)
 - Users must manually select and load the pack via Settings > Guides (no auto-loading)
 - Main guide dropdown is disabled until a pack is loaded
+- Starting guide registration is optional but recommended for automatic guide selection based on character race
+- Race names must match WoW API race strings: "Human", "Dwarf", "Night Elf", "Gnome", "Orc", "Troll", "Tauren", "Undead"
+- Guide names in starting guide mappings should match the guide display names (without level ranges if possible)
