@@ -253,9 +253,15 @@ function Parser:parseGuide(guide, group)
                             local questId = nil
                             local questCoords = nil
                             questTitle, questId, questCoords = self:GetQuestInfo(tagContent)
+
+                            -- [Q] tag is just a quest reference, not an action
+                            if tag == "QUEST" then
+                                return "|c" .. GLV.Colors[tag] .. questTitle .. "|r"
+                            end
+
                             parsedLine.questId = tonumber(questId)
                             parsedLine.hasCheckbox = true
-                            
+
                             -- Use colored text symbols for quest actions
                             if tag == "ACCEPT" then
                                 parsedLine.stepType = "ACCEPT"
@@ -267,7 +273,7 @@ function Parser:parseGuide(guide, group)
                                 parsedLine.stepType = "COMPLETE"
                                 fullText = "Complete "
                             end
-                            
+
                             if not parsedLine.questTags then parsedLine.questTags = {} end
                             table.insert(parsedLine.questTags, {
                                 tag = tag,
@@ -378,20 +384,27 @@ end
 -- Extract guide name, levels and create unique ID from the NAME tag content
 function Parser:getGuideName(content)
     local lvlMin, lvlMax, guideName
-    
+
     -- Pattern 1: "1-11 Dun Morogh" or "1-11 Dun Morogh"
     lvlMin, lvlMax, guideName = string.match(content, "(%d+)%s*%-%s*(%d+)%s*(.+)")
-    
+
     -- Pattern 2: "1 11 Dun Morogh" (without dash)
     if not lvlMin then
         lvlMin, lvlMax, guideName = string.match(content, "(%d+)%s+(%d+)%s+(.+)")
     end
-    
+
     -- Pattern 3: Just try to extract any numbers and text
     if not lvlMin then
         lvlMin, lvlMax, guideName = string.match(content, "(%d+)%s*[%-%s]%s*(%d+)%s*(.+)")
     end
-    
+
+    -- Pattern 4: No level numbers, just a name (e.g., "START WITH THIS as Tauren")
+    if not guideName then
+        guideName = content
+        lvlMin = nil
+        lvlMax = nil
+    end
+
     -- Create a unique guide identifier
     local guideId = "Unknown"
     if guideName and guideName ~= "" then
@@ -405,7 +418,7 @@ function Parser:getGuideName(content)
     else
         guideId = "Unknown_Guide"
     end
-    
+
     return lvlMin, lvlMax, guideName, guideId
 end
 

@@ -11,6 +11,7 @@ local GLV = LibStub("GuidelimeVanilla")
 GLV.Colors = {
     APPLIES     = "FFa335ee",
     LEARN       = "FF56c453",
+    QUEST       = "FF0079d2",  -- Generic quest reference
     ACCEPT      = "FF00ffff",
     COMPLETE    = "FF0079d2",
     TURNIN      = "FF00ff00",
