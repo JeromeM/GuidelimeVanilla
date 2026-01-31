@@ -19,6 +19,7 @@ GuidelimeVanilla is a guide engine - guides are provided as separate addons:
 | Guide Pack | Description |
 |------------|-------------|
 | **[GuidelimeVanilla_Sage](https://github.com/JeromeM/GuidelimeVanilla_Sage)** | Sage 1-60 Alliance leveling guides |
+| **[GuidelimeVanilla_Bustea](https://github.com/JeromeM/GuidelimeVanilla_Bustea)** | Bustea 1-60 Horde leveling guides |
 
 Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **Settings > Guides**.
 
