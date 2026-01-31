@@ -69,6 +69,8 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Flight Path Tracking**: Automatically detects discovered flight paths and flight destinations
 - **Hearthstone Tracking**: Click the hearthstone icon in navigation frame on hearthstone steps to use hearthstone, step auto-completes after cast
 - **Spell Learning Tracking**: Automatically completes learn spell steps when you train skills or spells (uses Nampower API for profession tier verification)
+- **Item Collection Tracking**: Automatically completes collect item steps when you acquire the required items in your bags
+- **Equipment Tracking**: Automatically completes equip item steps when you equip the specified items
 - **Quest Abandonment Handling**: Properly updates state when quests are abandoned
 - **XP Progress Bars**: Visual colored progress bars for grind/XP requirement steps showing current progress
 
