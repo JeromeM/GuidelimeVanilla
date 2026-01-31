@@ -255,14 +255,15 @@ function GLV:PopulateDropdown(group)
         local sortedGuides = {}
         for guideId, guideData in pairs(guides) do
             -- Filter by faction/race
+            -- All values in [GA] must match (AND logic)
+            -- e.g., "Horde,Tauren" means player must be Horde AND Tauren
             local showGuide = true
             if guideData.faction and guideData.faction ~= "" then
-                showGuide = false
-                -- Parse faction string (can be "Horde" or "Horde,Undead")
                 for value in string.gfind(guideData.faction .. ",", "([^,]+),") do
                     value = string.gsub(value, "^%s*(.-)%s*$", "%1") -- trim whitespace
-                    if value == playerFaction or value == playerRace then
-                        showGuide = true
+                    -- Each value must match either faction or race
+                    if value ~= playerFaction and value ~= playerRace then
+                        showGuide = false
                         break
                     end
                 end

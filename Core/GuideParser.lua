@@ -525,7 +525,9 @@ function Parser:replaceClassRace(content)
             return classRaceTag
         end
 
-    end 
+    end
+    -- Return the original content if no match found (prevents nil concatenation)
+    return content or ""
 end
 
 GLV.Parser = Parser

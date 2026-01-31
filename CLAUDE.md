@@ -110,7 +110,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 | Tag | Meaning | Example |
 |-----|---------|---------|
 | `[N x-y Name]` | Guide name and level range | `[N 1-11 Elwynn Forest]` |
-| `[GA faction]` | Alliance/Horde filter | `[GA Alliance]` |
+| `[GA faction]` | Alliance/Horde/Race filter (comma-separated) | `[GA Alliance]` or `[GA Horde,Undead]` |
 | `[QA id]` | Accept quest | `[QA783]` |
 | `[QC id]` | Complete quest | `[QC33]` |
 | `[QT id]` | Turn in quest | `[QT783]` |
@@ -184,7 +184,23 @@ GLV:SetActiveGuidePack(name)              -- Set active pack and refresh dropdow
 GLV:ShowNoGuideMessage()                  -- Display "no guides" message in UI
 GLV:RegisterStartingGuides(pack, mapping) -- Register race-to-guide mappings for a pack
 GLV:GetStartingGuideForRace(pack, race)   -- Get starting guide name for a race in a pack
+GLV:PopulateDropdown(group)               -- Populate dropdown with guides, filtered by player faction/race
 ```
+
+### Faction/Race Filtering
+
+The guide dropdown automatically filters guides based on the player's current faction and race:
+
+- Guides with `[GA Alliance]` only appear for Alliance characters
+- Guides with `[GA Horde]` only appear for Horde characters
+- Guides with `[GA Horde,Undead]` only appear for Horde characters AND specifically for Undead players
+- Guides without a `[GA]` tag appear for all factions/races
+
+The filtering uses player data from settings:
+- `{"CharInfo", "Faction"}` - Player's faction ("Alliance" or "Horde")
+- `{"CharInfo", "Race"}` - Player's race ("Human", "Dwarf", "Night Elf", "Gnome", "Orc", "Troll", "Tauren", "Undead")
+
+When a guide is registered via `GLV:RegisterGuide()`, the `faction` field is extracted from the guide's `[GA]` tag and stored in the guide metadata. The dropdown population function then parses this comma-separated faction string to determine visibility.
 
 ### Starting Guide System
 
