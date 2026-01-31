@@ -135,6 +135,25 @@ end
 -- Store addon names for each guide pack
 GLV.guidePackAddons = GLV.guidePackAddons or {}
 
+-- Store starting guide mappings for each guide pack (race -> guide name)
+GLV.guidePackStartingGuides = GLV.guidePackStartingGuides or {}
+
+-- Register starting guide mappings for a guide pack
+-- raceMapping is a table like: { Human = "Elwynn Forest", Dwarf = "Dun Morogh", ... }
+function GLV:RegisterStartingGuides(packName, raceMapping)
+    if not packName or not raceMapping then return end
+    self.guidePackStartingGuides[packName] = raceMapping
+end
+
+-- Get the starting guide name for a race in a specific pack
+function GLV:GetStartingGuideForRace(packName, race)
+    local mapping = self.guidePackStartingGuides[packName]
+    if mapping and mapping[race] then
+        return mapping[race]
+    end
+    return nil
+end
+
 -- Register a new guide with the system
 -- addonName is optional - if provided, it's used to fetch addon metadata (Notes, etc.)
 function GLV:RegisterGuide(guideText, group, addonName)

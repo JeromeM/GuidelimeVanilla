@@ -238,19 +238,8 @@ function addon:FindStartingGuideForRace(race, packName)
     local guides = GLV.loadedGuides[packName]
     if not guides then return nil end
 
-    -- Map races to typical starting zone names
-    local raceGuides = {
-        ["Human"] = "Elwynn Forest",
-        ["Dwarf"] = "Dun Morogh",
-        ["Gnome"] = "Dun Morogh",
-        ["NightElf"] = "Teldrassil",
-        ["Orc"] = "Durotar",
-        ["Troll"] = "Durotar",
-        ["Tauren"] = "Mulgore",
-        ["Undead"] = "Tirisfal Glades",
-    }
-
-    local targetGuideName = raceGuides[race]
+    -- Get the starting guide name from the pack's registered mapping
+    local targetGuideName = GLV:GetStartingGuideForRace(packName, race)
     if not targetGuideName then return nil end
 
     for guideId, guideData in pairs(guides) do

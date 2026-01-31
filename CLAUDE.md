@@ -34,13 +34,17 @@ Key global objects:
 - `GLV.GuideNavigation` - Arrow navigation and guide transitions (arrow display, next guide button)
 - `GLV.CurrentGuide` - Currently loaded guide data (includes `.clickToNext` and `.next` for guide chaining)
 - `GLV.CurrentDisplaySteps` - Filtered/displayed steps array
+- `GLV.loadedGuides` - Table of registered guides organized by pack: `GLV.loadedGuides[packName][guideId]`
+- `GLV.guidePackAddons` - Maps pack names to addon names for metadata lookup: `GLV.guidePackAddons["Pack Name"] = "AddonName"`
 
 ### Data Flow
 
-1. **Guide Registration**: `GLV:RegisterGuide(text, group)` parses and stores guides
-2. **Guide Loading**: `GLV:LoadGuide(group, id)` parses guide, creates UI steps
-3. **Event Tracking**: Hooks on quest accept/complete trigger `QuestTracker:HandleQuestAction()`
-4. **UI Updates**: `GLV:RefreshGuide()` redraws steps, `updateStepColors()` handles highlighting
+1. **Guide Pack Installation**: External addon loads with `Dependencies: GuidelimeVanilla`
+2. **Guide Registration**: Pack calls `GLV:RegisterGuide(text, group)` to register guides
+3. **Pack Selection**: User selects pack in Settings > Guides, stored in `{"Guide", "ActivePack"}`
+4. **Guide Loading**: `GLV:LoadGuide(group, id)` parses guide, creates UI steps
+5. **Event Tracking**: Hooks on quest accept/complete trigger `QuestTracker:HandleQuestAction()`
+6. **UI Updates**: `GLV:RefreshGuide()` redraws steps, `updateStepColors()` handles highlighting
 
 ### Settings System
 
@@ -49,6 +53,9 @@ Access settings via nested key arrays:
 GLV.Settings:GetOption({"Guide", "Guides", guideId, "StepState"})
 GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 ```
+
+**Guide Pack Settings**:
+- `{"Guide", "ActivePack"}` - Currently selected guide pack name (nil if none selected)
 
 **Automation Settings** (Settings > Guides):
 - `{"Automation", "AutoAcceptQuests"}` - Auto-accept quests when current step has `[QA]` tag
@@ -116,13 +123,14 @@ Guides use tagged format parsed by `GuideParser.lua`:
 
 ## Key Files
 
-- `Core.lua` - Addon initialization, character loading, quest sync
+- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading)
 - `Core/GuideParser.lua` - Tag parsing, step extraction
-- `Core/GuideLibrary.lua` - Guide registration, dropdown, loading
+- `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling
 - `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, next guide button for guide transitions, frame scaling
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, automation (auto-accept/turnin), ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups)
 
 ## Lua 5.0 Compatibility Notes
@@ -159,9 +167,12 @@ Guides are distributed as separate addons (guide packs) that depend on Guidelime
 
 1. Guide pack addon declares `## Dependencies: GuidelimeVanilla` in its .toc
 2. Pack's init.lua gets GLV reference: `local GLV = LibStub("GuidelimeVanilla")`
-3. Each guide file calls `GLV:RegisterGuide(text, "Pack Name")`
-4. Guides are stored in `GLV.loadedGuides["Pack Name"][guideId]`
-5. User selects active pack in Settings > Guides
+3. Pack registers its addon name for metadata: `GLV.guidePackAddons["Pack Name"] = "AddonName"`
+4. Each guide file calls `GLV:RegisterGuide(text, "Pack Name")`
+5. Guides are stored in `GLV.loadedGuides["Pack Name"][guideId]`
+6. User selects active pack in Settings > Guides dropdown
+7. User clicks "Load" button to activate the pack
+8. Main dropdown populates with guides from active pack only
 
 ### Guide Pack Management Functions
 
@@ -181,10 +192,29 @@ GuidelimeVanilla_MyPack/
 └── Guide_Zone.lua
 ```
 
+**GuidelimeVanilla_MyPack.toc:**
+```
+## Interface: 11200
+## Title: Guidelime Vanilla - My Pack
+## Notes: Description of your guide pack
+## Author: Your Name
+## Version: 1.0.0
+## Dependencies: GuidelimeVanilla
+```
+
 **init.lua:**
 ```lua
 local GLV = LibStub("GuidelimeVanilla")
-if not GLV then return end
+if not GLV then
+    DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[My Pack]|r GuidelimeVanilla is required!")
+    return
+end
+
+-- Register addon name for metadata lookup
+GLV.guidePackAddons = GLV.guidePackAddons or {}
+GLV.guidePackAddons["My Pack Name"] = "GuidelimeVanilla_MyPack"
+
+DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[My Pack]|r Loaded successfully")
 ```
 
 **Guide file:**
@@ -196,3 +226,9 @@ GLV:RegisterGuide([[
 ...
 ]], "My Pack Name")
 ```
+
+**Important Notes:**
+- Pack name in `GLV.guidePackAddons` must match the group name used in `RegisterGuide()`
+- Addon name in metadata must match the .toc filename (without .toc extension)
+- Users must manually select and load the pack via Settings > Guides (no auto-loading)
+- Main guide dropdown is disabled until a pack is loaded
