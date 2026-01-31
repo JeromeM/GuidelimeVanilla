@@ -178,7 +178,8 @@ function GLV:RegisterGuide(guideText, group, addonName)
                 name = guide.name,
                 minLevel = guide.minLevel,
                 maxLevel = guide.maxLevel,
-                description = guide.description
+                description = guide.description,
+                faction = guide.faction
             }
 
             self.Settings:SetOption(group, {"Guide", "CurrentGroup"})
@@ -245,11 +246,31 @@ function GLV:PopulateDropdown(group)
         return
     end
 
+    -- Get player faction and race for filtering
+    local playerFaction = self.Settings:GetOption({"CharInfo", "Faction"})
+    local playerRace = self.Settings:GetOption({"CharInfo", "Race"})
+
     UIDropDownMenu_Initialize(dropdown, function()
         -- Create a sorted list of guides by minLevel then by name
         local sortedGuides = {}
         for guideId, guideData in pairs(guides) do
-            table.insert(sortedGuides, {id = guideId, data = guideData})
+            -- Filter by faction/race
+            local showGuide = true
+            if guideData.faction and guideData.faction ~= "" then
+                showGuide = false
+                -- Parse faction string (can be "Horde" or "Horde,Undead")
+                for value in string.gfind(guideData.faction .. ",", "([^,]+),") do
+                    value = string.gsub(value, "^%s*(.-)%s*$", "%1") -- trim whitespace
+                    if value == playerFaction or value == playerRace then
+                        showGuide = true
+                        break
+                    end
+                end
+            end
+
+            if showGuide then
+                table.insert(sortedGuides, {id = guideId, data = guideData})
+            end
         end
 
         -- Sort by minLevel first, then by name
