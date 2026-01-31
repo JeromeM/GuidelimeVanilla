@@ -129,6 +129,18 @@ if not GLV then
     DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[My Guides]|r GuidelimeVanilla is required!")
     return
 end
+
+-- Optional: Register starting guides for automatic guide selection per race
+GLV:RegisterStartingGuides("My Guides", {
+    ["Human"] = "Elwynn Forest",
+    ["Dwarf"] = "Dun Morogh",
+    ["Gnome"] = "Dun Morogh",
+    ["NightElf"] = "Teldrassil",
+    ["Orc"] = "Durotar",
+    ["Troll"] = "Durotar",
+    ["Tauren"] = "Mulgore",
+    ["Undead"] = "Tirisfal Glades",
+})
 ```
 
 ### Example Guide File
@@ -143,14 +155,28 @@ GLV:RegisterGuide([[
 Accept quest example step
 Complete quest objectives step
 Turn in quest step
-]], "My Guides")
+]], "My Guides", "GuidelimeVanilla_MyGuides")  -- Third parameter is optional addon name for metadata
 ```
+
+### Guide Pack API Reference
+
+**`GLV:RegisterGuide(guideText, groupName, addonName)`**
+- `guideText`: The guide content with tagged format
+- `groupName`: The guide pack name (e.g., "My Guides")
+- `addonName`: (Optional) The addon folder name for metadata lookup
+
+**`GLV:RegisterStartingGuides(packName, raceMapping)`**
+- `packName`: The guide pack name (must match the groupName used in RegisterGuide)
+- `raceMapping`: Table mapping race names to starting guide names
+- Race names: `Human`, `Dwarf`, `Gnome`, `NightElf`, `Orc`, `Troll`, `Tauren`, `Undead`
+- Guide names must match the `[N]` tag name in your guides
 
 ### Guide Formatting Tips
 
 - **Line Breaks**: Use `\\` (double backslash) to create line breaks in step text and descriptions
 - **Special Tags**: The guide format uses bracketed tags to indicate actions (quest accept, turnin, navigation targets, etc.)
 - **Multiple Actions**: A single step can contain multiple quest actions that all need completion
+- **TOC Notes**: Add a `## Notes:` line in your .toc file - it will be displayed in the guide pack selection dropdown
 
 For detailed guide syntax documentation, see the [TAGS.md](TAGS.md) file.
 
