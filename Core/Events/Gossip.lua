@@ -143,6 +143,10 @@ function GossipTracker:CheckHearthstoneBind()
     local currentBindLocation = GetBindLocation()
     if not currentBindLocation then return end
 
+    -- Also get current zone/subzone for matching (inn names often differ from zone names)
+    local currentSubZone = GetSubZoneText() or ""
+    local currentZone = GetZoneText() or ""
+
     local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
     local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
     local diCount = GLV.CurrentDisplayStepsCount or 0
@@ -159,15 +163,22 @@ function GossipTracker:CheckHearthstoneBind()
                 if line.bindLocation then
                     -- Check if bind location matches (case insensitive, partial match)
                     local requiredLocation = string.lower(line.bindLocation)
-                    local actualLocation = string.lower(currentBindLocation)
+                    local actualBind = string.lower(currentBindLocation)
+                    local actualSubZone = string.lower(currentSubZone)
+                    local actualZone = string.lower(currentZone)
 
-                    if string.find(actualLocation, requiredLocation) or string.find(requiredLocation, actualLocation) then
+                    -- Match against: inn name, subzone, or zone
+                    local isMatch = string.find(actualBind, requiredLocation) or string.find(requiredLocation, actualBind)
+                        or string.find(actualSubZone, requiredLocation) or string.find(requiredLocation, actualSubZone)
+                        or string.find(actualZone, requiredLocation) or string.find(requiredLocation, actualZone)
+
+                    if isMatch then
                         stepState[origIdx] = true
                         GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
                         stepCompleted = true
 
                         if GLV.Debug then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone bound to " .. currentBindLocation .. " - step completed!")
+                            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone bound to " .. currentBindLocation .. " (zone: " .. currentSubZone .. ") - step completed!")
                         end
                         break
                     end

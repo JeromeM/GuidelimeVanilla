@@ -281,7 +281,8 @@ function Parser:parseGuide(guide, group)
                             local questTitle = ""
                             local questId = nil
                             local questCoords = nil
-                            questTitle, questId, questCoords = self:GetQuestInfo(tagContent)
+                            local objectiveIndex = nil
+                            questTitle, questId, questCoords, objectiveIndex = self:GetQuestInfo(tagContent)
 
                             -- [Q] tag is just a quest reference, not an action
                             if tag == "QUEST" then
@@ -307,7 +308,8 @@ function Parser:parseGuide(guide, group)
                             table.insert(parsedLine.questTags, {
                                 tag = tag,
                                 questId = tonumber(questId),
-                                title = questTitle
+                                title = questTitle,
+                                objectiveIndex = objectiveIndex  -- nil for whole quest, 1/2/3 for specific objective
                             })
                             
                             if questCoords and table.getn(questCoords) > 0 then
@@ -477,10 +479,16 @@ end
 function Parser:GetQuestInfo(content)
     local questID, _, questPart = string.match(content, "(%d+)(,?)(%d?)")
     local questName = GLV:GetQuestNameByID(questID)
-    
+
     local coords = GLV:GetQuestAllCoords(questID, questPart)
-    
-    return questName, questID, coords
+
+    -- Convert questPart to number (nil if empty string)
+    local objectiveIndex = nil
+    if questPart and questPart ~= "" then
+        objectiveIndex = tonumber(questPart)
+    end
+
+    return questName, questID, coords, objectiveIndex
 end
 
 -- Get spell name and ID for learn tags from the LEARN tag content

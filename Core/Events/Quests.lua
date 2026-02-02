@@ -154,12 +154,12 @@ end
 -- Check objectives for a specific quest and handle completion
 function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isComplete)
     SelectQuestLogEntry(questIndex)
-    
+
     local questDescription, questObjectives = GetQuestLogQuestText()
-    
+
     local currentObjectivesState = {}
     local numObjectives = GetNumQuestLeaderBoards()
-    
+
     for i = 1, numObjectives do
         local description, objectiveType, isCompleted = GetQuestLogLeaderBoard(i)
         if description then
@@ -169,16 +169,37 @@ function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isCo
             }
         end
     end
-    
+
+    -- Get previous state for comparison
+    local previousState = self.previousQuestStates[questId]
+
+    -- Check for individual objective completion (for [QC questId,objectiveIndex] steps)
+    for i = 1, numObjectives do
+        local prevObj = previousState and previousState.objectivesState and previousState.objectivesState[i]
+        local currObj = currentObjectivesState[i]
+
+        if currObj and currObj.isCompleted then
+            -- Objective is now complete - check if it just became complete
+            local wasCompleted = prevObj and prevObj.isCompleted
+            if not wasCompleted then
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Objective " .. i .. " complete: " .. questTitle .. " (ID: " .. tostring(questId) .. ")")
+                end
+                self:HandleQuestAction(questId, questTitle, "COMPLETE", i)
+            end
+        end
+    end
+
     -- isComplete can be 1, true, or any truthy value depending on WoW version
     if isComplete and (isComplete == 1 or isComplete == true) then
-        local currentState = self.previousQuestStates[questId]
-        if not currentState or not currentState.wasComplete then
+        local wasComplete = previousState and previousState.wasComplete
+        if not wasComplete then
             if GLV.Debug then
                 DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Quest complete detected: " .. questTitle .. " (ID: " .. tostring(questId) .. ")")
             end
-            self:HandleQuestAction(questId, questTitle, "COMPLETE")
-            
+            -- Fire for whole quest completion (no objectiveIndex)
+            self:HandleQuestAction(questId, questTitle, "COMPLETE", nil)
+
             self.previousQuestStates[questId] = {
                 wasComplete = true,
                 lastObjectives = questObjectives,
@@ -216,7 +237,12 @@ function QuestTracker:TrackAccepted(id, title)
 end
 
 -- Centralized function to handle quest actions (accept, complete, turnin)
-function QuestTracker:HandleQuestAction(questId, title, actionType)
+-- objectiveIndex is optional: nil = whole quest, 1/2/3 = specific objective
+function QuestTracker:HandleQuestAction(questId, title, actionType, objectiveIndex)
+    if GLV.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r HandleQuestAction: " .. tostring(actionType) .. " q" .. tostring(questId) .. " objIdx=" .. tostring(objectiveIndex))
+    end
+
     local currentGuideId = GLV.Settings:GetOption({"Guide","CurrentGuide"}) or "Unknown"
     local stepState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepState"}) or {}
     local stepQuestState = GLV.Settings:GetOption({"Guide","Guides", currentGuideId, "StepQuestState"}) or {}
@@ -225,6 +251,9 @@ function QuestTracker:HandleQuestAction(questId, title, actionType)
     local multiActionStepFound = false
 
     if not GLV.CurrentDisplaySteps then
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[QuestTracker]|r CurrentDisplaySteps is nil!")
+        end
         return
     end
 
@@ -246,19 +275,37 @@ function QuestTracker:HandleQuestAction(questId, title, actionType)
                 local allActionsDone = true
 
                 for _, questTag in ipairs(step.questTags) do
+                    -- Include objectiveIndex in actionKey for specific objectives
                     local actionKey = questTag.questId .. "_" .. questTag.tag
+                    if questTag.objectiveIndex then
+                        actionKey = actionKey .. "_" .. questTag.objectiveIndex
+                    end
 
                     -- Match by quest ID, with name fallback only for COMPLETE actions
                     -- (ACCEPT has exact ID from event, but COMPLETE only has name from quest log)
                     local isMatch = false
                     if questTag.tag == actionType then
-                        if tonumber(questTag.questId) == tonumber(questId) then
-                            isMatch = true
-                        elseif actionType == "COMPLETE" and title then
-                            -- For COMPLETE, allow name matching since we can't get exact ID from quest log
+                        local questIdMatches = tonumber(questTag.questId) == tonumber(questId)
+                        local nameMatches = false
+                        if actionType == "COMPLETE" and title then
                             local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
-                            if tagQuestName and tagQuestName == title then
-                                isMatch = true
+                            nameMatches = tagQuestName and tagQuestName == title
+                        end
+
+                        if questIdMatches or nameMatches then
+                            -- Check objective index matching:
+                            -- - If guide step has objectiveIndex, event must match it exactly
+                            -- - If guide step has no objectiveIndex (nil), match whole quest completion (objectiveIndex nil)
+                            if questTag.objectiveIndex then
+                                -- Step wants specific objective - match only if event has same objective
+                                if objectiveIndex and questTag.objectiveIndex == objectiveIndex then
+                                    isMatch = true
+                                end
+                            else
+                                -- Step wants whole quest - match only if event is for whole quest (no objectiveIndex)
+                                if not objectiveIndex then
+                                    isMatch = true
+                                end
                             end
                         end
                     end
@@ -267,15 +314,25 @@ function QuestTracker:HandleQuestAction(questId, title, actionType)
                         stepQuestState[origIdx][actionKey] = true
                         hasMatchingAction = true
                         multiActionStepFound = true
+                        if GLV.Debug then
+                            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r MATCH: " .. actionKey .. " on step " .. tostring(di))
+                        end
                     end
 
                     if not stepQuestState[origIdx][actionKey] then
                         allActionsDone = false
+                        if GLV.Debug then
+                            DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[QuestTracker]|r Missing: " .. actionKey)
+                        end
                     end
                 end
 
                 if hasMatchingAction then
                     GLV.Settings:SetOption(stepQuestState, {"Guide","Guides", currentGuideId, "StepQuestState"})
+
+                    if GLV.Debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[QuestTracker]|r allActionsDone=" .. tostring(allActionsDone) .. " for step " .. tostring(di))
+                    end
 
                     if allActionsDone then
                         stepState[origIdx] = true
@@ -345,6 +402,9 @@ function QuestTracker:UpdateStepNavigation(stepMarked, multiActionStepFound, act
                         local allDone = true
                         for _, questTag in ipairs(step.questTags) do
                             local actionKey = questTag.questId .. "_" .. questTag.tag
+                            if questTag.objectiveIndex then
+                                actionKey = actionKey .. "_" .. questTag.objectiveIndex
+                            end
                             if not stepQuestState[origIdx][actionKey] then
                                 allDone = false
                                 break
@@ -371,6 +431,10 @@ function QuestTracker:UpdateStepNavigation(stepMarked, multiActionStepFound, act
     -- RefreshGuide has built-in debounce to prevent multiple rapid rebuilds
     if stepMarked and GLV.RefreshGuide then
         GLV:RefreshGuide()
+        -- Force navigation update after RefreshGuide completes
+        GLV.Ace:ScheduleEvent("GLV_PostRefreshNavUpdate", function()
+            self:ForceNavigationUpdate()
+        end, 0.2)
     else
         -- Just update highlighting if no step was marked
         local scrollChild = GLV_MainScrollFrameScrollChild
@@ -620,9 +684,13 @@ end
 -- Hook function for quest accept button
 function HookQuestAccept()
     local title = GetTitleText()
-    
+
     -- Find quest ID based on current guide step
     local correctQuestId = GLV.QuestTracker:GetExpectedQuestIdFromCurrentStep(title)
+
+    if GLV.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r HookQuestAccept: '" .. tostring(title) .. "' correctId=" .. tostring(correctQuestId))
+    end
 
     if correctQuestId then
         GLV.QuestTracker:TrackAccepted(correctQuestId, title)
@@ -630,11 +698,14 @@ function HookQuestAccept()
         -- Fallback to legacy method
         local id = GLV:GetQuestIDByName(title)
         local numId = tonumber(id)
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[QuestTracker]|r Fallback to GetQuestIDByName: " .. tostring(numId))
+        end
         if numId then
             GLV.QuestTracker:TrackAccepted(numId, title)
         end
     end
-    
+
     GLV.Ace.hooks["QuestDetailAcceptButton_OnClick"]()
 end
 
@@ -650,17 +721,24 @@ function HookQuestComplete()
     end
 
     local numId = tonumber(id)
-    
+
     local store = GLV.QuestTracker and GLV.QuestTracker.store or GLV.Settings:GetOption({"QuestTracker"}) or GLV.Settings:GetDefaults().char.QuestTracker
-    if store and store.Completed and numId then
-        store.Completed[numId] = { title = title, timestamp = time() }
+    if store and numId then
+        -- Add to Completed
+        if store.Completed then
+            store.Completed[numId] = { title = title, timestamp = time() }
+        end
+        -- Remove from Accepted (quest is no longer in log after turn-in)
+        if store.Accepted and store.Accepted[numId] then
+            store.Accepted[numId] = nil
+        end
         GLV.Settings:SetOption(store, {"QuestTracker"})
     end
-    
+
     if numId then
         GLV.QuestTracker:HandleQuestAction(numId, title, "TURNIN")
     end
-    
+
     GLV.Ace.hooks["QuestRewardCompleteButton_OnClick"]()
 end
 
