@@ -64,14 +64,16 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 
 ### 🎯 Quest Tracking
 - **Automatic Progress**: Checks off steps when quests are accepted, completed, or turned in
+- **Individual Objective Tracking**: Track specific quest objectives using `[QC questId,objectiveIndex]` syntax for granular progress tracking
 - **Multi-step Support**: Handles steps with multiple quest actions
 - **Quest State Persistence**: Saves progress between sessions
+- **Smart Quest Matching**: Improved handling of multi-part quests with identical names
 - **Automation Settings**: Optional automation features available in Settings > Guides:
   - **Auto Accept Quests**: Automatically accepts quests when on a quest accept step
   - **Auto Turnin Quests**: Automatically turns in quests when on a quest turnin step (skips if reward choice required)
   - **Auto Take Flights**: Automatically takes flights when on a flight path step
 - **Flight Path Tracking**: Automatically detects discovered flight paths and flight destinations
-- **Hearthstone Tracking**: Click the hearthstone icon in navigation frame on hearthstone steps to use hearthstone, step auto-completes after cast
+- **Hearthstone Tracking**: Click the hearthstone icon in navigation frame on hearthstone steps to use hearthstone, step auto-completes after cast. Binding location matching now checks inn name, subzone, and zone for improved accuracy
 - **Spell Learning Tracking**: Automatically completes learn spell steps when you train skills or spells (uses Nampower API for profession tier verification)
 - **Item Collection Tracking**: Automatically completes collect item steps when you acquire the required items in your bags
 - **Equipment Tracking**: Automatically completes equip item steps when you equip the specified items

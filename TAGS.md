@@ -35,9 +35,22 @@ Tags for quest-related actions. Quest IDs can be found in database addons or onl
 |-----|-------------|---------|
 | `[QA id]` | **Accept quest** - Creates a yellow `!` marker | `[QA 783]` |
 | `[QC id]` | **Complete quest** - Track quest objectives | `[QC 783]` |
+| `[QC id,index]` | **Complete specific objective** - Track individual objective | `[QC 783,1]` |
 | `[QT id]` | **Turn in quest** - Creates a yellow `?` marker | `[QT 783]` |
 | `[QS id]` | **Skip quest** - Mark quest as skipped | `[QS 783]` |
 | `[Q id]` | **Quest reference** - Display quest name inline (no checkbox) | `[Q 783] is a prerequisite` |
+
+### Quest Objective Tracking
+
+Track individual quest objectives by adding a comma and objective index (1, 2, 3, etc.):
+
+```
+[QC 783,1] Kill 10 wolves (first objective only)
+[QC 783,2] Collect 5 items (second objective only)
+[QC 783] Complete all quest objectives
+```
+
+The step will auto-complete when that specific objective is finished. The navigation system will automatically target the coordinates for that specific objective if available.
 
 ### Multi-part Quests
 

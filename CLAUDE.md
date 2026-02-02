@@ -100,6 +100,12 @@ The navigation frame displays different modes based on current step:
 - Tracks progress: `allWaypoints[]`, `currentWaypointIndex`, `currentStepData`
 - Distance threshold: 5 yards (`WAYPOINT_REACH_DISTANCE`)
 
+**Quest Objective Tracking:**
+- Stores `currentObjectiveIndex` (nil for whole quest, 1/2/3 for specific objective)
+- `GetCurrentQuestAction()` returns action, questId, actionType, and objectiveIndex
+- Coordinates are filtered by objective index when navigating to `[QC id,objectiveIndex]` steps
+- Individual objective completion triggers `HandleQuestAction()` with objectiveIndex parameter
+
 Key methods:
 - `GuideNavigation:ShowNextGuide(nextGuideName)` - Display next guide button and parse/load guide on click
 - `GuideNavigation:HideNextGuide()` - Return to arrow mode
@@ -109,6 +115,7 @@ Key methods:
 - `GuideNavigation:HideHearthstone()` - Return to arrow mode
 - `GuideNavigation:CompleteCurrentStep()` - Mark current step complete and advance to next step
 - `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
+- `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data only, no name fallback)
 
 ## Guide Syntax
 
@@ -119,7 +126,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 | `[N x-y Name]` | Guide name and level range | `[N 1-11 Elwynn Forest]` |
 | `[GA faction]` | Alliance/Horde/Race filter (comma-separated) | `[GA Alliance]` or `[GA Horde,Undead]` |
 | `[QA id]` | Accept quest | `[QA783]` |
-| `[QC id]` | Complete quest | `[QC33]` |
+| `[QC id]` or `[QC id,objectiveIndex]` | Complete quest (or specific objective) | `[QC33]` or `[QC33,2]` |
 | `[QT id]` | Turn in quest | `[QT783]` |
 | `[TAR id]` | NPC/target reference | `[TAR823]` |
 | `[G x,y Zone]` | Go to coordinates (multiple per step creates waypoint sequence) | `[G 44,57 Dun Morogh]` or `[G 44.0, 76.1, Mulgore]` |
@@ -141,6 +148,11 @@ Guides use tagged format parsed by `GuideParser.lua`:
   - `[XP3+500]` → "Level 3 (+500 XP)"
   - `[XP3.5]` → "Level 3 (50%)"
   - `[XP3 Custom text]` → "Custom text" (overrides default)
+- **[QC] objective tracking**:
+  - `[QC id]` → Completes when entire quest is done
+  - `[QC id,objectiveIndex]` → Completes when specific objective is done (e.g., `[QC150,1]` for first objective of quest 150)
+  - Objective indices are 1-based (1, 2, 3, etc.)
+  - Navigation automatically targets coordinates for the specific objective
 - **Multi-waypoint**: Multiple `[G]` or `[TAR]` tags in one step create auto-advancing waypoint sequence
 
 ## Key Files
@@ -150,7 +162,8 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching
 - `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling
-- `Core/Events/Quests.lua` - Quest hooks, state tracking, automation (auto-accept/turnin with ID-only matching for accept, name fallback for complete), ForceNavigationUpdate() for rapid quest sequences
+- `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
+- `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups)
@@ -174,26 +187,38 @@ this                    -- Inside XML event handlers, NOT self
 
 ## Quest Matching
 
-The addon uses different matching strategies for quest accept vs. complete actions:
+The addon uses different matching strategies for quest actions to handle WoW 1.12 API limitations:
 
 **ACCEPT Actions (`[QA]` tags):**
 - Matches by exact quest ID only (from QUEST_DETAIL event)
 - No name fallback - the event provides the precise quest ID being offered
 - Most reliable since we know exactly which quest is being accepted
 
-**COMPLETE Actions (`[QC]`, `[QT]` tags):**
+**COMPLETE/TURNIN Actions (`[QC]`, `[QT]` tags):**
 - Matches by quest ID first
-- Falls back to name matching if exact ID not found
-- Necessary because WoW 1.12 quest log API doesn't provide quest IDs directly
-- Handles multi-part quests (same name, different IDs) gracefully
+- Falls back to name matching in `HandleQuestAction()` for detecting completion
+- **IMPORTANT**: `GetQuestStatus(questId)` uses QuestTracker data ONLY (no name fallback) to prevent false matches on same-name quests
+- Quests are removed from `store.Accepted` when turned in to prevent stale data
+
+**Quest Objective Tracking:**
+- `[QC id,objectiveIndex]` tracks individual quest objectives (1-based index)
+- Objective completion fires `HandleQuestAction()` with both questId and objectiveIndex
+- Steps match only if both questId and objectiveIndex match (or both are nil for whole quest)
+- Navigation system passes objectiveIndex to `GetQuestAllCoords()` for precise coordinate filtering
 
 **Helper Functions:**
-- `GetQuestIDByName(name)` returns first matching quest ID
-- `GetQuestStatus(questId)` and `GetQuestProgress(questId)` fall back to name-based matching if exact ID not found
-- `QuestTracker:HandleQuestAction()` applies matching strategy based on action type
+- `GetQuestIDByName(name)` returns first matching quest ID from VGDB
+- `GetQuestStatus(questId)` checks QuestTracker.store only (Accepted/Completed tables), no name fallback
+- `QuestTracker:HandleQuestAction(questId, title, actionType, objectiveIndex)` applies matching strategy
 - Quest completion detection supports both `isComplete == 1` (numeric) and `isComplete == true` (boolean)
 
-This strategy ensures quest chains like "In Defense of the King's Lands" work correctly while maintaining precision for quest accept automation.
+**Same-Name Quest Handling:**
+- Multiple quests can share the same name (e.g., "In Defense of the King's Lands")
+- QuestTracker stores exact IDs in `store.Accepted[questId]` when quest is accepted
+- `GetQuestStatus()` relies exclusively on this stored data to avoid ID confusion
+- Quests are removed from Accepted when turned in, preventing false "in log" matches
+
+This strategy ensures multi-part quest chains work correctly while maintaining precision for automation.
 
 ## Guide Pack Architecture
 
