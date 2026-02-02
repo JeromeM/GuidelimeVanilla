@@ -37,6 +37,7 @@ local codes = {
     UI  = "USE_ITEM",
     P   = "GET_FLIGHT_PATH",
     F   = "FLY_TO",
+    T   = "TRAIN",
 }
 local reverseCodes = {}
 for k, v in pairs(codes) do reverseCodes[v] = k end
@@ -65,6 +66,14 @@ function Parser:ParseExperienceRequirement(xpString)
         return nil
     end
     
+    -- Helper to get display text (use provided text or generate default)
+    local function getDisplayText(text, defaultText)
+        if text and text ~= "" then
+            return text
+        end
+        return defaultText
+    end
+
     -- [XP3] -> Reach level 3
     local simpleLevel = string.match(numericPart, "^(%d+)$")
     if simpleLevel then
@@ -72,10 +81,10 @@ function Parser:ParseExperienceRequirement(xpString)
             targetLevel = tonumber(simpleLevel),
             targetPercent = 100,
             type = "level",
-            text = textPart
+            text = getDisplayText(textPart, "Level " .. simpleLevel)
         }
     end
-    
+
     -- [XP3-100] -> Need 100 XP for level 3
     local levelMinus, xpMinus = string.match(numericPart, "^(%d+)%-(%d+)$")
     if levelMinus and xpMinus then
@@ -83,7 +92,7 @@ function Parser:ParseExperienceRequirement(xpString)
             targetLevel = tonumber(levelMinus),
             xpMinus = tonumber(xpMinus),
             type = "level_minus",
-            text = textPart
+            text = getDisplayText(textPart, "Level " .. levelMinus .. " (-" .. xpMinus .. " XP)")
         }
     end
 
@@ -94,16 +103,16 @@ function Parser:ParseExperienceRequirement(xpString)
             targetLevel = tonumber(levelPlus),
             xpPlus = tonumber(xpPlus),
             type = "level_plus",
-            text = textPart
+            text = getDisplayText(textPart, "Level " .. levelPlus .. " (+" .. xpPlus .. " XP)")
         }
     end
-    
+
     -- [XP3.5] -> Level 3 with 50% XP or [XP2.925] -> Level 2 with 92.5% XP
     local levelFloat = tonumber(numericPart)
     if levelFloat then
         local level = math.floor(levelFloat)
         local decimal = levelFloat - level
-        
+
         -- Handle cases like XP5.10 (which should be 10%, not 1%)
         local percent
         if string.find(numericPart, "%.%d%d$") then
@@ -113,12 +122,17 @@ function Parser:ParseExperienceRequirement(xpString)
             -- Otherwise, normal conversion (ex: 5.5 = 50%)
             percent = decimal * 100
         end
-        
+
+        local defaultText = "Level " .. level
+        if percent > 0 then
+            defaultText = defaultText .. " (" .. string.format("%.0f", percent) .. "%)"
+        end
+
         return {
             targetLevel = level,
             targetPercent = percent,
             type = "level_percent",
-            text = textPart
+            text = getDisplayText(textPart, defaultText)
         }
     end
     
@@ -183,9 +197,21 @@ function Parser:parseGuide(guide, group)
                             return ""
 
                         elseif tag == "GOTO" then
-                            -- Parse coordinates from [G x,y Zone Name] format
-                            local x, y, zoneName = string.match(tagContent, "(%d+%.?%d*),(%d+%.?%d*)%s+(.+)")
+                            -- Parse coordinates from multiple formats:
+                            -- [G 44,57 Dun Morogh] or [G 44.0, 76.1, Mulgore]
+                            local x, y, zoneName
+
+                            -- Try format: x, y, Zone (comma before zone)
+                            x, y, zoneName = string.match(tagContent, "(%d+%.?%d*)%s*,%s*(%d+%.?%d*)%s*,%s*(.+)")
+
+                            -- Fallback: x,y Zone (space before zone)
+                            if not x then
+                                x, y, zoneName = string.match(tagContent, "(%d+%.?%d*)%s*,%s*(%d+%.?%d*)%s+(.+)")
+                            end
+
                             if x and y and zoneName then
+                                -- Trim whitespace from zone name
+                                zoneName = string.gsub(zoneName, "^%s*(.-)%s*$", "%1")
                                 local zoneId = GLV:GetZoneIDByName(zoneName)
                                 if zoneId then
                                     if not parsedLine.coords then parsedLine.coords = {} end
@@ -196,11 +222,14 @@ function Parser:parseGuide(guide, group)
                                         type = "goto"
                                     })
                                 end
+                                return "(" .. x .. ", " .. y .. ")"
                             end
                             return ""
 
                         elseif tag == "APPLIES" then
-                            return "|c" .. GLV.Colors[tag] .. self:replaceClassRace(tagContent) .. "|r"
+                            -- Store class/race info to prepend at start of line
+                            parsedLine.appliesTo = tagContent
+                            return ""
 
                         elseif tag == "TARGET_ID" then
                             -- Store target ID for navigation
@@ -299,6 +328,10 @@ function Parser:parseGuide(guide, group)
                             --parsedLine.icon = "Interface\\GossipFrame\\VendorGossipIcon"
                             return "|c" .. GLV.Colors[tag] .. "Vendor " .. "|r"
 
+                        elseif tag == "TRAIN" then
+                            parsedLine.icon = "Interface\\GossipFrame\\TrainerGossipIcon"
+                            return ""
+
                         elseif tag == "HEARTHSTONE" then
                             parsedLine.icon = "Interface\\Icons\\INV_Misc_Rune_01"
                             parsedLine.useItemId = 6948
@@ -351,6 +384,15 @@ function Parser:parseGuide(guide, group)
                     if stepText == "" and count == 0 then
                         stepText = line
                     end
+
+                    -- Prepend class/race info at the start of the line if present
+                    if parsedLine.appliesTo then
+                        -- Remove leading newlines from stepText before prepending class
+                        stepText = string.gsub(stepText, "^%s*\n", "")
+                        local classText = "|c" .. GLV.Colors["APPLIES"] .. self:replaceClassRace(parsedLine.appliesTo) .. " :|r "
+                        stepText = classText .. stepText
+                    end
+
                     parsedLine.text = stepText
 
                     -- Check if this is an equip step (original line contains "Equip" and has useItemId)
@@ -475,6 +517,13 @@ function Parser:GetItemTexture(content)
 
     local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(itemID)
     if not itemTexture then
+        -- Force cache the item by querying tooltip (async, will be available on next load)
+        if not GLV.itemCacheTooltip then
+            GLV.itemCacheTooltip = CreateFrame("GameTooltip", "GLV_ItemCacheTooltip", nil, "GameTooltipTemplate")
+            GLV.itemCacheTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        end
+        GLV.itemCacheTooltip:SetHyperlink("item:" .. itemID)
+
         -- Fallback icon for items not yet cached
         return "Interface\\Icons\\INV_Misc_QuestionMark"
     end

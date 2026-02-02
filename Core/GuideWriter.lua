@@ -808,6 +808,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
                                     fontString = textFrame,
                                     experienceRequirement = line.experienceRequirement,
                                     originalText = wrappedText,
+                                    originalHeight = usedHeight,
                                     stepIndex = ongoingIdx
                                 })
                             end
@@ -825,7 +826,19 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
 
                                 local icon = iconButton:CreateTexture(nil, "OVERLAY")
                                 icon:SetAllPoints(iconButton)
-                                icon:SetTexture(line.icon)
+
+                                -- Try to get fresh texture for items (in case it was cached since parsing)
+                                local textureToUse = line.icon
+                                if line.useItemId then
+                                    local itemId = tonumber(line.useItemId)
+                                    if itemId then
+                                        local _, _, _, _, _, _, _, _, freshTexture = GetItemInfo(itemId)
+                                        if freshTexture then
+                                            textureToUse = freshTexture
+                                        end
+                                    end
+                                end
+                                icon:SetTexture(textureToUse)
 
                                 if line.useItemId then
                                     local itemIdForClick = line.useItemId
@@ -997,6 +1010,7 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
                     fontString = textFrame,
                     experienceRequirement = line.experienceRequirement,
                     originalText = wrappedText,
+                    originalHeight = usedHeight,
                     stepIndex = idx
                 })
             end
@@ -1025,7 +1039,19 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
 
                 local icon = iconButton:CreateTexture(nil, "OVERLAY")
                 icon:SetAllPoints(iconButton)
-                icon:SetTexture(line.icon)
+
+                -- Try to get fresh texture for items (in case it was cached since parsing)
+                local textureToUse = line.icon
+                if line.useItemId then
+                    local itemId = tonumber(line.useItemId)
+                    if itemId then
+                        local _, _, _, _, _, _, _, _, freshTexture = GetItemInfo(itemId)
+                        if freshTexture then
+                            textureToUse = freshTexture
+                        end
+                    end
+                end
+                icon:SetTexture(textureToUse)
 
                 -- Optional: click action provided by parser
                 if line.useItemId then

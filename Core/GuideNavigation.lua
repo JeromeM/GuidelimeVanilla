@@ -29,6 +29,12 @@ local updateTimer = 0
 local isNavigationActive = false
 local playerPos = nil
 
+-- Multi-waypoint tracking
+local allWaypoints = {}      -- All waypoints for current step
+local currentWaypointIndex = 1  -- Index of current waypoint in allWaypoints
+local currentStepData = nil  -- Current step data for description generation
+local WAYPOINT_REACH_DISTANCE = 5  -- Distance in yards to consider waypoint reached
+
 
 --[[ FRAME CREATION AND MANAGEMENT ]]--
 
@@ -481,9 +487,22 @@ function GuideNavigation:UpdateNavigation()
     local r, g, b = self:GetDistanceColor(distance)
     navigationFrame.arrow:SetVertexColor(r, g, b, 1)
     
-    if distance < 3 then
+    if distance < WAYPOINT_REACH_DISTANCE then
         navigationFrame.distance:SetTextColor(0, 1, 0)
         navigationFrame.arrow:SetAlpha(0.5)
+
+        -- Check if there's a next waypoint to advance to
+        if table.getn(allWaypoints) > currentWaypointIndex then
+            currentWaypointIndex = currentWaypointIndex + 1
+            local nextCoords = allWaypoints[currentWaypointIndex]
+            if nextCoords then
+                local description = self:GetStepDescription(currentStepData, nextCoords, nil)
+                self:SetWaypoint(nextCoords, description)
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Advanced to waypoint " .. currentWaypointIndex .. "/" .. table.getn(allWaypoints))
+                end
+            end
+        end
     else
         navigationFrame.distance:SetTextColor(0.8, 0.8, 0.8)
         navigationFrame.arrow:SetAlpha(1.0)
@@ -1092,6 +1111,11 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     self:HideNextGuide()
     self:HideHearthstone()
 
+    -- Reset multi-waypoint tracking
+    allWaypoints = {}
+    currentWaypointIndex = 1
+    currentStepData = stepData
+
     -- Check for EQUIP step
     if stepData and stepData.lines then
         for _, line in ipairs(stepData.lines) do
@@ -1150,28 +1174,38 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     -- Priority 1: Explicit GOTO coordinates from lines (highest priority)
     -- These are manually specified [G x,y Zone] coordinates and should NEVER be overridden
     local allCoords = collectAllStepCoordinates(stepData)
-    local hasExplicitGoto = false
+    local gotoCoords = {}
 
     for _, coord in ipairs(allCoords) do
         if coord.type == "goto" then
-            targetCoords = coord
-            hasExplicitGoto = true
-            break
+            table.insert(gotoCoords, coord)
         end
     end
 
-    -- If we have explicit GOTO coords, use them and skip all other coord sources
-    if hasExplicitGoto then
+    -- If we have explicit GOTO coords, use them (supporting multiple waypoints)
+    if table.getn(gotoCoords) > 0 then
+        -- Store all GOTO coords for multi-waypoint navigation
+        allWaypoints = gotoCoords
+        currentWaypointIndex = 1
+        targetCoords = gotoCoords[1]
         local description = self:GetStepDescription(stepData, targetCoords, currentAction)
         self:AddWaypoint(targetCoords, description)
+        if GLV.Debug and table.getn(gotoCoords) > 1 then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Multi-waypoint: " .. table.getn(gotoCoords) .. " waypoints loaded")
+        end
         return
     end
 
-    -- Priority 2: TAR coordinates
+    -- Priority 2: TAR coordinates (also supports multiple)
     if not targetCoords then
         local tarCoords = extractTARCoordinates(stepData)
         if table.getn(tarCoords) > 0 then
+            allWaypoints = tarCoords
+            currentWaypointIndex = 1
             targetCoords = tarCoords[1]
+            if GLV.Debug and table.getn(tarCoords) > 1 then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Multi-waypoint (TAR): " .. table.getn(tarCoords) .. " waypoints loaded")
+            end
         end
     end
 

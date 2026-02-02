@@ -248,19 +248,17 @@ function QuestTracker:HandleQuestAction(questId, title, actionType)
                 for _, questTag in ipairs(step.questTags) do
                     local actionKey = questTag.questId .. "_" .. questTag.tag
 
-                    -- Match by ID first, then fallback to name matching for multi-part quests
+                    -- Match by quest ID, with name fallback only for COMPLETE actions
+                    -- (ACCEPT has exact ID from event, but COMPLETE only has name from quest log)
                     local isMatch = false
                     if questTag.tag == actionType then
                         if tonumber(questTag.questId) == tonumber(questId) then
                             isMatch = true
-                        elseif title then
-                            -- Fallback: match by name for quests with same name but different IDs
+                        elseif actionType == "COMPLETE" and title then
+                            -- For COMPLETE, allow name matching since we can't get exact ID from quest log
                             local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
                             if tagQuestName and tagQuestName == title then
                                 isMatch = true
-                                if GLV.Debug then
-                                    DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[QuestTracker]|r Name fallback match: " .. title .. " (guide ID: " .. tostring(questTag.questId) .. ", detected ID: " .. tostring(questId) .. ")")
-                                end
                             end
                         end
                     end
