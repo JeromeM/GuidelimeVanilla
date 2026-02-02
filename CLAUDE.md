@@ -89,9 +89,16 @@ Spell data is retrieved via Nampower API instead of a local database:
 
 The navigation frame displays different modes based on current step:
 - **Arrow Mode** (default): Shows directional arrow to waypoint with distance/objective
+- **Multi-waypoint Mode**: Automatically advances to next waypoint when reaching current destination (within 5 yards)
 - **Equip Item Mode**: Shows item icon with "Equip" instruction when step contains equip action
 - **Hearthstone Mode**: Shows hearthstone icon for `[H]` steps with click-to-use functionality and auto-complete after cast
 - **Next Guide Mode**: Shows clickable "Next Guide" button when on last step with `[NX]` tag
+
+**Multi-waypoint Navigation:**
+- Steps with multiple `[G]` or `[TAR]` tags create waypoint sequences
+- Navigation automatically advances to next waypoint when player reaches current one
+- Tracks progress: `allWaypoints[]`, `currentWaypointIndex`, `currentStepData`
+- Distance threshold: 5 yards (`WAYPOINT_REACH_DISTANCE`)
 
 Key methods:
 - `GuideNavigation:ShowNextGuide(nextGuideName)` - Display next guide button and parse/load guide on click
@@ -115,21 +122,35 @@ Guides use tagged format parsed by `GuideParser.lua`:
 | `[QC id]` | Complete quest | `[QC33]` |
 | `[QT id]` | Turn in quest | `[QT783]` |
 | `[TAR id]` | NPC/target reference | `[TAR823]` |
-| `[A class]` | Class-specific step | `[A Mage] [QA3104]` |
-| `[XP level]` | XP requirement | `[XP4-290]` |
+| `[G x,y Zone]` | Go to coordinates (multiple per step creates waypoint sequence) | `[G 44,57 Dun Morogh]` or `[G 44.0, 76.1, Mulgore]` |
+| `[A class]` | Class-specific step (prepends "Class :" at line start) | `[A Mage] [QA3104]` |
+| `[XP level]` | XP requirement (auto-generates text if none provided) | `[XP4-290]` or `[XP3]` or `[XP3.5]` |
+| `[T]` | Train at trainer (shows trainer icon) | `[T] Learn skills` |
 | `[OC]` | Optional, completes with next | `[OC]Grind north` |
 | `[NX x-y Name]` | Link to next guide (shows clickable button on last step) | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
 | `[H]` | Use hearthstone | `[H] to Stormwind` |
 
+**Tag Details:**
+
+- **[G] formats**: Supports both `x,y Zone` and `x, y, Zone` (with comma before zone name)
+- **[A] display**: Text shows as "Mage : [Rest of step text]" at line start with class color
+- **[XP] formats**:
+  - `[XP3]` → "Level 3"
+  - `[XP3-100]` → "Level 3 (-100 XP)"
+  - `[XP3+500]` → "Level 3 (+500 XP)"
+  - `[XP3.5]` → "Level 3 (50%)"
+  - `[XP3 Custom text]` → "Custom text" (overrides default)
+- **Multi-waypoint**: Multiple `[G]` or `[TAR]` tags in one step create auto-advancing waypoint sequence
+
 ## Key Files
 
 - `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading)
-- `Core/GuideParser.lua` - Tag parsing, step extraction
+- `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
-- `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling
-- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, next guide button for guide transitions, frame scaling
-- `Core/Events/Quests.lua` - Quest hooks, state tracking, automation (auto-accept/turnin), ForceNavigationUpdate() for rapid quest sequences
+- `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching
+- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling
+- `Core/Events/Quests.lua` - Quest hooks, state tracking, automation (auto-accept/turnin with ID-only matching for accept, name fallback for complete), ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups)
@@ -153,12 +174,26 @@ this                    -- Inside XML event handlers, NOT self
 
 ## Quest Matching
 
-The addon handles multi-part quests (same name, different IDs) with fallback matching:
+The addon uses different matching strategies for quest accept vs. complete actions:
+
+**ACCEPT Actions (`[QA]` tags):**
+- Matches by exact quest ID only (from QUEST_DETAIL event)
+- No name fallback - the event provides the precise quest ID being offered
+- Most reliable since we know exactly which quest is being accepted
+
+**COMPLETE Actions (`[QC]`, `[QT]` tags):**
+- Matches by quest ID first
+- Falls back to name matching if exact ID not found
+- Necessary because WoW 1.12 quest log API doesn't provide quest IDs directly
+- Handles multi-part quests (same name, different IDs) gracefully
+
+**Helper Functions:**
 - `GetQuestIDByName(name)` returns first matching quest ID
 - `GetQuestStatus(questId)` and `GetQuestProgress(questId)` fall back to name-based matching if exact ID not found
-- `QuestTracker:HandleQuestAction()` matches quest tags by ID first, then falls back to name matching for multi-part quests
+- `QuestTracker:HandleQuestAction()` applies matching strategy based on action type
 - Quest completion detection supports both `isComplete == 1` (numeric) and `isComplete == true` (boolean)
-- This ensures quest chains like "In Defense of the King's Lands" work correctly across different quest IDs
+
+This strategy ensures quest chains like "In Defense of the King's Lands" work correctly while maintaining precision for quest accept automation.
 
 ## Guide Pack Architecture
 

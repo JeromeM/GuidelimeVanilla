@@ -37,6 +37,7 @@ Tags for quest-related actions. Quest IDs can be found in database addons or onl
 | `[QC id]` | **Complete quest** - Track quest objectives | `[QC 783]` |
 | `[QT id]` | **Turn in quest** - Creates a yellow `?` marker | `[QT 783]` |
 | `[QS id]` | **Skip quest** - Mark quest as skipped | `[QS 783]` |
+| `[Q id]` | **Quest reference** - Display quest name inline (no checkbox) | `[Q 783] is a prerequisite` |
 
 ### Multi-part Quests
 
@@ -76,6 +77,18 @@ Coordinates use the format `x,y` where:
 - `y` = vertical position (0-100)
 - Zone name must match exactly (case-sensitive)
 
+The `[G]` tag supports two formats:
+- `[G 44,57 Dun Morogh]` (space before zone name)
+- `[G 44.0, 76.1, Mulgore]` (comma before zone name)
+
+### Multi-waypoint Navigation
+
+You can include multiple `[G]` tags in a single step to create a sequence of waypoints. The navigation arrow will automatically advance to the next waypoint when you reach the current one (within 5 yards):
+
+```
+[G 50,50 Elwynn Forest][G 60,60 Elwynn Forest][G 70,70 Elwynn Forest] Follow the road east
+```
+
 ---
 
 ## Step Modifier Tags
@@ -110,6 +123,7 @@ Tags for specific player actions.
 |-----|-------------|---------|
 | `[H destination]` | **Use hearthstone** - Shows hearthstone icon, auto-completes | `[H Stormwind]` |
 | `[S location]` | **Set hearthstone** - Bind at innkeeper | `[S Goldshire]` |
+| `[T]` | **Train skills/spells** - Shows trainer icon in navigation | `[T] Train new spells` |
 | `[UI itemId]` | **Use item** - Shows clickable item icon | `[UI 5571] Use item` |
 | `[R]` | **Repair** - Reminder to repair gear | `[R] Repair at vendor` |
 | `[V]` | **Vendor** - Reminder to sell items | `[V] Sell junk` |
@@ -203,8 +217,8 @@ GLV:RegisterGuide([[
 | Category | Tags |
 |----------|------|
 | **Header** | `[N]` `[D]` `[GA]` `[NX]` |
-| **Quests** | `[QA]` `[QC]` `[QT]` `[QS]` |
+| **Quests** | `[QA]` `[QC]` `[QT]` `[QS]` `[Q]` |
 | **Navigation** | `[G]` `[TAR]` `[P]` `[F]` |
 | **Modifiers** | `[O]` `[OC]` `[A]` |
-| **Actions** | `[H]` `[S]` `[UI]` `[R]` `[V]` |
+| **Actions** | `[H]` `[S]` `[T]` `[UI]` `[R]` `[V]` |
 | **Progress** | `[XP]` `[CI]` `[LE SP]` `[SP]` |

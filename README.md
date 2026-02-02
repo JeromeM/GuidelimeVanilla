@@ -44,16 +44,20 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Ongoing Steps**: Special steps stay pinned at top (in blue) while you continue the guide - perfect for "kill X mobs" objectives that span multiple steps
 - **XP Tracking**: Shows progress for grind/XP requirement steps
 - **Guide Pack System**: Install guide packs as separate addons
+- **Faction Filtering**: Guide dropdown automatically filters guides by your character's faction (Alliance/Horde) and race based on `[GA]` tag
 
 ### 🗺️ Autonomous Navigation System
 - **Custom Arrow Display**: Built-in navigation arrow (no TomTom needed!)
 - **Automatic Waypoints**: Creates waypoints for quest objectives automatically
+- **Multi-waypoint Navigation**: Steps with multiple `[G]` coordinate tags create sequential waypoints that auto-advance when you reach each destination (within 5 yards)
 - **Smart Coordinate Selection**: Automatically selects the best location based on step type (quest giver, turn-in NPC, or objective area)
+- **Flexible Coordinate Formats**: Supports both `[G x,y Zone]` and `[G x, y, Zone]` coordinate formats
 - **Zone-Aware Navigation**: Arrow automatically hides when in different zones and updates when you enter the correct zone
 - **Quest Objectives Display**: Shows kill/collect progress directly on the navigation frame
 - **Real-time Distance Updates**: Color-coded distance indicators (green=close, yellow=medium, red=far)
 - **Interactive Navigation Icons**: Navigation frame displays context-specific clickable icons:
   - **Hearthstone Icon**: Click to use hearthstone on hearthstone steps, auto-completes after cast
+  - **Trainer Icon**: Shows trainer icon for `[T]` train steps
   - **Equip Item Icon**: Shows items that need to be equipped
   - **Next Guide Button**: Clickable button on final step to load next guide
 - **Movable Frame**: Hold Shift + drag to reposition the arrow
