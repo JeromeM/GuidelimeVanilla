@@ -56,6 +56,8 @@ local defaults = {
             ShowPopupOnLevelUp = true,
             HighlightInFrame = true,
             ShowEndgameAtSixty = true,
+            ToastPositionX = nil,  -- nil = default centered position
+            ToastPositionY = nil,
         },
     }
 }

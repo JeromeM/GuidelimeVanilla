@@ -519,3 +519,132 @@ function GLV_UpdateTalentClassLabel()
         labelText:SetText("")
     end
 end
+
+-- ============================================================================
+-- TOAST NOTIFICATION POSITION FUNCTIONS
+-- ============================================================================
+
+-- Start moving the toast notification
+function GLV_StartMoveToastNotification()
+    local toast = getglobal("GLV_TalentToast")
+    if not toast then return end
+
+    -- Enable mouse interaction and dragging
+    toast.isMoving = true
+    toast:EnableMouse(true)
+    toast:RegisterForDrag("LeftButton")
+
+    -- Show toast with instructions
+    local toastText = getglobal("GLV_TalentToastText")
+    local toastIcon = getglobal("GLV_TalentToastIcon")
+
+    if toastIcon then
+        toastIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    end
+
+    if toastText then
+        toastText:SetText("|cFFFFFF00Drag to move, then click to confirm|r")
+        toastText:ClearAllPoints()
+        toastText:SetPoint("CENTER", toast, "CENTER", 15, 0)
+    end
+
+    if toastIcon then
+        toastIcon:ClearAllPoints()
+        toastIcon:SetPoint("CENTER", toast, "CENTER", -100, 0)
+    end
+
+    toast:SetAlpha(1)
+    toast:Show()
+
+    -- Add click handler to confirm position
+    toast:SetScript("OnMouseUp", function()
+        if arg1 == "LeftButton" and not toast.isDragging then
+            GLV_ConfirmToastPosition()
+        end
+        toast.isDragging = false
+    end)
+
+    toast:SetScript("OnDragStart", function()
+        toast.isDragging = true
+        toast:StartMoving()
+    end)
+
+    toast:SetScript("OnDragStop", function()
+        toast:StopMovingOrSizing()
+        GLV_TalentToast_SavePosition()
+    end)
+end
+
+-- Confirm and save toast position
+function GLV_ConfirmToastPosition()
+    local toast = getglobal("GLV_TalentToast")
+    if not toast then return end
+
+    -- Save position
+    GLV_TalentToast_SavePosition()
+
+    -- Disable moving mode
+    toast.isMoving = false
+    toast:EnableMouse(false)
+    toast:RegisterForDrag()
+
+    -- Remove click handler
+    toast:SetScript("OnMouseUp", nil)
+
+    -- Hide toast
+    toast:Hide()
+
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[GuideLime]|r Notification position saved!")
+end
+
+-- Save toast position to settings
+function GLV_TalentToast_SavePosition()
+    local toast = getglobal("GLV_TalentToast")
+    if not toast then return end
+    if not GLV or not GLV.Settings then return end
+
+    local point, relativeTo, relativePoint, xOfs, yOfs = toast:GetPoint(1)
+    if point then
+        -- Save absolute position from center of screen
+        local left = toast:GetLeft()
+        local top = toast:GetTop()
+        local screenWidth = GetScreenWidth()
+        local screenHeight = GetScreenHeight()
+
+        if left and top then
+            local centerX = left + (toast:GetWidth() / 2) - (screenWidth / 2)
+            local centerY = top - (toast:GetHeight() / 2) - (screenHeight / 2)
+
+            GLV.Settings:SetOption(centerX, {"Talents", "ToastPositionX"})
+            GLV.Settings:SetOption(centerY, {"Talents", "ToastPositionY"})
+        end
+    end
+end
+
+-- Restore toast position from settings
+function GLV_TalentToast_RestorePosition()
+    local toast = getglobal("GLV_TalentToast")
+    if not toast then return end
+
+    -- Wait for GLV to be ready
+    if not GLV or not GLV.Settings then
+        -- Try again later
+        if toast then
+            toast:SetScript("OnUpdate", function()
+                if GLV and GLV.Settings then
+                    this:SetScript("OnUpdate", nil)
+                    GLV_TalentToast_RestorePosition()
+                end
+            end)
+        end
+        return
+    end
+
+    local posX = GLV.Settings:GetOption({"Talents", "ToastPositionX"})
+    local posY = GLV.Settings:GetOption({"Talents", "ToastPositionY"})
+
+    if posX and posY then
+        toast:ClearAllPoints()
+        toast:SetPoint("CENTER", UIParent, "CENTER", posX, posY)
+    end
+end

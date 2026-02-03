@@ -44,20 +44,20 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Ongoing Steps**: Special steps stay pinned at top (in blue) while you continue the guide - perfect for "kill X mobs" objectives that span multiple steps
 - **XP Tracking**: Shows progress for grind/XP requirement steps
 - **Guide Pack System**: Install guide packs as separate addons
-- **Faction Filtering**: Guide dropdown automatically filters guides by your character's faction (Alliance/Horde) and race based on `[GA]` tag
+- **Faction Filtering**: Guide dropdown automatically filters guides by your character's faction (Alliance/Horde) and race
 
 ### 🗺️ Autonomous Navigation System
 - **Custom Arrow Display**: Built-in navigation arrow (no TomTom needed!)
 - **Automatic Waypoints**: Creates waypoints for quest objectives automatically
-- **Multi-waypoint Navigation**: Steps with multiple `[G]` coordinate tags create sequential waypoints that auto-advance when you reach each destination (within 5 yards)
+- **Multi-waypoint Navigation**: Steps with multiple coordinates create sequential waypoints that auto-advance when you reach each destination (within 5 yards)
 - **Smart Coordinate Selection**: Automatically selects the best location based on step type (quest giver, turn-in NPC, or objective area)
-- **Flexible Coordinate Formats**: Supports both `[G x,y Zone]` and `[G x, y, Zone]` coordinate formats
+- **Flexible Coordinate Formats**: Supports multiple coordinate format styles
 - **Zone-Aware Navigation**: Arrow automatically hides when in different zones and updates when you enter the correct zone
 - **Quest Objectives Display**: Shows kill/collect progress directly on the navigation frame
 - **Real-time Distance Updates**: Color-coded distance indicators (green=close, yellow=medium, red=far)
 - **Interactive Navigation Icons**: Navigation frame displays context-specific clickable icons:
   - **Hearthstone Icon**: Click to use hearthstone on hearthstone steps, auto-completes after cast
-  - **Trainer Icon**: Shows trainer icon for `[T]` train steps
+  - **Trainer Icon**: Shows trainer icon for train steps
   - **Equip Item Icon**: Shows items that need to be equipped
   - **Next Guide Button**: Clickable button on final step to load next guide
 - **Movable Frame**: Hold Shift + drag to reposition the arrow
@@ -79,6 +79,13 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Equipment Tracking**: Automatically completes equip item steps when you equip the specified items
 - **Quest Abandonment Handling**: Properly updates state when quests are abandoned
 - **XP Progress Bars**: Visual colored progress bars for grind/XP requirement steps showing current progress
+
+### 🌟 Talent Suggestion System
+- **Level-up Toast Notifications**: When you gain a level and have an unspent talent point, a notification appears at the top of your screen showing which talent to choose
+- **Talent Frame Highlighting**: Open your talent frame to see the recommended talent highlighted with a green border
+- **Customizable Templates**: Choose from different talent builds for your class in Settings > Talents
+- **Template Selection**: Enable or disable talent suggestions and select your preferred build (leveling, endgame, etc.)
+- **Multi-class Support**: Templates available for all 9 classes (currently Arms Warrior is fully implemented, more builds coming soon)
 
 ### 🎨 User Interface
 - **Clean Design**: Organized interface with consistent styling
@@ -187,7 +194,7 @@ Turn in quest step
 - `packName`: The guide pack name (must match the groupName used in RegisterGuide)
 - `raceMapping`: Table mapping race names to starting guide names
 - Race names: `Human`, `Dwarf`, `Gnome`, `NightElf`, `Orc`, `Troll`, `Tauren`, `Undead`
-- Guide names must match the `[N]` tag name in your guides
+- Guide names must match the guide name defined in your guide files
 
 ### Guide Formatting Tips
 

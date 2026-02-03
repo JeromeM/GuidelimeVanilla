@@ -786,6 +786,26 @@
                                     </OnClick>
                                 </Scripts>
                             </CheckButton>
+
+                            <!-- Move Notification Button -->
+                            <Button name="$parentMoveNotificationButton" inherits="UIPanelButtonTemplate">
+                                <Size>
+                                    <AbsDimension x="140" y="22"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsTalentsPageShowEndgame" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="0" y="-15"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        this:SetText("Move Notification");
+                                    </OnLoad>
+                                    <OnClick>
+                                        GLV_StartMoveToastNotification();
+                                    </OnClick>
+                                </Scripts>
+                            </Button>
                         </Frames>
 
                     </Frame>
