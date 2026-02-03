@@ -49,7 +49,14 @@ local defaults = {
             AutoAcceptQuests = false,
             AutoTurninQuests = false,
             AutoTakeFlight = false,
-        }
+        },
+        Talents = {
+            Enabled = true,
+            ActiveTemplate = {},  -- {[class] = templateName}
+            ShowPopupOnLevelUp = true,
+            HighlightInFrame = true,
+            ShowEndgameAtSixty = true,
+        },
     }
 }
 

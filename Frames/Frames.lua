@@ -63,6 +63,7 @@ function GLV_ShowGuide(frame)
     local frames = {
         GLV_SettingsGuidesPage,
         GLV_SettingsDisplayPage,
+        GLV_SettingsTalentsPage,
         GLV_SettingsAboutPage,
     }
 
@@ -382,7 +383,7 @@ function GLV_MainLock_OnClick()
     else
         -- Lock - Save current position BEFORE locking
         GLV_SaveFramePosition()
-        
+
         GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\closed_lock")
         GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\closed_lock_down")
         GLV_Main:SetMovable(false)
@@ -391,5 +392,130 @@ function GLV_MainLock_OnClick()
         if GLV and GLV.Settings then
             GLV.Settings:SetOption(true, {"UI", "Locked"})
         end
+    end
+end
+
+-- ============================================================================
+-- TALENT SETTINGS FUNCTIONS
+-- ============================================================================
+
+-- Initialize talent checkbox from settings
+function GLV_InitTalentCheckbox(checkbox, settingKeys)
+    local value = GLV.Settings:GetOption(settingKeys)
+    if value == nil then value = true end  -- Default to true
+    checkbox:SetChecked(value)
+end
+
+-- Handle talent checkbox click
+function GLV_OnTalentCheckboxClick(checkbox, settingKeys)
+    local isChecked = checkbox:GetChecked() == 1
+    GLV.Settings:SetOption(isChecked, settingKeys)
+end
+
+-- Store selected template name
+GLV_SelectedTalentTemplate = nil
+
+-- Factory function to create dropdown callback for talent templates
+local function createTalentTemplateCallback(dropdown, templateName)
+    return function()
+        GLV_SelectedTalentTemplate = templateName
+        UIDropDownMenu_SetSelectedValue(dropdown, templateName)
+        UIDropDownMenu_SetText(templateName, dropdown)
+        -- Save to settings
+        local _, playerClass = UnitClass("player")
+        if playerClass then
+            GLV.Settings:SetOption(templateName, {"Talents", "ActiveTemplate", playerClass})
+        end
+    end
+end
+
+-- Initialize talent template dropdown
+function GLV_InitTalentTemplateDropdown(dropdown)
+    local _, playerClass = UnitClass("player")
+    if not playerClass then
+        UIDropDownMenu_SetText("Unknown class", dropdown)
+        return
+    end
+
+    -- Get templates for player's class
+    local templates = GLV.TalentTemplates and GLV.TalentTemplates[playerClass]
+    -- Use GetActiveTemplate which includes fallback to default
+    local activeTemplate = GLV:GetActiveTemplate(playerClass)
+    GLV_SelectedTalentTemplate = activeTemplate
+
+    UIDropDownMenu_Initialize(dropdown, function()
+        if not templates then
+            local info = {}
+            info.text = "No templates for " .. playerClass
+            info.disabled = 1
+            UIDropDownMenu_AddButton(info)
+            return
+        end
+
+        -- Count templates
+        local count = 0
+        for _ in pairs(templates) do count = count + 1 end
+
+        if count == 0 then
+            local info = {}
+            info.text = "No templates available"
+            info.disabled = 1
+            UIDropDownMenu_AddButton(info)
+            return
+        end
+
+        -- Add templates to dropdown (leveling first, then endgame)
+        local levelingTemplates = {}
+        local endgameTemplates = {}
+
+        for templateName, templateData in pairs(templates) do
+            if templateData.type == "leveling" then
+                table.insert(levelingTemplates, templateName)
+            else
+                table.insert(endgameTemplates, templateName)
+            end
+        end
+
+        -- Sort alphabetically
+        table.sort(levelingTemplates)
+        table.sort(endgameTemplates)
+
+        -- Add leveling templates
+        for _, templateName in ipairs(levelingTemplates) do
+            local info = {}
+            info.text = templateName .. " (Leveling)"
+            info.value = templateName
+            info.func = createTalentTemplateCallback(dropdown, templateName)
+            UIDropDownMenu_AddButton(info)
+        end
+
+        -- Add endgame templates
+        for _, templateName in ipairs(endgameTemplates) do
+            local info = {}
+            info.text = templateName .. " (Endgame)"
+            info.value = templateName
+            info.func = createTalentTemplateCallback(dropdown, templateName)
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    if activeTemplate then
+        UIDropDownMenu_SetSelectedValue(dropdown, activeTemplate)
+        UIDropDownMenu_SetText(activeTemplate, dropdown)
+    else
+        UIDropDownMenu_SetText("Select a template", dropdown)
+    end
+end
+
+-- Update class label to show player's class
+function GLV_UpdateTalentClassLabel()
+    local labelText = _G["GLV_SettingsTalentsPageClassLabelText"]
+    if not labelText then return end
+
+    local localizedClass, playerClass = UnitClass("player")
+    if localizedClass then
+        labelText:SetText("(" .. localizedClass .. ")")
+    else
+        labelText:SetText("")
     end
 end

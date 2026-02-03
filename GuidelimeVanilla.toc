@@ -27,7 +27,19 @@ Core\Events\Taxi.lua
 Core\Events\Gossip.lua
 Core\Events\Equipment.lua
 Core\Events\Items.lua
+Core\Events\Talents.lua
+
+TalentTemplates\Mage.lua
+TalentTemplates\Warrior.lua
+TalentTemplates\Priest.lua
+TalentTemplates\Rogue.lua
+TalentTemplates\Hunter.lua
+TalentTemplates\Warlock.lua
+TalentTemplates\Paladin.lua
+TalentTemplates\Shaman.lua
+TalentTemplates\Druid.lua
 
 Frames\Frames.lua
 Frames\MainFrame.xml
 Frames\SettingsFrame.xml
+Frames\TalentPopup.xml

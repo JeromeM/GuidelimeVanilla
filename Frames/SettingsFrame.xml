@@ -199,6 +199,31 @@
                         </Scripts>
                     </Frame>
 
+                    <!-- TALENTS BUTTON -->
+                    <Frame name="$parentTalents" inherits="">
+                        <Size>
+                            <AbsDimension x="140" y="30"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsMenuDisplay" RelativePoint="BOTTOMLEFT"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentText" inherits="GameFontNormalLarge" text="Talents"/>
+                            </Layer>
+                        </Layers>
+                        <Scripts>
+                            <OnMouseDown>
+                                GLV_ShowGuide(GLV_SettingsTalentsPage)
+                            </OnMouseDown>
+                            <OnEnter>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 1, 1)
+                            </OnEnter>
+                            <OnLeave>
+                                getglobal(this:GetName().."Text"):SetTextColor(1, 0.82, 0)
+                            </OnLeave>
+                        </Scripts>
+                    </Frame>
 
                     <!-- ABOUT BUTTON -->
                     <Frame name="$parentAbout" inherits="">
@@ -206,7 +231,7 @@
                             <AbsDimension x="140" y="30"/>
                         </Size>
                         <Anchors>
-                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsMenuDisplay" RelativePoint="BOTTOMLEFT"/>
+                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsMenuTalents" RelativePoint="BOTTOMLEFT"/>
                         </Anchors>
                         <Layers>
                             <Layer>
@@ -544,6 +569,223 @@
                                     </OnValueChanged>
                                 </Scripts>
                             </Slider>
+                        </Frames>
+
+                    </Frame>
+
+                    <Frame name="$parentTalentsPage" hidden="true">
+
+                        <Size>
+                            <AbsDimension x="700" y="500"/>
+                        </Size>
+                        <Anchors>
+                            <Anchor point="TOPLEFT">
+                                <Offset x="0" y="0"/>
+                            </Anchor>
+                        </Anchors>
+
+                        <Layers>
+                            <Layer>
+                                <FontString name="$parentTitle" inherits="GameFontNormalLarge" text="Talent Suggestions" font="Fonts\FRIZQT__.TTF">
+                                    <Anchors>
+                                        <Anchor point="TOP" RelativeTo="$parent" RelativePoint="TOP"/>
+                                    </Anchors>
+                                    <FontHeight>
+                                        <AbsValue val="20"/>
+                                    </FontHeight>
+                                </FontString>
+                                <!-- Enable Section Title -->
+                                <FontString name="$parentEnableTitle" inherits="GameFontNormal" text="Enable">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                            <Offset x="20" y="-50"/>
+                                        </Anchor>
+                                    </Anchors>
+                                    <Color r="1" g="0.82" b="0"/>
+                                </FontString>
+                                <!-- Template Selection Section Title -->
+                                <FontString name="$parentTemplateTitle" inherits="GameFontNormal" text="Template Selection">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                            <Offset x="20" y="-130"/>
+                                        </Anchor>
+                                    </Anchors>
+                                    <Color r="1" g="0.82" b="0"/>
+                                </FontString>
+                                <!-- Options Section Title -->
+                                <FontString name="$parentOptionsTitle" inherits="GameFontNormal" text="Options">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                            <Offset x="20" y="-230"/>
+                                        </Anchor>
+                                    </Anchors>
+                                    <Color r="1" g="0.82" b="0"/>
+                                </FontString>
+                            </Layer>
+                        </Layers>
+
+                        <Frames>
+                            <!-- Enable Talent Suggestions Checkbox -->
+                            <CheckButton name="$parentEnableTalents" inherits="OptionsCheckButtonTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsTalentsPageEnableTitle" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="0" y="-5"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        getglobal(this:GetName().."Text"):SetText("Enable Talent Suggestions");
+                                    </OnLoad>
+                                    <OnShow>
+                                        GLV_InitTalentCheckbox(this, {"Talents", "Enabled"});
+                                    </OnShow>
+                                    <OnClick>
+                                        GLV_OnTalentCheckboxClick(this, {"Talents", "Enabled"});
+                                    </OnClick>
+                                </Scripts>
+                            </CheckButton>
+
+                            <!-- Separator between Enable and Template -->
+                            <Frame name="$parentSeparator1">
+                                <Size>
+                                    <AbsDimension x="300" y="1"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="BOTTOMLEFT" RelativeTo="GLV_SettingsTalentsPageTemplateTitle" RelativePoint="TOPLEFT">
+                                        <Offset x="0" y="7"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Layers>
+                                    <Layer level="BACKGROUND">
+                                        <Texture>
+                                            <Color r="0.5" g="0.5" b="0.5" a="0.8"/>
+                                        </Texture>
+                                    </Layer>
+                                </Layers>
+                            </Frame>
+
+                            <!-- Template Dropdown -->
+                            <Frame name="$parentTemplateDropdown" inherits="UIDropDownMenuTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsTalentsPageTemplateTitle" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="-15" y="-5"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        UIDropDownMenu_SetWidth(250, this);
+                                    </OnLoad>
+                                    <OnShow>
+                                        GLV_InitTalentTemplateDropdown(this);
+                                    </OnShow>
+                                </Scripts>
+                            </Frame>
+
+                            <!-- Class Label (shows current player class) -->
+                            <Frame name="$parentClassLabel">
+                                <Size>
+                                    <AbsDimension x="200" y="20"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="LEFT" RelativeTo="GLV_SettingsTalentsPageTemplateDropdown" RelativePoint="RIGHT">
+                                        <Offset x="0" y="2"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Layers>
+                                    <Layer>
+                                        <FontString name="$parentText" inherits="GameFontNormalSmall">
+                                            <Anchors>
+                                                <Anchor point="LEFT"/>
+                                            </Anchors>
+                                            <Color r="0.8" g="0.8" b="0.8"/>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+                                <Scripts>
+                                    <OnShow>
+                                        GLV_UpdateTalentClassLabel();
+                                    </OnShow>
+                                </Scripts>
+                            </Frame>
+
+                            <!-- Separator between Template and Options -->
+                            <Frame name="$parentSeparator2">
+                                <Size>
+                                    <AbsDimension x="300" y="1"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="BOTTOMLEFT" RelativeTo="GLV_SettingsTalentsPageOptionsTitle" RelativePoint="TOPLEFT">
+                                        <Offset x="0" y="7"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Layers>
+                                    <Layer level="BACKGROUND">
+                                        <Texture>
+                                            <Color r="0.5" g="0.5" b="0.5" a="0.8"/>
+                                        </Texture>
+                                    </Layer>
+                                </Layers>
+                            </Frame>
+
+                            <!-- Show Popup on Level Up Checkbox -->
+                            <CheckButton name="$parentShowPopup" inherits="OptionsCheckButtonTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsTalentsPageOptionsTitle" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="0" y="-5"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        getglobal(this:GetName().."Text"):SetText("Show Popup on Level Up");
+                                    </OnLoad>
+                                    <OnShow>
+                                        GLV_InitTalentCheckbox(this, {"Talents", "ShowPopupOnLevelUp"});
+                                    </OnShow>
+                                    <OnClick>
+                                        GLV_OnTalentCheckboxClick(this, {"Talents", "ShowPopupOnLevelUp"});
+                                    </OnClick>
+                                </Scripts>
+                            </CheckButton>
+
+                            <!-- Highlight in Talent Frame Checkbox -->
+                            <CheckButton name="$parentHighlightInFrame" inherits="OptionsCheckButtonTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsTalentsPageShowPopup" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="0" y="-5"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        getglobal(this:GetName().."Text"):SetText("Highlight in Talent Frame");
+                                    </OnLoad>
+                                    <OnShow>
+                                        GLV_InitTalentCheckbox(this, {"Talents", "HighlightInFrame"});
+                                    </OnShow>
+                                    <OnClick>
+                                        GLV_OnTalentCheckboxClick(this, {"Talents", "HighlightInFrame"});
+                                    </OnClick>
+                                </Scripts>
+                            </CheckButton>
+
+                            <!-- Show Endgame at 60 Checkbox -->
+                            <CheckButton name="$parentShowEndgame" inherits="OptionsCheckButtonTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsTalentsPageHighlightInFrame" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="0" y="-5"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Scripts>
+                                    <OnLoad>
+                                        getglobal(this:GetName().."Text"):SetText("Show Endgame Template at 60");
+                                    </OnLoad>
+                                    <OnShow>
+                                        GLV_InitTalentCheckbox(this, {"Talents", "ShowEndgameAtSixty"});
+                                    </OnShow>
+                                    <OnClick>
+                                        GLV_OnTalentCheckboxClick(this, {"Talents", "ShowEndgameAtSixty"});
+                                    </OnClick>
+                                </Scripts>
+                            </CheckButton>
                         </Frames>
 
                     </Frame>

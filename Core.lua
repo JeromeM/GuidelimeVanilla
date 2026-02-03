@@ -109,6 +109,9 @@ function addon:OnEnable()
     GLV.GossipTracker:Init()
     GLV.EquipmentTracker:Init()
     GLV.ItemTracker:Init()
+    if GLV.TalentTracker then
+        GLV.TalentTracker:Init()
+    end
     
     -- Initialize Guide Navigation integration AFTER the guide is loaded
     self:ScheduleEvent(function()
