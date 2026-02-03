@@ -89,6 +89,8 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 - `{"Talents", "HighlightTalent"}` - Highlight suggested talent in talent frame (default true)
 - `{"Talents", "ActiveTemplate", class}` - Active template name for a class (e.g., `{"Talents", "ActiveTemplate", "MAGE"}`)
 - `{"Talents", "LastShownLevel"}` - Last level where talent toast was shown (used to prevent duplicate popups)
+- `{"Talents", "ToastPositionX"}` - X offset from screen center for toast notification (nil = default centered position)
+- `{"Talents", "ToastPositionY"}` - Y offset from screen center for toast notification (nil = default centered position)
 
 ### Database (VGDB)
 
@@ -214,7 +216,7 @@ local activeTemplate = GLV:GetActiveTemplate(class)
 - `/glvtalent info` - Show current template and suggestions
 
 **UI Frames:**
-- `GLV_TalentToast` - Toast notification frame with fade animation
+- `GLV_TalentToast` - Toast notification frame with fade animation (movable, draggable)
 - `GLV_TalentHighlight` - Green glow overlay for talent frame buttons
 - Both frames defined in `Frames/TalentPopup.xml`
 
@@ -222,7 +224,15 @@ local activeTemplate = GLV:GetActiveTemplate(class)
 - Talent settings page in Settings > Talents
 - Enable/disable system, toast notifications, and talent highlights independently
 - Template selection dropdown per character class
+- "Move Notification" button to reposition toast notification (drag to desired location, click to confirm)
+- Toast position saved as center-offset coordinates and persists across sessions
 - Settings persist per character
+
+**Toast Position Functions:**
+- `GLV_StartMoveToastNotification()` - Enter move mode for toast frame (shows drag instructions)
+- `GLV_ConfirmToastPosition()` - Confirm and save new toast position
+- `GLV_TalentToast_SavePosition()` - Save toast position to settings (center-offset coordinates)
+- `GLV_TalentToast_RestorePosition()` - Restore saved position on addon load
 
 ## Guide Syntax
 
@@ -273,7 +283,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, talent settings UI
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, talent settings UI, toast position functions
 - `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
 - `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
 - `Frames/SettingsFrame.xml` - Settings UI including talent settings page

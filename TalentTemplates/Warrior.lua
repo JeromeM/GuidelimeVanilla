@@ -16,7 +16,6 @@ local GLV = LibStub("GuidelimeVanilla")
 if not GLV then return end
 
 -- Arms Leveling Build
--- Guide from TurtleWow Discord by Virasan
 -- https://discord.com/channels/466622455805378571/810850799823355915/1364931945624240191
 -- https://talents.turtlecraft.gg/warrior?points=FQQCKYDQpAQAB-AoAooAAo-
 GLV:RegisterTalentTemplate("WARRIOR", "Arms", "leveling", {
