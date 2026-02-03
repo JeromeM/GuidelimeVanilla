@@ -44,12 +44,15 @@ Key global objects:
 - `GLV.CharacterTracker` - XP/level tracking
 - `GLV.TaxiTracker` - Flight path tracking
 - `GLV.GossipTracker` - Gossip dialog tracking
+- `GLV.TalentTracker` - Talent suggestion tracking (level-up notifications, talent frame highlights)
 - `GLV.GuideNavigation` - Arrow navigation and guide transitions (arrow display, next guide button)
 - `GLV.CurrentGuide` - Currently loaded guide data (includes `.clickToNext` and `.next` for guide chaining)
 - `GLV.CurrentDisplaySteps` - Filtered/displayed steps array
 - `GLV.loadedGuides` - Table of registered guides organized by pack: `GLV.loadedGuides[packName][guideId]`
 - `GLV.guidePackAddons` - Maps pack names to addon names for metadata lookup: `GLV.guidePackAddons["Pack Name"] = "AddonName"`
 - `GLV.guidePackStartingGuides` - Maps pack names to race-to-guide mappings: `GLV.guidePackStartingGuides[packName][race] = "Guide Name"`
+- `GLV.TalentTemplates` - Registered talent templates: `GLV.TalentTemplates[class][templateName] = {type, talents}`
+- `GLV.DefaultTalentTemplates` - Default template per class: `GLV.DefaultTalentTemplates["WARRIOR"] = "Arms (Icy Veins)"`
 
 ### Data Flow
 
@@ -79,6 +82,13 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 **Display Settings** (Settings > Display):
 - `{"UI", "GuideTextScale"}` - Scale multiplier for guide step text (0.8-1.5, default 1.0)
 - `{"UI", "NavigationScale"}` - Scale multiplier for navigation arrow frame (0.8-1.5, default 1.0)
+
+**Talent Settings** (Settings > Talents):
+- `{"Talents", "Enabled"}` - Enable talent suggestions (default true)
+- `{"Talents", "ShowToast"}` - Show toast notification on level-up (default true)
+- `{"Talents", "HighlightTalent"}` - Highlight suggested talent in talent frame (default true)
+- `{"Talents", "ActiveTemplate", class}` - Active template name for a class (e.g., `{"Talents", "ActiveTemplate", "MAGE"}`)
+- `{"Talents", "LastShownLevel"}` - Last level where talent toast was shown (used to prevent duplicate popups)
 
 ### Database (VGDB)
 
@@ -130,6 +140,90 @@ Key methods:
 - `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
 - `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data only, no name fallback)
 
+### Talent Suggestion System
+
+The addon includes an intelligent talent suggestion system that helps players optimize their leveling builds:
+
+**Features:**
+- **Level-up Toast Notifications**: Shows non-intrusive fade-in/fade-out popup when gaining a talent point
+- **Talent Frame Highlighting**: Adds green glow around suggested talent in the talent frame (works with both TalentFrame and TWTalentFrame)
+- **Class-specific Templates**: Pre-configured talent builds from Icy Veins for all 9 classes
+- **Template Registration API**: Custom templates can be added via addon API
+- **Smart Detection**: Automatically detects which talent frame addon is active
+
+**Talent Templates:**
+
+Templates are stored per class with level-by-level talent assignments:
+```lua
+-- Template structure: {[level] = {tree, row, col}}
+GLV.TalentTemplates["MAGE"]["Frost Single-Target (Icy Veins)"] = {
+    type = "leveling",
+    talents = {
+        [10] = {1, 4, 1},  -- Arcane tree, row 4, column 1
+        [11] = {1, 4, 1},  -- Same talent, rank 2
+        [12] = {3, 1, 2},  -- Frost tree, row 1, column 2
+        -- ... continues to level 60
+    }
+}
+```
+
+**Default Templates (Icy Veins Recommendations):**
+- **Warrior**: Arms (Icy Veins)
+- **Paladin**: Retribution (Icy Veins)
+- **Hunter**: Beast Mastery (Icy Veins)
+- **Rogue**: Combat Swords (Icy Veins)
+- **Priest**: Shadow (Icy Veins)
+- **Shaman**: Enhancement (Icy Veins)
+- **Mage**: Frost Single-Target (Icy Veins)
+- **Warlock**: Affliction (Icy Veins)
+- **Druid**: Feral (Icy Veins)
+
+**Template Registration API:**
+```lua
+-- Register a custom talent template
+GLV:RegisterTalentTemplate(class, name, templateType, talents)
+-- class: "MAGE", "WARRIOR", etc. (uppercase)
+-- name: Display name (e.g., "Frost AoE Leveling")
+-- templateType: "leveling" or "endgame"
+-- talents: Table of {[level] = {tree, row, col}}
+
+-- Get all templates for a class
+local templates = GLV:GetTalentTemplates(class, filterType)
+
+-- Get template names for dropdowns
+local names = GLV:GetTalentTemplateNames(class, filterType)
+
+-- Get active template for current character
+local activeTemplate = GLV:GetActiveTemplate(class)
+```
+
+**Key Methods:**
+- `TalentTracker:Init()` - Initialize talent tracking system, hook into PLAYER_LEVEL_UP
+- `TalentTracker:ShowToast()` - Display level-up toast with fade animation
+- `TalentTracker:HideToast()` - Hide and reset toast frame
+- `TalentTracker:UpdateTalentHighlight()` - Highlight suggested talent in talent frame
+- `TalentTracker:ClearTalentHighlight()` - Remove highlight overlay
+- `TalentTracker:GetSuggestedTalent(level)` - Get talent suggestion for a level
+- `TalentTracker:DetectTalentFrame()` - Detect active talent frame (TalentFrame or TWTalentFrame)
+
+**Slash Commands:**
+- `/glvtalent` - Show talent system info
+- `/glvtalent debug` - Toggle debug mode
+- `/glvtalent highlight` - Force show talent highlight
+- `/glvtalent toast` - Force show level-up toast
+- `/glvtalent info` - Show current template and suggestions
+
+**UI Frames:**
+- `GLV_TalentToast` - Toast notification frame with fade animation
+- `GLV_TalentHighlight` - Green glow overlay for talent frame buttons
+- Both frames defined in `Frames/TalentPopup.xml`
+
+**Settings Integration:**
+- Talent settings page in Settings > Talents
+- Enable/disable system, toast notifications, and talent highlights independently
+- Template selection dropdown per character class
+- Settings persist per character
+
 ## Guide Syntax
 
 Guides use tagged format parsed by `GuideParser.lua`:
@@ -178,8 +272,12 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`
+- `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, talent settings UI
 - `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
+- `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
+- `Frames/SettingsFrame.xml` - Settings UI including talent settings page
+- `TalentTemplates/*.lua` - Class-specific talent templates (9 files, one per class)
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups)
 
 ## Lua 5.0 Compatibility Notes

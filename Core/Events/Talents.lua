@@ -15,17 +15,18 @@ GLV.TalentTracker = TalentTracker
 -- Storage for registered talent templates
 GLV.TalentTemplates = {}  -- {class = {templateName = {type, talents}}}
 
--- Default recommended templates per class (Icy Veins recommendations)
+-- Default recommended templates per class
+-- TODO: Fill when TurtleWoW templates are ready
 GLV.DefaultTalentTemplates = {
-    ["WARRIOR"] = "Arms (Icy Veins)",
-    ["PALADIN"] = "Retribution (Icy Veins)",
-    ["HUNTER"] = "Beast Mastery (Icy Veins)",
-    ["ROGUE"] = "Combat Swords (Icy Veins)",
-    ["PRIEST"] = "Shadow (Icy Veins)",
-    ["SHAMAN"] = "Enhancement (Icy Veins)",
-    ["MAGE"] = "Frost Single-Target (Icy Veins)",
-    ["WARLOCK"] = "Affliction (Icy Veins)",
-    ["DRUID"] = "Feral (Icy Veins)",
+    -- ["WARRIOR"] = "Arms",
+    -- ["PALADIN"] = "Retribution",
+    -- ["HUNTER"] = "Beast Mastery",
+    -- ["ROGUE"] = "Combat Swords",
+    -- ["PRIEST"] = "Shadow",
+    -- ["SHAMAN"] = "Enhancement",
+    -- ["MAGE"] = "Frost",
+    -- ["WARLOCK"] = "Affliction",
+    -- ["DRUID"] = "Feral",
 }
 
 
