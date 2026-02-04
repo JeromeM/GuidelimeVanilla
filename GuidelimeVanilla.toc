@@ -1,54 +1,8 @@
-
-## Interface: 11200
-## Title: Guidelime Vanilla
-## Notes: Guidelime, adapted for Vanilla
-## Version: 0.5.1
-## Author: Grommey
-## DefaultState: enabled
-## SavedVariablesPerCharacter: GuidelimeVanillaDB
-
-Assets\libs\libs.xml
-Assets\db\initdb.xml
-
-Core.lua
-Settings.lua
-
-Helpers\Helpers.lua
-Helpers\DBTools.lua
-Helpers\Colors.lua
-
-Core\GuideNavigation.lua
-Core\GuideParser.lua
-Core\GuideLibrary.lua
-Core\GuideWriter.lua
-
-Core\Events\Quests.lua
-Core\Events\Character.lua
-Core\Events\Taxi.lua
-Core\Events\Gossip.lua
-Core\Events\Equipment.lua
-Core\Events\Items.lua
-Core\Events\Talents.lua
-
-TalentTemplates\Mage.lua
-TalentTemplates\Warrior.lua
-TalentTemplates\Priest.lua
-TalentTemplates\Rogue.lua
-TalentTemplates\Hunter.lua
-TalentTemplates\Warlock.lua
-TalentTemplates\Paladin.lua
-TalentTemplates\Shaman.lua
-TalentTemplates\Druid.lua
-
-Frames\Frames.lua
-Frames\MainFrame.xml
-Frames\SettingsFrame.xml
-Frames\TalentPopup.xml
-
 ## Interface: 11200
 ## Title: Guidelime Vanilla
 ## Notes: Guidelime, adapted for Vanilla
 ## Author: Grommey
+## Version: 0.6.0
 ## DefaultState: enabled
 ## SavedVariablesPerCharacter: GuidelimeVanillaDB
 
