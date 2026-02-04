@@ -15,17 +15,74 @@ Row 1 requires 0 points in tree, Row 2 requires 5 points, Row 3 requires 10, etc
 local GLV = LibStub("GuidelimeVanilla")
 if not GLV then return end
 
--- Combat Swords Leveling Build
+-- Combat Leveling Build (TurtleWoW)
 GLV:RegisterTalentTemplate("ROGUE", "Combat Swords", "leveling", {
-    -- TODO: Fill with TurtleWoW talent positions
-})
+    [10] = {2, 1, 2},
+    [11] = {2, 1, 2},
+    [12] = {2, 1, 2},
+    [13] = {2, 1, 2},
+    [14] = {2, 1, 2},
 
--- Combat Daggers Leveling Build
-GLV:RegisterTalentTemplate("ROGUE", "Combat Daggers", "leveling", {
-    -- TODO: Fill with TurtleWoW talent positions
-})
+    [15] = {2, 2, 2},
+    [16] = {2, 2, 2},
+    [17] = {2, 2, 2},
 
--- Subtlety Leveling Build
-GLV:RegisterTalentTemplate("ROGUE", "Subtlety", "leveling", {
-    -- TODO: Fill with TurtleWoW talent positions
+    [18] = {2, 2, 3},
+    [19] = {2, 2, 3},
+    [20] = {2, 2, 3},
+    [21] = {2, 2, 3},
+    [22] = {2, 2, 3},
+
+    [23] = {2, 3, 2},
+    [24] = {2, 3, 2},
+
+    [25] = {2, 4, 3},
+    [26] = {2, 4, 3},
+    [27] = {2, 4, 3},
+    [28] = {2, 4, 3},
+    [29] = {2, 4, 3},
+
+    [30] = {2, 5, 2},
+
+    [31] = {2, 5, 1},
+    [32] = {2, 5, 1},
+
+    [33] = {2, 5, 4},
+    [34] = {2, 5, 4},
+
+    [35] = {2, 6, 2},
+    [36] = {2, 6, 2},
+
+    [37] = {2, 6, 3},
+    [38] = {2, 6, 3},
+    [39] = {2, 6, 3},
+
+    [40] = {2, 7, 2},
+
+    [41] = {1, 1, 3},
+    [42] = {1, 1, 3},
+    [43] = {1, 1, 3},
+    [44] = {1, 1, 3},
+    [45] = {1, 1, 3},
+
+    [46] = {1, 2, 4},
+    [47] = {1, 2, 4},
+    [48] = {1, 2, 4},
+
+    [49] = {1, 2, 1},
+    [50] = {1, 2, 1},
+
+    [51] = {1, 3, 1},
+
+    [52] = {1, 2, 1},
+
+    [53] = {1, 3, 3},
+    [54] = {1, 3, 3},
+    [55] = {1, 3, 3},
+    [56] = {1, 3, 3},
+    [57] = {1, 3, 3},
+
+    [58] = {1, 4, 1},
+    [59] = {1, 4, 1},
+    [60] = {1, 4, 1},
 })
