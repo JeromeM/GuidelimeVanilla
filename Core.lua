@@ -34,21 +34,45 @@ function addon:OnInitialize()
 
     -- Set debug mode for testing
     GLV.Debug = false
-    
+
     -- Set GLV.Ace first so other modules can access it
     GLV.Ace = self
-    
+
     -- Initialize settings
     Settings = GLV.Settings
     self:RegisterDB(_ADDON_NAME .. "DB")
     self:RegisterDefaults("char", Settings:GetDefaults())
     Settings:InitializeDB()
-    
+
     -- Set title after settings are initialized
     if GLV_MainTitle then
         GLV_MainTitle:SetText(string.format("|cFF5B5FA4GuideLime|r |cFFA83E25Vanilla|r    |cFFFFFFFFv%s|r", _VERSION))
     end
 
+    -- Register slash commands
+    self:RegisterChatCommand({"/glv", "/guidelime"}, {
+        type = "group",
+        args = {
+            show = {
+                type = "execute",
+                name = "Show",
+                desc = "Show the guide window",
+                func = function() GLV_ShowGuideFrame() end,
+            },
+            hide = {
+                type = "execute",
+                name = "Hide",
+                desc = "Hide the guide window",
+                func = function() GLV_HideGuideFrame() end,
+            },
+            settings = {
+                type = "execute",
+                name = "Settings",
+                desc = "Open settings window",
+                func = function() GLV_ToggleSettings() end,
+            },
+        },
+    })
 end
 
 -- Enable addon and initialize all modules

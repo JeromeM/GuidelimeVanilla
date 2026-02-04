@@ -43,6 +43,21 @@ function GLV_ToggleSettings()
     end
 end
 
+-- Hide the main guide frame and show reopen instructions
+function GLV_HideGuideFrame()
+    if GLV_Main then
+        GLV_Main:Hide()
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF6B8BD4[GuideLime]|r Guide window hidden. Type |cFFFFFF00/glv show|r to display it again.")
+    end
+end
+
+-- Show the main guide frame
+function GLV_ShowGuideFrame()
+    if GLV_Main then
+        GLV_Main:Show()
+    end
+end
+
 -- Show specific guide page and hide all others
 function GLV_ShowGuide(frame)
     local frames = {

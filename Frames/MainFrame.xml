@@ -81,7 +81,7 @@
                 <NormalTexture file="Interface\Buttons\UI-Panel-MinimizeButton-Up"/>
                 <PushedTexture file="Interface\Buttons\UI-Panel-MinimizeButton-Down"/>
                 <Scripts>
-                    <OnClick>GLV_NextPrevStep(true)</OnClick>
+                    <OnClick>GLV_HideGuideFrame()</OnClick>
                 </Scripts>
             </Button>
 
