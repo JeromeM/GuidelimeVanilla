@@ -85,6 +85,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Clickable Icons**: Special action icons (Hearthstone, items to use)
 - **Color-coded Steps**: Visual distinction between step types and states
 - **Quest Tags**: Colored markers for accept and turnin steps
+- **Close Button**: Hide the guide window by clicking the close button - shows a chat message with `/glv show` command to reopen
 - **Display Settings**: Customizable UI scaling available in Settings > Display:
   - **Guide Text Scale** (0.8-1.5): Adjust the size of guide step text
   - **Navigation Scale** (0.8-1.5): Adjust the size of the navigation arrow frame
@@ -102,6 +103,14 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 2. Follow the steps - checkboxes update automatically
 3. Navigation arrow guides you to objectives
 4. Click checkboxes manually if needed
+
+### Slash Commands
+
+- `/glv show` or `/guidelime show` - Show the guide window
+- `/glv hide` or `/guidelime hide` - Hide the guide window
+- `/glv settings` or `/guidelime settings` - Open the settings window
+
+The close button on the guide window will hide it and display a chat message with instructions to reopen using `/glv show`
 
 ## Creating Custom Guide Packs
 

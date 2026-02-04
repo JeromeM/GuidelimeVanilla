@@ -13,6 +13,19 @@ GuideLime Vanilla is a World of Warcraft Classic (1.12) addon that provides an e
 - **Testing**: Load addon in WoW, use `/reload` to test changes
 - **Debug Mode**: Set `GLV.Debug = true` in Core.lua for verbose logging
 
+## Slash Commands
+
+The addon registers `/glv` and `/guidelime` commands with the following subcommands:
+
+- `/glv show` - Show the guide window (brings it back after hiding)
+- `/glv hide` - Hide the guide window (shows chat message with reopen instructions)
+- `/glv settings` - Open the settings window
+
+**Close Button Behavior:**
+- The close button (X) on the main guide window now hides the window instead of navigating steps
+- When closed, displays: "|cFF6B8BD4[GuideLime]|r Guide window hidden. Type |cFFFFFF00/glv show|r to display it again."
+- Functions used: `GLV_HideGuideFrame()`, `GLV_ShowGuideFrame()`, `GLV_ToggleSettings()`
+
 ## Architecture
 
 ### Core Module System
@@ -157,7 +170,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 
 ## Key Files
 
-- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading)
+- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`)
 - `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching
@@ -165,7 +178,8 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`
+- `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups)
 
 ## Lua 5.0 Compatibility Notes
