@@ -169,9 +169,9 @@ GLV.TalentTemplates["MAGE"]["Frost Single-Target (Icy Veins)"] = {
 }
 ```
 
-**Default Templates (Icy Veins Recommendations):**
+**Default Templates:**
 - **Warrior**: Arms (Icy Veins)
-- **Paladin**: Retribution (Icy Veins)
+- **Paladin**: Retribution (TurtleWoW) - Complete leveling build sourced from talents.turtlecraft.gg
 - **Hunter**: Beast Mastery (Icy Veins)
 - **Rogue**: Combat Swords (Icy Veins)
 - **Priest**: Shadow (Icy Veins)

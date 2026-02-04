@@ -15,8 +15,8 @@ Row 1 requires 0 points in tree, Row 2 requires 5 points, Row 3 requires 10, etc
 local GLV = LibStub("GuidelimeVanilla")
 if not GLV then return end
 
--- Retribution Leveling Build (TurtleWoW)
--- Source: https://talents.turtlecraft.gg/paladin?points=FAAoB-FAY-AoAoFKYAFAFABY
+-- Retribution Leveling Build
+-- https://talents.turtlecraft.gg/paladin?points=FAAoB-FAY-AoAoFKYAFAFABY
 GLV:RegisterTalentTemplate("PALADIN", "Retribution", "leveling", {
     [10] = {1, 1, 2},   -- Divine Strength 1/5
     [11] = {1, 1, 2},   -- Divine Strength 2/5

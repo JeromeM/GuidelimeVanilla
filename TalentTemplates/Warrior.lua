@@ -16,7 +16,6 @@ local GLV = LibStub("GuidelimeVanilla")
 if not GLV then return end
 
 -- Arms Leveling Build
--- https://discord.com/channels/466622455805378571/810850799823355915/1364931945624240191
 -- https://talents.turtlecraft.gg/warrior?points=FQQCKYDQpAQAB-AoAooAAo-
 GLV:RegisterTalentTemplate("WARRIOR", "Arms", "leveling", {
     [10] = {2, 1, 3},   -- Cruelty 1/5
@@ -90,4 +89,3 @@ GLV:RegisterTalentTemplate("WARRIOR", "Arms", "leveling", {
     [60] = {2, 4, 3},   -- Enrage 5/5
 
 })
-
