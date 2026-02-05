@@ -82,6 +82,7 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 
 **Guide Pack Settings**:
 - `{"Guide", "ActivePack"}` - Currently selected guide pack name (nil if none selected)
+- `{"Guide", "Guides", guideId, "VisitedTARs", stepIndex}` - Per-step visited NPC tracking (persists across /reload)
 
 **Automation Settings** (Settings > Guides):
 - `{"Automation", "AutoAcceptQuests"}` - Auto-accept quests when current step has `[QA]` tag
@@ -134,6 +135,13 @@ The navigation frame displays different modes based on current step:
 - Tracks progress: `allWaypoints[]`, `currentWaypointIndex`, `currentStepData`
 - Distance threshold: 5 yards (`WAYPOINT_REACH_DISTANCE`)
 
+**Ordered Waypoint Navigation:**
+- TAR targets are visited in sequence, then automatically transition to quest objectives (QC/QT/QA)
+- Visited TARs are persisted in settings to survive `/reload`
+- TARs on lines with quest tags (QA/QC/QT) are skipped - the quest system handles navigation
+- When last TAR is reached, navigation recalculates to find remaining quest objectives
+- Waypoint metadata includes: `type`, `npcId`, `questId`, `actionType` for smart transitions
+
 **Quest Objective Tracking:**
 - Stores `currentObjectiveIndex` (nil for whole quest, 1/2/3 for specific objective)
 - `GetCurrentQuestAction()` returns action, questId, actionType, and objectiveIndex
@@ -149,7 +157,7 @@ Key methods:
 - `GuideNavigation:HideHearthstone()` - Return to arrow mode
 - `GuideNavigation:CompleteCurrentStep()` - Mark current step complete and advance to next step
 - `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
-- `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data only, no name fallback)
+- `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data first, falls back to quest log name matching)
 
 ### Talent Suggestion System
 
@@ -269,7 +277,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 
 **Tag Details:**
 
-- **[G] formats**: Supports both `x,y Zone` and `x, y, Zone` (with comma before zone name)
+- **[G] formats**: Supports both `x,y Zone` and `x, y, Zone` (with comma before zone name). Coordinates are hidden from guide text display but still used for navigation.
 - **[A] display**: Text shows as "Mage : [Rest of step text]" at line start with class color
 - **[XP] formats**:
   - `[XP3]` → "Level 3"
@@ -300,7 +308,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
 - `Frames/SettingsFrame.xml` - Settings UI including talent settings page
 - `TalentTemplates/*.lua` - Class-specific talent templates (9 files, one per class)
-- `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups)
+- `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups), quest NPC name lookup (`GetQuestTurninNPCName()`, `GetQuestAcceptNPCName()`)
 
 ## Lua 5.0 Compatibility Notes
 
@@ -342,9 +350,11 @@ The addon uses different matching strategies for quest actions to handle WoW 1.1
 
 **Helper Functions:**
 - `GetQuestIDByName(name)` returns first matching quest ID from VGDB
-- `GetQuestStatus(questId)` checks QuestTracker.store only (Accepted/Completed tables), no name fallback
+- `GetQuestStatus(questId)` checks QuestTracker.store first, falls back to quest log name matching for untracked quests
 - `QuestTracker:HandleQuestAction(questId, title, actionType, objectiveIndex)` applies matching strategy
 - Quest completion detection supports both `isComplete == 1` (numeric) and `isComplete == true` (boolean)
+- `GetQuestTurninNPCName(questId)` returns turn-in NPC name from quest database
+- `GetQuestAcceptNPCName(questId)` returns quest giver NPC name from quest database
 
 **Same-Name Quest Handling:**
 - Multiple quests can share the same name (e.g., "In Defense of the King's Lands")

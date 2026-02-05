@@ -50,7 +50,10 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Custom Arrow Display**: Built-in navigation arrow (no TomTom needed!)
 - **Automatic Waypoints**: Creates waypoints for quest objectives automatically
 - **Multi-waypoint Navigation**: Steps with multiple coordinates create sequential waypoints that auto-advance when you reach each destination (within 5 yards)
+- **Intelligent Waypoint Transitions**: When you reach a TAR (target NPC) waypoint, navigation automatically recalculates and advances to the next quest objective location
+- **Persistent Waypoint Tracking**: Visited TAR waypoints are saved and persist through /reload
 - **Smart Coordinate Selection**: Automatically selects the best location based on step type (quest giver, turn-in NPC, or objective area)
+- **Smart TAR Filtering**: TAR tags on quest lines are intelligently skipped - the quest system handles navigation for quest accept/complete/turnin steps
 - **Flexible Coordinate Formats**: Supports multiple coordinate format styles
 - **Zone-Aware Navigation**: Arrow automatically hides when in different zones and updates when you enter the correct zone
 - **Quest Objectives Display**: Shows kill/collect progress directly on the navigation frame
