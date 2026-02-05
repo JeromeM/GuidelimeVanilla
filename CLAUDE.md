@@ -170,15 +170,18 @@ GLV.TalentTemplates["MAGE"]["Frost Single-Target (Icy Veins)"] = {
 ```
 
 **Default Templates:**
-- **Warrior**: Arms (Icy Veins)
-- **Paladin**: Retribution (TurtleWoW) - Complete leveling build sourced from talents.turtlecraft.gg
-- **Hunter**: Beast Mastery (Icy Veins)
-- **Rogue**: Combat Swords (Icy Veins)
-- **Priest**: Shadow (Icy Veins)
-- **Shaman**: Enhancement (Icy Veins)
-- **Mage**: Frost Single-Target (Icy Veins)
-- **Warlock**: Affliction (Icy Veins)
-- **Druid**: Feral (Icy Veins)
+
+All 9 classes now have complete leveling builds sourced from talents.turtlecraft.gg (TurtleWoW):
+
+- **Warrior**: Arms (TurtleWoW)
+- **Paladin**: Retribution (TurtleWoW)
+- **Hunter**: Beast Mastery (TurtleWoW)
+- **Rogue**: Combat Swords (TurtleWoW)
+- **Priest**: Discipline (TurtleWoW)
+- **Shaman**: Enhancement (TurtleWoW)
+- **Mage**: Frost (TurtleWoW)
+- **Warlock**: Affliction (TurtleWoW)
+- **Druid**: Feral (TurtleWoW)
 
 **Template Registration API:**
 ```lua

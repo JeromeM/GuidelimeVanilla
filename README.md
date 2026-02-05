@@ -85,7 +85,10 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Talent Frame Highlighting**: Open your talent frame to see the recommended talent highlighted with a green border
 - **Customizable Templates**: Choose from different talent builds for your class in Settings > Talents
 - **Template Selection**: Enable or disable talent suggestions and select your preferred build (leveling, endgame, etc.)
-- **Multi-class Support**: Templates available for all 9 classes (currently Arms Warrior is fully implemented, more builds coming soon)
+- **All Classes Supported**: Complete leveling templates for all 9 classes optimized for TurtleWoW:
+  - Warrior (Arms), Paladin (Retribution), Hunter (Beast Mastery)
+  - Rogue (Combat Swords), Priest (Discipline), Shaman (Enhancement)
+  - Mage (Frost), Warlock (Affliction), Druid (Feral)
 
 ### 🎨 User Interface
 - **Clean Design**: Organized interface with consistent styling
