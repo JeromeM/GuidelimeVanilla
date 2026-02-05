@@ -222,7 +222,6 @@ function Parser:parseGuide(guide, group)
                                         type = "goto"
                                     })
                                 end
-                                return "(" .. x .. ", " .. y .. ")"
                             end
                             return ""
 

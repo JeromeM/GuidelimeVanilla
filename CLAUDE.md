@@ -13,6 +13,15 @@ GuideLime Vanilla is a World of Warcraft Classic (1.12) addon that provides an e
 - **Testing**: Load addon in WoW, use `/reload` to test changes
 - **Debug Mode**: Set `GLV.Debug = true` in Core.lua for verbose logging
 
+## IMPORTANT: Git Workflow
+
+**NEVER forget to run the agents before pushing:**
+1. `claude-md-updater` - After each commit to update CLAUDE.md
+2. `readme-feature-sync` - Before pushing to sync README with implemented features
+3. `version-bump-prepush` - Before pushing to increment the addon version
+
+These agents MUST be run in this order before any `git push` operation.
+
 ## Slash Commands
 
 The addon registers `/glv` and `/guidelime` commands with the following subcommands:

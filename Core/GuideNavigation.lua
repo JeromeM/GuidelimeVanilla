@@ -34,6 +34,34 @@ local allWaypoints = {}      -- All waypoints for current step
 local currentWaypointIndex = 1  -- Index of current waypoint in allWaypoints
 local currentStepData = nil  -- Current step data for description generation
 local WAYPOINT_REACH_DISTANCE = 5  -- Distance in yards to consider waypoint reached
+local hasTriggeredTransition = false  -- Prevent multiple recalculations
+
+-- Get visited NPCs from persistent storage
+local function getVisitedNPCs()
+    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"})
+    local currentStepIndex = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"})
+    if not currentGuideId or not currentStepIndex then return {} end
+
+    local visited = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "VisitedTARs", currentStepIndex})
+    return visited or {}
+end
+
+-- Save visited NPC to persistent storage
+local function saveVisitedNPC(npcId)
+    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"})
+    local currentStepIndex = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"})
+    if not currentGuideId or not currentStepIndex or not npcId then return end
+
+    local visited = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "VisitedTARs", currentStepIndex}) or {}
+    visited[npcId] = true
+    GLV.Settings:SetOption(visited, {"Guide", "Guides", currentGuideId, "VisitedTARs", currentStepIndex})
+end
+
+-- Clear visited NPCs for a step (called when step is completed)
+local function clearVisitedNPCs(guideId, stepIndex)
+    if not guideId or not stepIndex then return end
+    GLV.Settings:SetOption(nil, {"Guide", "Guides", guideId, "VisitedTARs", stepIndex})
+end
 
 
 --[[ FRAME CREATION AND MANAGEMENT ]]--
@@ -296,7 +324,12 @@ function GuideNavigation:SetWaypoint(coords, description)
         z = zone,  -- May be nil if GetZoneInfo failed
         zoneName = zoneName,  -- Store zone name for later lookup
         zoneId = coords.z,  -- Store database zone ID
-        description = description or "Guide Objective"
+        description = description or "Guide Objective",
+        -- Copy waypoint metadata for navigation logic
+        type = coords.type,
+        npcId = coords.npcId,
+        questId = coords.questId,
+        actionType = coords.actionType
     }
 
     return true
@@ -409,30 +442,41 @@ function GuideNavigation:UpdateNavigation()
         local description = currentWaypoint.description
         if string.find(description, " | ") then
             local color_rgb = {}
-            local questLevel, questName, objective = strsplit(" | ", description, 3)
-            questLevel = string.gsub(questLevel, "%[(.-)%]", function(questLevel)
-                local playerLevel = UnitLevel("player")
-                local diff = tonumber(questLevel) - playerLevel
+            local part1, part2, part3 = strsplit(" | ", description, 3)
 
-                if diff >= 6 then
-                    color_rgb = { r = 233/255, g = 54/255, b = 65/255 }
-                elseif diff >= 3 and diff <= 5 then
-                    color_rgb = { r = 255/255, g = 125/255, b = 10/255 }
-                elseif diff >= -2 and diff <= 2 then
-                    color_rgb = { r = 255/255, g = 235/255, b = 42/255 }
-                elseif diff >= -5 and diff <= -3 then
-                    color_rgb = { r = 144/255, g = 200/255, b = 54/255 }
-                elseif diff <= -6 then
-                    color_rgb = { r = 128/255, g = 128/255, b = 128/255 }
-                else
-                    color_rgb = { r = 1, g = 1, b = 1 }
-                end
+            -- Check if first part contains a level bracket [XX]
+            if string.find(part1, "%[%d+%]") then
+                -- Format: [level] | quest name | objective (3 parts with level)
+                local questLevel = part1
+                questLevel = string.gsub(questLevel, "%[(.-)%]", function(lvl)
+                    local playerLevel = UnitLevel("player")
+                    local diff = tonumber(lvl) - playerLevel
 
-                return "[" .. questLevel .. "]"
-            end)
-            navigationFrame.questName:SetText(questLevel .. " " .. questName or "")
-            navigationFrame.questName:SetTextColor(color_rgb.r, color_rgb.g, color_rgb.b, 1)
-            navigationFrame.objective:SetText(objective or "")
+                    if diff >= 6 then
+                        color_rgb = { r = 233/255, g = 54/255, b = 65/255 }
+                    elseif diff >= 3 and diff <= 5 then
+                        color_rgb = { r = 255/255, g = 125/255, b = 10/255 }
+                    elseif diff >= -2 and diff <= 2 then
+                        color_rgb = { r = 255/255, g = 235/255, b = 42/255 }
+                    elseif diff >= -5 and diff <= -3 then
+                        color_rgb = { r = 144/255, g = 200/255, b = 54/255 }
+                    elseif diff <= -6 then
+                        color_rgb = { r = 128/255, g = 128/255, b = 128/255 }
+                    else
+                        color_rgb = { r = 1, g = 1, b = 1 }
+                    end
+
+                    return "[" .. lvl .. "]"
+                end)
+                navigationFrame.questName:SetText(questLevel .. " " .. (part2 or ""))
+                navigationFrame.questName:SetTextColor(color_rgb.r, color_rgb.g, color_rgb.b, 1)
+                navigationFrame.objective:SetText(part3 or "")
+            else
+                -- Format: quest name | objective (2 parts without level)
+                navigationFrame.questName:SetText(part1 or "")
+                navigationFrame.questName:SetTextColor(1, 0.8, 0)  -- Default gold color
+                navigationFrame.objective:SetText(part2 or "")
+            end
         else
             navigationFrame.questName:SetText("")
             navigationFrame.objective:SetText(description)
@@ -442,8 +486,13 @@ function GuideNavigation:UpdateNavigation()
         navigationFrame.objective:SetText("Guide Objective")
     end
 
-    -- Display quest progress objectives (only for QC/COMPLETE steps, not QT/QA)
-    if self.currentQuestId and GLV.QuestTracker and self.currentActionType == "COMPLETE" then
+    -- Display quest progress objectives (only for COMPLETE actions, not for TAR/QT/QA)
+    local showProgress = self.currentQuestId and self.currentActionType == "COMPLETE"
+    -- Don't show progress when navigating to a standalone TAR (type == "target" without quest)
+    if currentWaypoint.type == "target" and not currentWaypoint.questId then
+        showProgress = false
+    end
+    if showProgress and GLV.QuestTracker then
         local objectives, allComplete = GLV.QuestTracker:GetQuestProgress(self.currentQuestId)
         if objectives and table.getn(objectives) > 0 then
             local progressLines = {}
@@ -491,19 +540,38 @@ function GuideNavigation:UpdateNavigation()
         navigationFrame.distance:SetTextColor(0, 1, 0)
         navigationFrame.arrow:SetAlpha(0.5)
 
-        -- Check if there's a next waypoint to advance to
-        if table.getn(allWaypoints) > currentWaypointIndex then
-            currentWaypointIndex = currentWaypointIndex + 1
-            local nextCoords = allWaypoints[currentWaypointIndex]
-            if nextCoords then
-                local description = self:GetStepDescription(currentStepData, nextCoords, nil)
-                self:SetWaypoint(nextCoords, description)
-                if GLV.Debug then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Advanced to waypoint " .. currentWaypointIndex .. "/" .. table.getn(allWaypoints))
+        -- Only process waypoint arrival once
+        if not hasTriggeredTransition then
+            -- Mark current waypoint's NPC as visited (persistent)
+            if currentWaypoint.npcId then
+                saveVisitedNPC(currentWaypoint.npcId)
+            end
+
+            -- Check if there's a next waypoint to advance to
+            if table.getn(allWaypoints) > currentWaypointIndex then
+                currentWaypointIndex = currentWaypointIndex + 1
+                local nextCoords = allWaypoints[currentWaypointIndex]
+                if nextCoords then
+                    -- Use pre-computed description from waypoint if available
+                    local description = nextCoords.description or self:GetStepDescription(currentStepData, nextCoords, nil)
+                    self:SetWaypoint(nextCoords, description)
+                    hasTriggeredTransition = false  -- Reset for next waypoint
+                    if GLV.Debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Advanced to waypoint " .. currentWaypointIndex .. "/" .. table.getn(allWaypoints) .. ": " .. (description or "no desc"))
+                    end
                 end
+            elseif currentWaypoint.type == "target" then
+                -- Reached last ordered waypoint (TAR) - recalculate to find QC/other objectives
+                hasTriggeredTransition = true  -- Prevent repeated recalculations
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r TAR " .. tostring(currentWaypoint.npcId) .. " reached, recalculating...")
+                end
+                self:UpdateWaypointForStep(currentStepData)
             end
         end
     else
+        -- Reset transition flag when moving away from waypoint
+        hasTriggeredTransition = false
         navigationFrame.distance:SetTextColor(0.8, 0.8, 0.8)
         navigationFrame.arrow:SetAlpha(1.0)
     end
@@ -530,26 +598,34 @@ end
 
 --[[ COORDINATE FINDING FUNCTIONS ]]--
 
--- Extract TAR coordinates from step data
+-- Extract TAR coordinates from step data (skips visited NPCs and TARs on quest lines)
 local function extractTARCoordinates(stepData)
     local tarCoords = {}
     if not stepData or not stepData.lines then
         return tarCoords
     end
 
+    -- Get visited NPCs from persistent storage
+    local visitedNPCs = getVisitedNPCs()
+
     for _, line in ipairs(stepData.lines) do
-        -- Use stored targetIds from parser
-        if line.targetIds then
+        -- Skip TARs on lines that have quest tags - the quest system handles navigation
+        local hasQuestTags = line.questTags and table.getn(line.questTags) > 0
+
+        if not hasQuestTags and line.targetIds then
             for _, targetId in ipairs(line.targetIds) do
-                local npcCoords = GLV:GetNPCCoordinates(targetId)
-                if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
-                    table.insert(tarCoords, {
-                        x = npcCoords.x,
-                        y = npcCoords.y,
-                        z = npcCoords.z,
-                        type = "target",
-                        npcId = targetId
-                    })
+                -- Skip visited NPCs
+                if not visitedNPCs[targetId] then
+                    local npcCoords = GLV:GetNPCCoordinates(targetId)
+                    if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
+                        table.insert(tarCoords, {
+                            x = npcCoords.x,
+                            y = npcCoords.y,
+                            z = npcCoords.z,
+                            type = "target",
+                            npcId = targetId
+                        })
+                    end
                 end
             end
         end
@@ -571,6 +647,152 @@ local function collectAllStepCoordinates(stepData)
         end
     end
     return allCoords
+end
+
+-- Collect all waypoints in order: TAR targets, then quest NPCs (QT/QA)
+-- Returns a sequential list of waypoints to navigate through
+local function collectOrderedWaypoints(stepData)
+    local waypoints = {}
+    if not stepData or not stepData.lines then
+        return waypoints
+    end
+
+    -- Get visited NPCs from persistent storage
+    local visitedNPCs = getVisitedNPCs()
+
+    -- First, collect NPC IDs for completed quest actions (to skip their TARs)
+    local completedQuestNPCs = {}
+    for _, line in ipairs(stepData.lines) do
+        if line.questTags then
+            for _, questTag in ipairs(line.questTags) do
+                local questId = questTag.questId
+                local inLog, isComplete = GuideNavigation:GetQuestStatus(questId)
+
+                if questTag.tag == "TURNIN" and not inLog then
+                    -- Quest already turned in - mark the turn-in NPC as "done"
+                    local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
+                    if quest and quest["end"] and quest["end"].U then
+                        local npcId = quest["end"].U[1]
+                        if npcId then
+                            completedQuestNPCs[npcId] = true
+                        end
+                    end
+                elseif questTag.tag == "ACCEPT" and inLog then
+                    -- Quest already accepted - mark the accept NPC as "done"
+                    local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
+                    if quest and quest["start"] and quest["start"].U then
+                        local npcId = quest["start"].U[1]
+                        if npcId then
+                            completedQuestNPCs[npcId] = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- First pass: collect TAR targets in order
+    -- Skip if: NPC has completed quest action, OR TAR is on a line with quest tags (QA/QC/QT)
+    for _, line in ipairs(stepData.lines) do
+        if line.targetIds then
+            -- Skip TARs on lines that have quest tags - the quest action handles navigation
+            local hasQuestTags = line.questTags and table.getn(line.questTags) > 0
+
+            if not hasQuestTags then
+                for _, targetId in ipairs(line.targetIds) do
+                    -- Skip TAR if: NPC's quest action is done, OR already visited
+                    if not completedQuestNPCs[targetId] and not visitedNPCs[targetId] then
+                        local npcCoords = GLV:GetNPCCoordinates(targetId)
+                        if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
+                            local npcName = GLV:getTargetName(targetId) or ("NPC " .. targetId)
+                            table.insert(waypoints, {
+                                x = npcCoords.x,
+                                y = npcCoords.y,
+                                z = npcCoords.z,
+                                type = "target",
+                                npcId = targetId,
+                                description = "Go to " .. npcName
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Second pass: collect quest NPCs (QT then QA) from quest database
+    -- Only add waypoints for actions that still need to be done
+    for _, line in ipairs(stepData.lines) do
+        if line.questTags then
+            for _, questTag in ipairs(line.questTags) do
+                local questId = questTag.questId
+                local questName = GLV:GetQuestNameByID(questId) or ("Quest " .. questId)
+
+                -- Check quest status to skip already-done actions
+                local inLog, isComplete = GuideNavigation:GetQuestStatus(questId)
+
+                if questTag.tag == "TURNIN" then
+                    -- Only add QT waypoint if quest is still in log (not yet turned in)
+                    if inLog then
+                        -- Get turn-in NPC from quest database
+                        local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
+                        if quest and quest["end"] and quest["end"].U then
+                            local npcId = quest["end"].U[1]
+                            if npcId then
+                                local npcCoords = GLV:GetNPCCoordinates(npcId)
+                                if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
+                                    local npcName = GLV:getTargetName(npcId) or ("NPC " .. npcId)
+                                    -- Format: ? Quest Name | Turn in to NPC
+                                    local description = "|cFFFFFC01?|r " .. questName .. " | Turn in to " .. npcName
+                                    table.insert(waypoints, {
+                                        x = npcCoords.x,
+                                        y = npcCoords.y,
+                                        z = npcCoords.z,
+                                        type = "turnin",
+                                        npcId = npcId,
+                                        questId = questId,
+                                        actionType = "TURNIN",
+                                        description = description
+                                    })
+                                end
+                            end
+                        end
+                    end
+                elseif questTag.tag == "ACCEPT" then
+                    -- Only add QA waypoint if quest is NOT in log (not yet accepted)
+                    if not inLog then
+                        -- Get accept NPC from quest database
+                        local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
+                        if quest and quest["start"] and quest["start"].U then
+                            local npcId = quest["start"].U[1]
+                            if npcId then
+                                local npcCoords = GLV:GetNPCCoordinates(npcId)
+                                if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
+                                    local npcName = GLV:getTargetName(npcId) or ("NPC " .. npcId)
+                                    -- Format: ! Quest Name | Accept from NPC
+                                    local description = "|cFFFFFC01!|r " .. questName .. " | Accept from " .. npcName
+                                    table.insert(waypoints, {
+                                        x = npcCoords.x,
+                                        y = npcCoords.y,
+                                        z = npcCoords.z,
+                                        type = "accept",
+                                        npcId = npcId,
+                                        questId = questId,
+                                        actionType = "ACCEPT",
+                                        description = description
+                                    })
+                                end
+                            end
+                        end
+                    end
+                -- Note: QC (COMPLETE) is NOT added to ordered waypoints
+                -- QC uses the existing dynamic "closest objective" system
+                end
+            end
+        end
+    end
+
+    return waypoints
 end
 
 -- Find quest coordinates for objectives
@@ -630,13 +852,12 @@ end
 
 -- Check if a quest is in the player's quest log and its completion status
 -- Returns: inLog (boolean), isComplete (boolean)
--- Uses QuestTracker's tracked data ONLY for reliable ID matching (avoids same-name quest issues)
 function GuideNavigation:GetQuestStatus(questId)
     if not questId then return false, false end
 
     local numId = tonumber(questId)
 
-    -- Use QuestTracker's data exclusively (reliable by exact ID)
+    -- First check QuestTracker's data (reliable by exact ID)
     if GLV.QuestTracker and GLV.QuestTracker.store then
         local store = GLV.QuestTracker.store
 
@@ -665,7 +886,18 @@ function GuideNavigation:GetQuestStatus(questId)
         end
     end
 
-    -- Quest not tracked = not in log (don't use name fallback to avoid same-name issues)
+    -- Fallback: Check quest log directly by name (for quests accepted before tracking started)
+    local expectedName = GLV:GetQuestNameByID(questId)
+    if expectedName then
+        local numEntries = GetNumQuestLogEntries()
+        for i = 1, numEntries do
+            local title, level, tag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
+            if title and not isHeader and title == expectedName then
+                return true, (isComplete == 1 or isComplete == true)
+            end
+        end
+    end
+
     return false, false
 end
 
@@ -816,26 +1048,24 @@ function GuideNavigation:GetStepDescription(stepData, targetCoords, currentActio
             end
 
             if actionType == "TURNIN" then
-                -- Turn in quest - show turn in destination
-                if targetCoords and targetCoords.npcId then
-                    local npcName = GLV:getTargetName(targetCoords.npcId)
-                    if npcName then
-                        description = questName .. " | Turn in to " .. npcName
-                    else
-                        description = questName .. " | Turn in"
-                    end
+                -- Turn in quest - prioritize quest database NPC over targetCoords
+                local npcName = GLV:GetQuestTurninNPCName(questId)
+                if not npcName and targetCoords and targetCoords.npcId then
+                    npcName = GLV:getTargetName(targetCoords.npcId)
+                end
+                if npcName then
+                    description = questName .. " | Turn in to " .. npcName
                 else
                     description = questName .. " | Turn in"
                 end
             elseif actionType == "ACCEPT" then
-                -- Accept quest - show where to accept
-                if targetCoords and targetCoords.npcId then
-                    local npcName = GLV:getTargetName(targetCoords.npcId)
-                    if npcName then
-                        description = questName .. " | Accept from " .. npcName
-                    else
-                        description = questName .. " | Accept"
-                    end
+                -- Accept quest - prioritize quest database NPC over targetCoords
+                local npcName = GLV:GetQuestAcceptNPCName(questId)
+                if not npcName and targetCoords and targetCoords.npcId then
+                    npcName = GLV:getTargetName(targetCoords.npcId)
+                end
+                if npcName then
+                    description = questName .. " | Accept from " .. npcName
                 else
                     description = questName .. " | Accept"
                 end
@@ -1134,6 +1364,9 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     self:HideNextGuide()
     self:HideHearthstone()
 
+    -- Reset transition flag to allow new transitions
+    hasTriggeredTransition = false
+
     -- Reset multi-waypoint tracking
     allWaypoints = {}
     currentWaypointIndex = 1
@@ -1220,7 +1453,25 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
         return
     end
 
-    -- Priority 2: TAR coordinates (also supports multiple)
+    -- Priority 2: Ordered waypoints (TAR targets + quest NPCs in sequence)
+    local orderedWaypoints = collectOrderedWaypoints(stepData)
+    if table.getn(orderedWaypoints) > 0 then
+        allWaypoints = orderedWaypoints
+        currentWaypointIndex = 1
+        targetCoords = orderedWaypoints[1]
+        -- Use pre-computed description from waypoint if available
+        local description = targetCoords.description or self:GetStepDescription(stepData, targetCoords, currentAction)
+        self:AddWaypoint(targetCoords, description)
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Ordered waypoints: " .. table.getn(orderedWaypoints) .. " waypoints loaded")
+            for i, wp in ipairs(orderedWaypoints) do
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r  " .. i .. ": " .. (wp.description or wp.type))
+            end
+        end
+        return
+    end
+
+    -- Priority 3: Legacy TAR coordinates (fallback if no ordered waypoints)
     if not targetCoords then
         local tarCoords = extractTARCoordinates(stepData)
         if table.getn(tarCoords) > 0 then

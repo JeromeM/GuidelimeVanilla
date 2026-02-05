@@ -224,6 +224,40 @@ function GLV:GetQuestLevelByID(id)
     return questLevel
 end
 
+-- Get quest turn-in NPC name from database
+function GLV:GetQuestTurninNPCName(questId)
+    if not questId then return nil end
+
+    local locale = self.Settings:GetOption({"Locale"}) or "enUS"
+    local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
+
+    if quest and quest["end"] and quest["end"].U then
+        local npcId = quest["end"].U[1]  -- Get first turn-in NPC
+        if npcId then
+            return self:getTargetName(npcId)
+        end
+    end
+
+    return nil
+end
+
+-- Get quest accept NPC name from database
+function GLV:GetQuestAcceptNPCName(questId)
+    if not questId then return nil end
+
+    local locale = self.Settings:GetOption({"Locale"}) or "enUS"
+    local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
+
+    if quest and quest["start"] and quest["start"].U then
+        local npcId = quest["start"].U[1]  -- Get first quest giver NPC
+        if npcId then
+            return self:getTargetName(npcId)
+        end
+    end
+
+    return nil
+end
+
 -- Get all coordinates for a quest (start, end, objectives)
 function GLV:GetQuestAllCoords(id, questPart, onlyObjective)
     if not id then 

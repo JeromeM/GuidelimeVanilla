@@ -1154,13 +1154,18 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
     -- Scroll to show the active step at the top
     if activeStep > 0 then
         GLV.Ace:ScheduleEvent(function()
-            if GLV_MainScrollFrame then
+            if GLV_MainScrollFrame and scrollChild then
+                -- Force scroll child height update
+                scrollChild:SetHeight(math.max(1, scrollChild:GetHeight()))
                 GLV_MainScrollFrame:UpdateScrollChildRect()
+                -- Small delay to let the scroll range update
+                GLV.Ace:ScheduleEvent(function()
+                    scrollToStep(activeStep, scrollChild, guideId, CONFIG.spacing)
+                    -- Update XP progress display after scroll (only affects active step)
+                    GLV:UpdateXPProgressDisplay()
+                    GLV.RefreshGuidePending = false
+                end, 0.05)
             end
-            scrollToStep(activeStep, scrollChild, guideId, CONFIG.spacing)
-            -- Update XP progress display after scroll (only affects active step)
-            GLV:UpdateXPProgressDisplay()
-            GLV.RefreshGuidePending = false
         end, 0.15)
     else
         GLV.Ace:ScheduleEvent(function()
