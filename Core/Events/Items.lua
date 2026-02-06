@@ -63,55 +63,49 @@ function ItemTracker:OnBagUpdate()
     end, 0.3)
 end
 
--- Check all collect item requirements and mark steps complete
+-- Check collect item requirements for the current active step only
 function ItemTracker:CheckCollectItems()
     if not GLV.CurrentDisplaySteps then return end
 
     local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
     local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
     local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
-    local diCount = GLV.CurrentDisplayStepsCount or 0
     local diToOrig = GLV.CurrentDisplayToOriginal or {}
 
-    local stepCompleted = false
+    if currentStep <= 0 then return end
 
-    for di = 1, diCount do
-        local step = GLV.CurrentDisplaySteps[di]
-        local origIdx = diToOrig[di]
+    local step = GLV.CurrentDisplaySteps[currentStep]
+    local origIdx = diToOrig[currentStep]
 
-        if step and origIdx and not stepState[origIdx] then
-            -- Check if this step has collect item requirements
-            local allItemsCollected = true
-            local hasCollectItems = false
+    if not step or not origIdx or stepState[origIdx] then return end
 
-            if step.lines then
-                for _, line in ipairs(step.lines) do
-                    if line.collectItems then
-                        for _, collectItem in ipairs(line.collectItems) do
-                            hasCollectItems = true
-                            local currentCount = self:GetItemCount(collectItem.itemId)
-                            if currentCount < collectItem.count then
-                                allItemsCollected = false
-                                break
-                            end
-                        end
+    -- Check if this step has collect item requirements
+    local allItemsCollected = true
+    local hasCollectItems = false
+
+    if step.lines then
+        for _, line in ipairs(step.lines) do
+            if line.collectItems then
+                for _, collectItem in ipairs(line.collectItems) do
+                    hasCollectItems = true
+                    local currentCount = self:GetItemCount(collectItem.itemId)
+                    if currentCount < collectItem.count then
+                        allItemsCollected = false
+                        break
                     end
-                    if not allItemsCollected then break end
                 end
             end
-
-            if hasCollectItems and allItemsCollected then
-                stepState[origIdx] = true
-                stepCompleted = true
-
-                if GLV.Debug then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Items]|r Auto-completed: Collect items step")
-                end
-            end
+            if not allItemsCollected then break end
         end
     end
 
-    if stepCompleted then
+    if hasCollectItems and allItemsCollected then
+        stepState[origIdx] = true
+
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Items]|r Auto-completed: Collect items step (step " .. currentStep .. ")")
+        end
+
         GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
 
         if GLV.QuestTracker then
