@@ -45,6 +45,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **XP Tracking**: Shows progress for grind/XP requirement steps
 - **Guide Pack System**: Install guide packs as separate addons
 - **Faction Filtering**: Guide dropdown automatically filters guides by your character's faction (Alliance/Horde) and race
+- **Multi-Level Guide Dropdown**: For guide packs with more than 30 guides, the dropdown automatically organizes guides into level range categories (Levels 1-10, 11-20, etc.) to prevent overflow and improve navigation. Smaller packs display a flat list.
 
 ### 🗺️ Autonomous Navigation System
 - **Custom Arrow Display**: Built-in navigation arrow (no TomTom needed!)

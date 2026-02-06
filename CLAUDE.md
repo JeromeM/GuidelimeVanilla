@@ -391,6 +391,26 @@ GLV:GetStartingGuideForRace(pack, race)   -- Get starting guide name for a race 
 GLV:PopulateDropdown(group)               -- Populate dropdown with guides, filtered by player faction/race
 ```
 
+### Multi-level Dropdown System
+
+WoW 1.12's UIDropDownMenu has a hard limit of 32 buttons per level. Guide packs with many guides now use multi-level submenus to avoid overflow:
+
+**Behavior:**
+- **≤30 guides**: Flat dropdown list (original behavior)
+- **>30 guides**: Guides are grouped into level range submenus (Levels 1-10, 11-20, 21-30, etc.)
+
+**Implementation:**
+- Helper functions in `Core/GuideLibrary.lua`:
+  - `filterGuides(guides, playerFaction, playerRace)` - Pre-filter guides by player faction/race
+  - `getGuideDisplayName(guideData)` - Build display name with level range
+  - `groupGuidesByLevelRange(sortedGuides)` - Group guides into level buckets
+- `PopulateDropdown()` checks guide count and switches mode automatically
+- Multi-level mode uses `hasArrow = 1` for submenus and `UIDROPDOWNMENU_MENU_LEVEL`/`UIDROPDOWNMENU_MENU_VALUE` for navigation
+- Level 1 shows range categories (e.g., "Levels 1-10 (15)"), Level 2 shows individual guides
+
+**Constants:**
+- `DROPDOWN_MAX_BUTTONS = 30` - Threshold for switching to multi-level mode (set below WoW's 32-button limit for safety)
+
 ### Faction/Race Filtering
 
 The guide dropdown automatically filters guides based on the player's current faction and race:
