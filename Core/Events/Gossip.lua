@@ -43,44 +43,41 @@ function GossipTracker:OnSpellcastStop()
     end, 1.0)
 end
 
--- Check if player arrived at hearthstone destination
+-- Check if player arrived at hearthstone destination (current step only)
 function GossipTracker:CheckHearthstoneArrival()
     if not GLV.CurrentDisplaySteps then return end
 
     local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
+    local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
     local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
     local bindLocation = GetBindLocation() or ""
 
-    local hasCompleted = false
+    if currentStep <= 0 then return end
 
-    for displayIndex, stepData in ipairs(GLV.CurrentDisplaySteps) do
-        if stepData.hasCheckbox and stepData.lines then
-            for _, line in ipairs(stepData.lines) do
-                if line.stepType == "HEARTHSTONE" and line.hearthDestination then
-                    local dest = string.lower(line.hearthDestination)
-                    local bind = string.lower(bindLocation)
+    local stepData = GLV.CurrentDisplaySteps[currentStep]
+    if not stepData or not stepData.hasCheckbox or not stepData.lines then return end
 
-                    -- Check if destination matches bind location (where hearthstone takes you)
-                    if string.find(bind, dest) or string.find(dest, bind) then
-                        local originalIndex = GLV.CurrentDisplayToOriginal[displayIndex]
-                        if originalIndex and not stepState[originalIndex] then
-                            stepState[originalIndex] = true
-                            GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
-                            hasCompleted = true
+    local originalIndex = GLV.CurrentDisplayToOriginal[currentStep]
+    if not originalIndex or stepState[originalIndex] then return end
 
-                            if GLV.Debug then
-                                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone arrived at " .. line.hearthDestination)
-                            end
-                        end
-                    end
+    for _, line in ipairs(stepData.lines) do
+        if line.stepType == "HEARTHSTONE" and line.hearthDestination then
+            local dest = string.lower(line.hearthDestination)
+            local bind = string.lower(bindLocation)
+
+            if string.find(bind, dest) or string.find(dest, bind) then
+                stepState[originalIndex] = true
+                GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
+
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone arrived at " .. line.hearthDestination)
                 end
+
+                self:UpdateActiveStep()
+                GLV:RefreshGuide()
+                return
             end
         end
-    end
-
-    if hasCompleted then
-        self:UpdateActiveStep()
-        GLV:RefreshGuide()
     end
 end
 
@@ -136,61 +133,55 @@ end
 
 --[[ OBJECTS FUNCTIONS ]]--
 
--- Check if hearthstone is bound to the required location and mark step complete
+-- Check if hearthstone is bound to the required location and mark current step complete
 function GossipTracker:CheckHearthstoneBind()
     if not GLV.CurrentDisplaySteps then return end
 
     local currentBindLocation = GetBindLocation()
     if not currentBindLocation then return end
 
+    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
+    local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+    local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
+    local diToOrig = GLV.CurrentDisplayToOriginal or {}
+
+    if currentStep <= 0 then return end
+
+    local step = GLV.CurrentDisplaySteps[currentStep]
+    local origIdx = diToOrig[currentStep]
+
+    if not step or not origIdx or stepState[origIdx] then return end
+
     -- Also get current zone/subzone for matching (inn names often differ from zone names)
     local currentSubZone = GetSubZoneText() or ""
     local currentZone = GetZoneText() or ""
 
-    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
-    local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
-    local diCount = GLV.CurrentDisplayStepsCount or 0
-    local diToOrig = GLV.CurrentDisplayToOriginal or {}
+    for _, line in ipairs(step.lines or {}) do
+        if line.bindLocation then
+            -- Check if bind location matches (case insensitive, partial match)
+            local requiredLocation = string.lower(line.bindLocation)
+            local actualBind = string.lower(currentBindLocation)
+            local actualSubZone = string.lower(currentSubZone)
+            local actualZone = string.lower(currentZone)
 
-    local stepCompleted = false
+            -- Match against: inn name, subzone, or zone
+            local isMatch = string.find(actualBind, requiredLocation) or string.find(requiredLocation, actualBind)
+                or string.find(actualSubZone, requiredLocation) or string.find(requiredLocation, actualSubZone)
+                or string.find(actualZone, requiredLocation) or string.find(requiredLocation, actualZone)
 
-    for di = 1, diCount do
-        local step = GLV.CurrentDisplaySteps[di]
-        local origIdx = diToOrig[di]
+            if isMatch then
+                stepState[origIdx] = true
+                GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
 
-        if step and origIdx and not stepState[origIdx] then
-            for _, line in ipairs(step.lines or {}) do
-                if line.bindLocation then
-                    -- Check if bind location matches (case insensitive, partial match)
-                    local requiredLocation = string.lower(line.bindLocation)
-                    local actualBind = string.lower(currentBindLocation)
-                    local actualSubZone = string.lower(currentSubZone)
-                    local actualZone = string.lower(currentZone)
-
-                    -- Match against: inn name, subzone, or zone
-                    local isMatch = string.find(actualBind, requiredLocation) or string.find(requiredLocation, actualBind)
-                        or string.find(actualSubZone, requiredLocation) or string.find(requiredLocation, actualSubZone)
-                        or string.find(actualZone, requiredLocation) or string.find(requiredLocation, actualZone)
-
-                    if isMatch then
-                        stepState[origIdx] = true
-                        GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
-                        stepCompleted = true
-
-                        if GLV.Debug then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone bound to " .. currentBindLocation .. " (zone: " .. currentSubZone .. ") - step completed!")
-                        end
-                        break
-                    end
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone bound to " .. currentBindLocation .. " (zone: " .. currentSubZone .. ") - step completed!")
                 end
-            end
-        end
-        if stepCompleted then break end
-    end
 
-    if stepCompleted then
-        if GLV.QuestTracker then
-            GLV.QuestTracker:UpdateStepNavigation(true, false)
+                if GLV.QuestTracker then
+                    GLV.QuestTracker:UpdateStepNavigation(true, false)
+                end
+                return
+            end
         end
     end
 end
