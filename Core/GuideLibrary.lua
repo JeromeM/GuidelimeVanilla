@@ -205,7 +205,80 @@ local function createDropdownCallback(group, guideId, guideData, displayName, dr
     end
 end
 
+-- Filter guides by player faction/race
+local function filterGuides(guides, playerFaction, playerRace)
+    local filtered = {}
+    for guideId, guideData in pairs(guides) do
+        local showGuide = true
+        if guideData.faction and guideData.faction ~= "" then
+            for value in string.gfind(guideData.faction .. ",", "([^,]+),") do
+                value = string.gsub(value, "^%s*(.-)%s*$", "%1")
+                if value ~= playerFaction and value ~= playerRace then
+                    showGuide = false
+                    break
+                end
+            end
+        end
+        if showGuide then
+            table.insert(filtered, {id = guideId, data = guideData})
+        end
+    end
+    -- Sort by minLevel first, then by name
+    table.sort(filtered, function(a, b)
+        local aMin = tonumber(a.data.minLevel) or 0
+        local bMin = tonumber(b.data.minLevel) or 0
+        if aMin ~= bMin then
+            return aMin < bMin
+        else
+            return (a.data.name or "") < (b.data.name or "")
+        end
+    end)
+    return filtered
+end
+
+-- Build display name for a guide
+local function getGuideDisplayName(guideData)
+    if guideData.minLevel and guideData.maxLevel then
+        return guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
+    end
+    return guideData.name
+end
+
+-- Group guides into level range buckets (1-10, 11-20, etc.)
+local function groupGuidesByLevelRange(sortedGuides)
+    local groups = {}      -- ordered list of {rangeKey, label, guides}
+    local groupMap = {}    -- rangeKey -> index in groups
+
+    for _, guideEntry in ipairs(sortedGuides) do
+        local minLvl = tonumber(guideEntry.data.minLevel) or 0
+        -- Calculate range bucket: 1-10, 11-20, 21-30, etc.
+        local rangeStart
+        if minLvl <= 10 then
+            rangeStart = 1
+        else
+            rangeStart = math.floor((minLvl - 1) / 10) * 10 + 1
+        end
+        local rangeEnd = rangeStart + 9
+        local rangeKey = rangeStart .. "-" .. rangeEnd
+        local label = "Levels " .. rangeKey
+
+        if not groupMap[rangeKey] then
+            local group = {key = rangeKey, label = label, guides = {}}
+            table.insert(groups, group)
+            groupMap[rangeKey] = table.getn(groups)
+        end
+
+        table.insert(groups[groupMap[rangeKey]].guides, guideEntry)
+    end
+
+    return groups
+end
+
+-- Max buttons per dropdown level in WoW 1.12
+local DROPDOWN_MAX_BUTTONS = 30
+
 -- Populate the guide selection dropdown with guides from active pack only
+-- Uses multi-level submenus when there are more than DROPDOWN_MAX_BUTTONS guides
 function GLV:PopulateDropdown(group)
     local dropdown = _G["GLV_MainDropdown"]
     if not dropdown then
@@ -215,7 +288,6 @@ function GLV:PopulateDropdown(group)
     -- Get active pack (or use provided group as fallback)
     local activePack = self:GetActiveGuidePack()
     if not activePack then
-        -- No guides available at all
         UIDropDownMenu_Initialize(dropdown, function()
             local info = {}
             info.text = "No guides available"
@@ -250,84 +322,74 @@ function GLV:PopulateDropdown(group)
     local playerFaction = self.Settings:GetOption({"CharInfo", "Faction"})
     local playerRace = self.Settings:GetOption({"CharInfo", "Race"})
 
-    UIDropDownMenu_Initialize(dropdown, function()
-        -- Create a sorted list of guides by minLevel then by name
-        local sortedGuides = {}
-        for guideId, guideData in pairs(guides) do
-            -- Filter by faction/race
-            -- All values in [GA] must match (AND logic)
-            -- e.g., "Horde,Tauren" means player must be Horde AND Tauren
-            local showGuide = true
-            if guideData.faction and guideData.faction ~= "" then
-                for value in string.gfind(guideData.faction .. ",", "([^,]+),") do
-                    value = string.gsub(value, "^%s*(.-)%s*$", "%1") -- trim whitespace
-                    -- Each value must match either faction or race
-                    if value ~= playerFaction and value ~= playerRace then
-                        showGuide = false
+    -- Pre-filter and sort guides
+    local sortedGuides = filterGuides(guides, playerFaction, playerRace)
+    local guideCount = table.getn(sortedGuides)
+    local useSubmenus = guideCount > DROPDOWN_MAX_BUTTONS
+
+    if useSubmenus then
+        -- Multi-level: level range groups with submenus
+        local levelGroups = groupGuidesByLevelRange(sortedGuides)
+
+        UIDropDownMenu_Initialize(dropdown, function(level)
+            if not level then level = 1 end
+
+            if level == 1 then
+                -- Level 1: show level range categories
+                for _, grp in ipairs(levelGroups) do
+                    local info = {}
+                    info.text = grp.label .. " (" .. table.getn(grp.guides) .. ")"
+                    info.value = grp.key
+                    info.hasArrow = 1
+                    info.notCheckable = 1
+                    UIDropDownMenu_AddButton(info, 1)
+                end
+
+            elseif level == 2 then
+                -- Level 2: show guides in selected range
+                local selectedRange = UIDROPDOWNMENU_MENU_VALUE
+                for _, grp in ipairs(levelGroups) do
+                    if grp.key == selectedRange then
+                        for _, guideEntry in ipairs(grp.guides) do
+                            local info = {}
+                            info.text = getGuideDisplayName(guideEntry.data)
+                            info.value = guideEntry.id
+                            info.func = createDropdownCallback(activePack, guideEntry.id, guideEntry.data, getGuideDisplayName(guideEntry.data), dropdown)
+                            UIDropDownMenu_AddButton(info, 2)
+                        end
                         break
                     end
                 end
             end
-
-            if showGuide then
-                table.insert(sortedGuides, {id = guideId, data = guideData})
-            end
-        end
-
-        -- Sort by minLevel first, then by name
-        table.sort(sortedGuides, function(a, b)
-            local aMinLevel = tonumber(a.data.minLevel) or 0
-            local bMinLevel = tonumber(b.data.minLevel) or 0
-
-            if aMinLevel ~= bMinLevel then
-                return aMinLevel < bMinLevel
-            else
-                return (a.data.name or "") < (b.data.name or "")
+        end)
+    else
+        -- Flat list: few enough guides to display directly
+        UIDropDownMenu_Initialize(dropdown, function()
+            for _, guideEntry in ipairs(sortedGuides) do
+                local info = {}
+                info.text = getGuideDisplayName(guideEntry.data)
+                info.value = guideEntry.id
+                info.func = createDropdownCallback(activePack, guideEntry.id, guideEntry.data, getGuideDisplayName(guideEntry.data), dropdown)
+                UIDropDownMenu_AddButton(info)
             end
         end)
+    end
 
-        -- Add sorted guides to dropdown
-        for _, guideEntry in pairs(sortedGuides) do
-            local guideId = guideEntry.id
-            local guideData = guideEntry.data
-            local info = {}
-            local displayName = guideData.name
-            if guideData.minLevel and guideData.maxLevel then
-                displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
-            end
-            info.text = displayName
-            info.value = guideId
-            info.func = createDropdownCallback(activePack, guideId, guideData, displayName, dropdown)
-            UIDropDownMenu_AddButton(info)
-        end
-    end)
-
-    -- Set default selection to first guide if none selected
+    -- Set default selection
     local currentGuide = self.Settings:GetOption({"Guide", "CurrentGuide"})
     local selected = false
 
     if currentGuide and guides[currentGuide] then
         local guideData = guides[currentGuide]
-        local displayName = guideData.name
-        if guideData.minLevel and guideData.maxLevel then
-            displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
-        end
         UIDropDownMenu_SetSelectedValue(dropdown, currentGuide)
-        UIDropDownMenu_SetText(displayName, dropdown)
+        UIDropDownMenu_SetText(getGuideDisplayName(guideData), dropdown)
         selected = true
     end
 
-    if not selected then
-        -- Select first guide
-        for guideId, guideData in pairs(guides) do
-            local displayName = guideData.name
-            if guideData.minLevel and guideData.maxLevel then
-                displayName = guideData.name .. " (" .. guideData.minLevel .. "-" .. guideData.maxLevel .. ")"
-            end
-            UIDropDownMenu_SetSelectedValue(dropdown, guideId)
-            UIDropDownMenu_SetText(displayName, dropdown)
-            break
-        end
+    if not selected and table.getn(sortedGuides) > 0 then
+        local first = sortedGuides[1]
+        UIDropDownMenu_SetSelectedValue(dropdown, first.id)
+        UIDropDownMenu_SetText(getGuideDisplayName(first.data), dropdown)
     end
 end
 
