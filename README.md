@@ -93,6 +93,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
   - Warrior (Arms), Paladin (Retribution), Hunter (Beast Mastery)
   - Rogue (Combat Swords), Priest (Discipline), Shaman (Enhancement)
   - Mage (Frost), Warlock (Affliction), Druid (Feral)
+- **Respec Support**: Talent templates can define a respec transition point to switch builds mid-leveling (for developers creating custom templates)
 
 ### 🎨 User Interface
 - **Clean Design**: Organized interface with consistent styling
@@ -211,6 +212,81 @@ Turn in quest step
 - **TOC Notes**: Add a `## Notes:` line in your .toc file - it will be displayed in the guide pack selection dropdown
 
 For detailed guide syntax documentation, see the [TAGS.md](TAGS.md) file.
+
+## Creating Custom Talent Templates
+
+Guide pack developers can create custom talent templates for any class using the talent template API.
+
+### Basic Talent Template
+
+```lua
+local GLV = LibStub("GuidelimeVanilla")
+
+GLV:RegisterTalentTemplate("MAGE", "Fire Leveling", "leveling", {
+    [10] = {2, 1, 2},  -- Fire tree, row 1, column 2
+    [11] = {2, 1, 2},  -- Same talent, rank 2
+    [12] = {2, 2, 1},  -- Fire tree, row 2, column 1
+    -- ... continue to level 60
+})
+```
+
+### Template with Respec Transition
+
+For builds that benefit from resetting talents mid-leveling:
+
+```lua
+GLV:RegisterTalentTemplate("WARRIOR", "Arms to Fury", "leveling",
+    -- Phase 1: Arms (levels 10-39)
+    {
+        [10] = {1, 1, 2},
+        [11] = {1, 1, 2},
+        -- ... continue to level 39
+    },
+    -- Phase 2: Respec configuration (optional 5th parameter)
+    {
+        respecAt = 40,
+        message = "Reset talents at a class trainer and go Fury!",
+        talents = {
+            [40] = {2, 1, 3},  -- Fury tree talents
+            [41] = {2, 1, 3},
+            -- ... continue to level 60
+        }
+    }
+)
+```
+
+### Talent Template API Reference
+
+**`GLV:RegisterTalentTemplate(class, name, templateType, talents, respec)`**
+
+Parameters:
+- `class` (string): Class name in UPPERCASE - "WARRIOR", "MAGE", "PRIEST", etc.
+- `name` (string): Template display name - appears in Settings > Talents dropdown
+- `templateType` (string): Either "leveling" or "endgame"
+- `talents` (table): Talent assignments by level - `{[level] = {tree, row, col}}`
+- `respec` (table, optional): Respec configuration for mid-leveling build transitions
+  - `respecAt` (number): Level to show respec notification
+  - `message` (string): Custom notification message (default: "Reset your talents at a class trainer!")
+  - `talents` (table): Phase 2 talent assignments - `{[level] = {tree, row, col}}`
+
+**Tree, Row, Column Format:**
+- `tree`: Talent tree index (1, 2, or 3) - see WoW talent frame
+- `row`: Row number (1-7) - higher rows require more points in tree
+- `col`: Column number (1-4) - position within row
+
+**Example:**
+```lua
+[15] = {1, 3, 2}  -- Tree 1, Row 3, Column 2 at level 15
+```
+
+### Setting a Default Template
+
+To make your template the default recommendation for a class:
+
+```lua
+GLV.DefaultTalentTemplates = GLV.DefaultTalentTemplates or {}
+GLV.DefaultTalentTemplates["MAGE"] = "Fire Leveling"
+```
 
 ## Acknowledgments
 

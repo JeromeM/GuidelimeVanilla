@@ -61,8 +61,9 @@ Key global objects:
 - `GLV.loadedGuides` - Table of registered guides organized by pack: `GLV.loadedGuides[packName][guideId]`
 - `GLV.guidePackAddons` - Maps pack names to addon names for metadata lookup: `GLV.guidePackAddons["Pack Name"] = "AddonName"`
 - `GLV.guidePackStartingGuides` - Maps pack names to race-to-guide mappings: `GLV.guidePackStartingGuides[packName][race] = "Guide Name"`
-- `GLV.TalentTemplates` - Registered talent templates: `GLV.TalentTemplates[class][templateName] = {type, talents}`
+- `GLV.TalentTemplates` - Registered talent templates: `GLV.TalentTemplates[class][templateName] = {type, talents, respec?}`
 - `GLV.DefaultTalentTemplates` - Default template per class: `GLV.DefaultTalentTemplates["WARRIOR"] = "Arms (Icy Veins)"`
+- `GLV:GetTemplateTalents(template, class)` - Helper that resolves correct talents table based on respec state
 
 ### Data Flow
 
@@ -99,6 +100,7 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 - `{"Talents", "ShowToast"}` - Show toast notification on level-up (default true)
 - `{"Talents", "HighlightTalent"}` - Highlight suggested talent in talent frame (default true)
 - `{"Talents", "ActiveTemplate", class}` - Active template name for a class (e.g., `{"Talents", "ActiveTemplate", "MAGE"}`)
+- `{"Talents", "RespecDone", class}` - Boolean tracking respec state per class (nil = pre-respec phase 1, true = post-respec phase 2)
 - `{"Talents", "LastShownLevel"}` - Last level where talent toast was shown (used to prevent duplicate popups)
 - `{"Talents", "ToastPositionX"}` - X offset from screen center for toast notification (nil = default centered position)
 - `{"Talents", "ToastPositionY"}` - Y offset from screen center for toast notification (nil = default centered position)
@@ -165,17 +167,18 @@ Key methods:
 The addon includes an intelligent talent suggestion system that helps players optimize their leveling builds:
 
 **Features:**
-- **Level-up Toast Notifications**: Shows non-intrusive fade-in/fade-out popup when gaining a talent point
+- **Level-up Toast Notifications**: Shows non-intrusive fade-in/fade-out popup when gaining a talent point (4s default, 6s for respec messages)
 - **Talent Frame Highlighting**: Adds green glow around suggested talent in the talent frame (works with both TalentFrame and TWTalentFrame)
 - **Class-specific Templates**: Pre-configured talent builds from Icy Veins for all 9 classes
 - **Template Registration API**: Custom templates can be added via addon API
+- **Respec Support**: Templates can define a transition level for talent resets with automatic phase switching
 - **Smart Detection**: Automatically detects which talent frame addon is active
 
 **Talent Templates:**
 
 Templates are stored per class with level-by-level talent assignments:
 ```lua
--- Template structure: {[level] = {tree, row, col}}
+-- Basic template structure: {[level] = {tree, row, col}}
 GLV.TalentTemplates["MAGE"]["Frost Single-Target (Icy Veins)"] = {
     type = "leveling",
     talents = {
@@ -185,7 +188,32 @@ GLV.TalentTemplates["MAGE"]["Frost Single-Target (Icy Veins)"] = {
         -- ... continues to level 60
     }
 }
+
+-- Template with respec support (optional)
+GLV.TalentTemplates["WARRIOR"]["Arms with Respec"] = {
+    type = "leveling",
+    talents = {
+        [10] = {1, 1, 1},  -- Phase 1 talents (pre-respec)
+        -- ... up to respec level
+    },
+    respec = {
+        respecAt = 40,  -- Level to trigger respec notification
+        message = "Reset your talents at a class trainer!",  -- Custom message (optional)
+        talents = {
+            [40] = {2, 1, 1},  -- Phase 2 talents (post-respec)
+            -- ... continues to level 60
+        }
+    }
+}
 ```
+
+**Respec System:**
+- Templates can define an optional `respec` table with a transition level
+- At the `respecAt` level, a gold toast notification prompts the player to reset talents
+- After respec, `GetTemplateTalents()` switches to phase 2 talents automatically
+- Respec state persists across `/reload` in `{"Talents", "RespecDone", class}` setting
+- Changing template in settings resets the respec state
+- 100% backward-compatible: respec parameter is optional
 
 **Default Templates:**
 
@@ -203,12 +231,17 @@ All 9 classes now have complete leveling builds sourced from talents.turtlecraft
 
 **Template Registration API:**
 ```lua
--- Register a custom talent template
+-- Register a custom talent template (basic)
 GLV:RegisterTalentTemplate(class, name, templateType, talents)
 -- class: "MAGE", "WARRIOR", etc. (uppercase)
 -- name: Display name (e.g., "Frost AoE Leveling")
 -- templateType: "leveling" or "endgame"
 -- talents: Table of {[level] = {tree, row, col}}
+
+-- Register a custom talent template with respec support
+GLV:RegisterTalentTemplate(class, name, templateType, talents, respec)
+-- respec: optional table {respecAt = level, message = "string", talents = {[level] = {tree, row, col}}}
+-- Example: {respecAt = 40, message = "Reset your talents!", talents = {[40] = {2,1,1}, ...}}
 
 -- Get all templates for a class
 local templates = GLV:GetTalentTemplates(class, filterType)
@@ -218,26 +251,35 @@ local names = GLV:GetTalentTemplateNames(class, filterType)
 
 -- Get active template for current character
 local activeTemplate = GLV:GetActiveTemplate(class)
+
+-- Get correct talents table for a template (resolves respec phase)
+local talents = GLV:GetTemplateTalents(template, class)
+-- Returns phase 2 talents if respec is done, otherwise phase 1 talents
 ```
 
 **Key Methods:**
 - `TalentTracker:Init()` - Initialize talent tracking system, hook into PLAYER_LEVEL_UP
-- `TalentTracker:ShowToast()` - Display level-up toast with fade animation
+- `TalentTracker:ShowToast(talentName, talentIcon, treeIndex, customMessage)` - Display toast with fade animation (4s default, 6s for custom messages)
 - `TalentTracker:HideToast()` - Hide and reset toast frame
-- `TalentTracker:UpdateTalentHighlight()` - Highlight suggested talent in talent frame
+- `TalentTracker:UpdateTalentHighlights()` - Highlight suggested talent in talent frame (uses GetTemplateTalents for correct phase)
 - `TalentTracker:ClearTalentHighlight()` - Remove highlight overlay
 - `TalentTracker:GetSuggestedTalent(level)` - Get talent suggestion for a level
 - `TalentTracker:DetectTalentFrame()` - Detect active talent frame (TalentFrame or TWTalentFrame)
+- `TalentTracker:OnLevelUp(newLevel)` - Handle level-up event, detect respec transitions, show toast notifications
+- `GLV:GetTemplateTalents(template, class)` - Resolve correct talents table based on respec state (phase 1 or 2)
 
 **Slash Commands:**
 - `/glvtalent` - Show talent system info
 - `/glvtalent debug` - Toggle debug mode
 - `/glvtalent highlight` - Force show talent highlight
 - `/glvtalent toast` - Force show level-up toast
-- `/glvtalent info` - Show current template and suggestions
+- `/glvtalent info` - Show current template, suggestions, and respec phase (if applicable)
 
 **UI Frames:**
 - `GLV_TalentToast` - Toast notification frame with fade animation (movable, draggable)
+  - Contains `GLV_TalentToastIcon` for talent icon display
+  - Contains `GLV_TalentToastText` for talent suggestion text
+  - Contains `GLV_TalentToastMessage` for custom respec messages (hidden by default, gold text)
 - `GLV_TalentHighlight` - Green glow overlay for talent frame buttons
 - Both frames defined in `Frames/TalentPopup.xml`
 
@@ -247,6 +289,7 @@ local activeTemplate = GLV:GetActiveTemplate(class)
 - Template selection dropdown per character class
 - "Move Notification" button to reposition toast notification (drag to desired location, click to confirm)
 - Toast position saved as center-offset coordinates and persists across sessions
+- Respec state automatically resets when changing templates
 - Settings persist per character
 
 **Toast Position Functions:**
