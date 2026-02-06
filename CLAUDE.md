@@ -50,6 +50,7 @@ Key global objects:
 - `GLV.Settings` - Settings manager with nested key access
 - `GLV.Parser` - Guide text parser
 - `GLV.QuestTracker` - Quest event tracking
+- `GLV.ItemTracker` - Item collection tracking (auto-completes [CI] steps)
 - `GLV.CharacterTracker` - XP/level tracking
 - `GLV.TaxiTracker` - Flight path tracking
 - `GLV.GossipTracker` - Gossip dialog tracking
@@ -270,6 +271,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 | `[A class]` | Class-specific step (prepends "Class :" at line start) | `[A Mage] [QA3104]` |
 | `[XP level]` | XP requirement (auto-generates text if none provided) | `[XP4-290]` or `[XP3]` or `[XP3.5]` |
 | `[T]` | Train at trainer (shows trainer icon) | `[T] Learn skills` |
+| `[CI id,count]` | Collect item (auto-completes when items in bags) | `[CI1179,10]` |
 | `[OC]` | Optional, completes with next | `[OC]Grind north` |
 | `[NX x-y Name]` | Link to next guide (shows clickable button on last step) | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
@@ -290,6 +292,11 @@ Guides use tagged format parsed by `GuideParser.lua`:
   - `[QC id,objectiveIndex]` → Completes when specific objective is done (e.g., `[QC150,1]` for first objective of quest 150)
   - Objective indices are 1-based (1, 2, 3, etc.)
   - Navigation automatically targets coordinates for the specific objective
+- **[CI] collect item tracking**:
+  - `[CI id,count]` → Auto-completes when player has count or more of item id in bags
+  - Example: `[CI1179,10]` completes when player has 10+ of item 1179
+  - Only validates the current active step (prevents duplicate [CI] tags from completing simultaneously)
+  - Triggers on BAG_UPDATE events with 0.3s delay for batch processing
 - **Multi-waypoint**: Multiple `[G]` or `[TAR]` tags in one step create auto-advancing waypoint sequence
 
 ## Key Files
@@ -300,6 +307,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching
 - `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
+- `Core/Events/Items.lua` - Item collection tracking, BAG_UPDATE event handling, current-step-only validation for [CI] tags, auto-completion when item count requirements met
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
@@ -363,6 +371,37 @@ The addon uses different matching strategies for quest actions to handle WoW 1.1
 - Quests are removed from Accepted when turned in, preventing false "in log" matches
 
 This strategy ensures multi-part quest chains work correctly while maintaining precision for automation.
+
+## Item Collection Tracking
+
+The addon includes automatic tracking for "Collect Item" steps using the `[CI]` tag:
+
+**Behavior:**
+- `ItemTracker:CheckCollectItems()` validates ONLY the current active step (not all uncompleted steps)
+- This prevents duplicate `[CI]` tags (e.g., `[CI1179,10]` appearing in multiple steps) from auto-completing simultaneously
+- Matches the same single-step validation pattern used by QuestTracker
+
+**Event Handling:**
+- Listens to `BAG_UPDATE` events via Ace2 event system
+- Uses 0.3s scheduled delay after bag updates to batch process multiple rapid inventory changes
+- Initial check scheduled 3s after addon load to ensure guide is fully loaded
+
+**Key Methods:**
+- `ItemTracker:Init()` - Initialize item tracking, register BAG_UPDATE event, schedule initial check
+- `ItemTracker:GetItemCount(itemId)` - Count total of item across all bags (0-4)
+- `ItemTracker:OnBagUpdate()` - Handle bag update event with 0.3s delay
+- `ItemTracker:CheckCollectItems()` - Validate current step's collect item requirements and auto-complete if met
+
+**Step Completion:**
+- Checks all `collectItems` entries in current step's lines
+- Only completes step when ALL collect item requirements are met
+- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
+- Debug message: "|cFF00FFFF[Items]|r Auto-completed: Collect items step (step N)"
+
+**Important Notes:**
+- Only checks `currentStep` from settings, not entire `CurrentDisplaySteps` array
+- Skips already completed steps (checks `stepState[origIdx]`)
+- Uses `CurrentDisplayToOriginal` mapping to track step state correctly
 
 ## Guide Pack Architecture
 
