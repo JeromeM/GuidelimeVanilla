@@ -340,6 +340,18 @@ Guides use tagged format parsed by `GuideParser.lua`:
   - Example: `[CI1179,10]` completes when player has 10+ of item 1179
   - Only validates the current active step (prevents duplicate [CI] tags from completing simultaneously)
   - Triggers on BAG_UPDATE events with 0.3s delay for batch processing
+- **[H] hearthstone usage**:
+  - `[H]` → Auto-completes when player uses hearthstone and arrives at destination matching bind location
+  - Example: `[H] to Stormwind` completes after hearthstone cast to Stormwind
+  - Only validates the current active step (prevents duplicate [H] tags from completing simultaneously)
+  - Triggers on SPELLCAST_STOP event with 1.0s delay for teleport completion
+  - Bind location matching is case-insensitive and supports partial matches
+- **[S] hearthstone binding**:
+  - `[S location]` → Auto-completes when player binds hearthstone to the required location
+  - Example: `[S Goldshire]` completes after binding hearthstone at Goldshire inn
+  - Only validates the current active step (prevents duplicate [S] tags from completing simultaneously)
+  - Matches against inn name, current subzone, or current zone (case-insensitive, partial match)
+  - Triggers on ConfirmBinder hook with 0.5s delay
 - **Multi-waypoint**: Multiple `[G]` or `[TAR]` tags in one step create auto-advancing waypoint sequence
 
 ## Key Files
@@ -351,7 +363,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Items.lua` - Item collection tracking, BAG_UPDATE event handling, current-step-only validation for [CI] tags, auto-completion when item count requirements met
-- `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic
+- `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
 - `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, talent settings UI, toast position functions
@@ -445,6 +457,44 @@ The addon includes automatic tracking for "Collect Item" steps using the `[CI]` 
 - Only checks `currentStep` from settings, not entire `CurrentDisplaySteps` array
 - Skips already completed steps (checks `stepState[origIdx]`)
 - Uses `CurrentDisplayToOriginal` mapping to track step state correctly
+
+## Hearthstone Step Validation
+
+The addon includes automatic tracking for hearthstone-related steps using `[H]` and `[S]` tags:
+
+**Behavior:**
+- `GossipTracker:CheckHearthstoneArrival()` validates ONLY the current active step (not all uncompleted steps)
+- `GossipTracker:CheckHearthstoneBind()` validates ONLY the current active step (not all uncompleted steps)
+- This prevents duplicate `[H]` or `[S]` tags (e.g., multiple `[H Goldshire]` steps) from auto-completing simultaneously
+- Matches the same single-step validation pattern used by QuestTracker and ItemTracker
+
+**Event Handling:**
+- Listens to `SPELLCAST_STOP` event to detect hearthstone cast completion
+- Uses 1.0s scheduled delay after cast to allow teleport to complete
+- Hooks `ConfirmBinder` function to detect when hearthstone is bound at an innkeeper
+- Initial check scheduled 3s after addon load to ensure guide is fully loaded
+
+**Key Methods:**
+- `GossipTracker:Init()` - Initialize gossip tracking, register events, hook ConfirmBinder
+- `GossipTracker:OnSpellcastStop()` - Handle spell cast stop event with 1.0s delay
+- `GossipTracker:CheckHearthstoneArrival()` - Validate current step's `[H]` tag after hearthstone use
+- `GossipTracker:CheckHearthstoneBind()` - Validate current step's `[S]` tag after setting hearthstone
+
+**Step Completion:**
+- `[H]` steps: Auto-complete when player arrives at destination matching bind location
+- `[S]` steps: Auto-complete when player binds hearthstone to the required location
+- Bind location matching is case-insensitive and supports partial matches against:
+  - Inn name (from `GetBindLocation()`)
+  - Current subzone (from `GetSubZoneText()`)
+  - Current zone (from `GetZoneText()`)
+- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
+
+**Important Notes:**
+- Only checks `currentStep` from settings, not entire `CurrentDisplaySteps` array
+- Skips already completed steps (checks `stepState[origIdx]`)
+- Uses `CurrentDisplayToOriginal` mapping to track step state correctly
+- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone arrived at [destination]"
+- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound to [location] (zone: [subzone]) - step completed!"
 
 ## Guide Pack Architecture
 
