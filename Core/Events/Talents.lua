@@ -37,7 +37,8 @@ GLV.DefaultTalentTemplates = {
 -- name: "Frost Leveling", "Fire Raiding"
 -- templateType: "leveling" or "endgame"
 -- talents: table {[level] = {tree, row, col}}
-function GLV:RegisterTalentTemplate(class, name, templateType, talents)
+-- respec: optional table {respecAt = level, message = "string", talents = {[level] = {tree, row, col}}}
+function GLV:RegisterTalentTemplate(class, name, templateType, talents, respec)
     if not class or not name or not talents then
         if GLV.Debug then
             DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[Talents]|r Invalid template registration: missing parameters")
@@ -51,11 +52,13 @@ function GLV:RegisterTalentTemplate(class, name, templateType, talents)
 
     self.TalentTemplates[class][name] = {
         type = templateType or "leveling",
-        talents = talents
+        talents = talents,
+        respec = respec
     }
 
     if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[Talents]|r Registered template: " .. class .. " - " .. name)
+        local respecInfo = respec and (" (respec at " .. respec.respecAt .. ")") or ""
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[Talents]|r Registered template: " .. class .. " - " .. name .. respecInfo)
     end
 end
 
@@ -87,6 +90,16 @@ function GLV:GetTalentTemplateNames(class, filterType)
     end
     table.sort(names)
     return names
+end
+
+-- Get the correct talents table for a template, considering respec state
+-- Returns phase 2 talents if respec is done, otherwise phase 1
+function GLV:GetTemplateTalents(template, class)
+    if not template then return nil end
+    if template.respec and self.Settings:GetOption({"Talents", "RespecDone", class}) then
+        return template.respec.talents
+    end
+    return template.talents
 end
 
 -- Get the active template for a class, with fallback to default
@@ -167,7 +180,38 @@ function TalentTracker:OnLevelUp(newLevel)
     local template = GLV.TalentTemplates[playerClass] and GLV.TalentTemplates[playerClass][templateName]
     if not template then return end
 
-    local suggestion = template.talents[newLevel]
+    -- Check for respec transition
+    if template.respec and not GLV.Settings:GetOption({"Talents", "RespecDone", playerClass}) then
+        if newLevel >= template.respec.respecAt then
+            -- Mark respec as done
+            GLV.Settings:SetOption(true, {"Talents", "RespecDone", playerClass})
+
+            if GLV.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Talents]|r Respec transition at level " .. newLevel .. " for " .. playerClass)
+            end
+
+            -- Show respec message toast
+            local message = template.respec.message or "Reset your talents at a class trainer!"
+            GLV.Ace:ScheduleEvent("GLV_TalentPopup", function()
+                self:ShowTalentToast(nil, nil, nil, message)
+            end, 0.5)
+
+            -- Refresh highlights if talent frame is open
+            local visibleFrame = self:GetVisibleTalentFrame()
+            if visibleFrame then
+                GLV.Ace:ScheduleEvent("GLV_UpdateHighlightsOnRespec", function()
+                    self:UpdateTalentHighlights()
+                end, 0.6)
+            end
+            return
+        end
+    end
+
+    -- Normal talent suggestion
+    local talents = GLV:GetTemplateTalents(template, playerClass)
+    if not talents then return end
+
+    local suggestion = talents[newLevel]
     if not suggestion then return end
 
     local tree, row, col = suggestion[1], suggestion[2], suggestion[3]
@@ -197,7 +241,8 @@ local TOAST_VISIBLE_TIME = 4.0
 local TOAST_FADE_OUT_TIME = 0.5
 
 -- Show talent suggestion toast with fade animation
-function TalentTracker:ShowTalentToast(talentName, talentIcon, treeIndex)
+-- customMessage: optional string to show as a standalone message (no icon, gold text)
+function TalentTracker:ShowTalentToast(talentName, talentIcon, treeIndex, customMessage)
     local toast = getglobal("GLV_TalentToast")
     if not toast then
         if GLV.Debug then
@@ -208,29 +253,60 @@ function TalentTracker:ShowTalentToast(talentName, talentIcon, treeIndex)
 
     local iconFrame = getglobal("GLV_TalentToastIcon")
     local toastText = getglobal("GLV_TalentToastText")
+    local messageText = getglobal("GLV_TalentToastMessage")
 
-    -- Set text first to calculate width
-    local text = "Put 1 point in |cFF00FF00" .. talentName .. "|r"
-    if toastText then
-        toastText:SetText(text)
-    end
+    if customMessage then
+        -- Message-only mode (respec notification)
+        self.toastVisibleOverride = 6.0
 
-    -- Calculate positions to center icon + text together
-    local textWidth = toastText and toastText:GetStringWidth() or 150
-    local iconSize = 24
-    local spacing = 8
-    local totalWidth = iconSize + spacing + textWidth
+        if iconFrame then iconFrame:Hide() end
+        if toastText then toastText:Hide() end
 
-    -- Position icon and text centered as a group
-    if iconFrame then
-        iconFrame:SetTexture(talentIcon)
-        iconFrame:ClearAllPoints()
-        iconFrame:SetPoint("CENTER", toast, "CENTER", -totalWidth/2 + iconSize/2, 0)
-    end
+        if messageText then
+            messageText:SetText("|cFFFFD100" .. customMessage .. "|r")
+            messageText:ClearAllPoints()
+            messageText:SetPoint("CENTER", toast, "CENTER", 0, 0)
+            messageText:Show()
+        end
 
-    if toastText then
-        toastText:ClearAllPoints()
-        toastText:SetPoint("CENTER", toast, "CENTER", -totalWidth/2 + iconSize + spacing + textWidth/2, 0)
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Talents]|r Showing respec toast: " .. customMessage)
+        end
+    else
+        -- Normal talent mode
+        self.toastVisibleOverride = nil
+
+        if messageText then messageText:Hide() end
+        if iconFrame then iconFrame:Show() end
+        if toastText then toastText:Show() end
+
+        -- Set text first to calculate width
+        local text = "Put 1 point in |cFF00FF00" .. talentName .. "|r"
+        if toastText then
+            toastText:SetText(text)
+        end
+
+        -- Calculate positions to center icon + text together
+        local textWidth = toastText and toastText:GetStringWidth() or 150
+        local iconSize = 24
+        local spacing = 8
+        local totalWidth = iconSize + spacing + textWidth
+
+        -- Position icon and text centered as a group
+        if iconFrame then
+            iconFrame:SetTexture(talentIcon)
+            iconFrame:ClearAllPoints()
+            iconFrame:SetPoint("CENTER", toast, "CENTER", -totalWidth/2 + iconSize/2, 0)
+        end
+
+        if toastText then
+            toastText:ClearAllPoints()
+            toastText:SetPoint("CENTER", toast, "CENTER", -totalWidth/2 + iconSize + spacing + textWidth/2, 0)
+        end
+
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Talents]|r Showing toast for: " .. talentName)
+        end
     end
 
     -- Start fade in animation
@@ -245,10 +321,6 @@ function TalentTracker:ShowTalentToast(talentName, talentIcon, treeIndex)
     toast:SetScript("OnUpdate", function()
         TalentTracker:UpdateToastAnimation(arg1)
     end)
-
-    if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Talents]|r Showing toast for: " .. talentName)
-    end
 end
 
 -- Update toast animation
@@ -269,7 +341,8 @@ function TalentTracker:UpdateToastAnimation(elapsed)
         toast:SetAlpha(state.alpha)
 
     elseif state.phase == "visible" then
-        if state.elapsed >= TOAST_VISIBLE_TIME then
+        local visibleTime = self.toastVisibleOverride or TOAST_VISIBLE_TIME
+        if state.elapsed >= visibleTime then
             state.phase = "fadeout"
             state.elapsed = 0
         end
@@ -297,8 +370,8 @@ function TalentTracker:HideTalentToast()
 end
 
 -- Legacy function names for compatibility
-function TalentTracker:ShowTalentPopup(talentName, talentIcon, treeIndex)
-    self:ShowTalentToast(talentName, talentIcon, treeIndex)
+function TalentTracker:ShowTalentPopup(talentName, talentIcon, treeIndex, customMessage)
+    self:ShowTalentToast(talentName, talentIcon, treeIndex, customMessage)
 end
 
 function TalentTracker:HideTalentPopup()
@@ -581,6 +654,15 @@ function TalentTracker:UpdateTalentHighlights()
         return
     end
 
+    -- Get the correct talents table (phase 1 or phase 2 if respec done)
+    local talents = GLV:GetTemplateTalents(template, playerClass)
+    if not talents then
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[Talents]|r No talents table found")
+        end
+        return
+    end
+
     -- Calculate which talent level we should be placing
     -- First talent at level 10, then every level after
     local talentLevel = playerLevel - unspentPoints + 1
@@ -592,7 +674,7 @@ function TalentTracker:UpdateTalentHighlights()
         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Talents]|r Looking for talent at level " .. talentLevel)
     end
 
-    local nextTalent = template.talents[talentLevel]
+    local nextTalent = talents[talentLevel]
     if not nextTalent then
         if GLV.Debug then
             DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[Talents]|r No talent defined for level " .. talentLevel)
@@ -774,6 +856,16 @@ SlashCmdList["GLVTALENT"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage("  Template: " .. (templateName or "none"))
         DEFAULT_CHAT_FRAME:AddMessage("  Enabled: " .. tostring(GLV.Settings:GetOption({"Talents", "Enabled"})))
         DEFAULT_CHAT_FRAME:AddMessage("  Highlight: " .. tostring(GLV.Settings:GetOption({"Talents", "HighlightInFrame"})))
+
+        -- Show respec phase info
+        if templateName and GLV.TalentTemplates[playerClass] then
+            local template = GLV.TalentTemplates[playerClass][templateName]
+            if template and template.respec then
+                local respecDone = GLV.Settings:GetOption({"Talents", "RespecDone", playerClass})
+                local phase = respecDone and "Phase 2 (post-respec)" or "Phase 1 (pre-respec)"
+                DEFAULT_CHAT_FRAME:AddMessage("  Respec: at level " .. template.respec.respecAt .. " - " .. phase)
+            end
+        end
 
         local frameName = _G["TWTalentFrame"] and "TWTalentFrame" or "TalentFrame"
         local talentFrame = _G[frameName]

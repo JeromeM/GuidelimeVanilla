@@ -57,6 +57,13 @@
                         <Anchor point="CENTER" x="0" y="0"/>
                     </Anchors>
                 </FontString>
+
+                <!-- Respec Message Text (hidden by default) -->
+                <FontString name="$parentMessage" inherits="GameFontNormalSmall" hidden="true">
+                    <Anchors>
+                        <Anchor point="CENTER" x="0" y="0"/>
+                    </Anchors>
+                </FontString>
             </Layer>
         </Layers>
     </Frame>

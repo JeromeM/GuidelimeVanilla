@@ -425,6 +425,8 @@ local function createTalentTemplateCallback(dropdown, templateName)
         local _, playerClass = UnitClass("player")
         if playerClass then
             GLV.Settings:SetOption(templateName, {"Talents", "ActiveTemplate", playerClass})
+            -- Reset respec state when changing template
+            GLV.Settings:SetOption(nil, {"Talents", "RespecDone", playerClass})
         end
     end
 end
