@@ -23,8 +23,8 @@ GuideLime Vanilla is a World of Warcraft Classic (1.12) addon that provides an e
 These agents MUST be run in this order before any `git push` operation.
 
 **Version bump rules (for `version-bump-prepush` agent):**
-- **1-6 commits**: Increment Z (patch) — e.g. 0.6.3 → 0.6.4
-- **More than 6 commits**: Increment Y (minor) and reset Z — e.g. 0.6.4 → 0.7.0
+- **1-6 commits**: Increment Z (patch) — e.g. 0.7.0 → 0.7.1
+- **More than 6 commits**: Increment Y (minor) and reset Z — e.g. 0.7.1 → 0.8.0
 
 ## Slash Commands
 
@@ -183,6 +183,55 @@ Key methods:
 - `GuideNavigation:CompleteCurrentStep()` - Mark current step complete and advance to next step
 - `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
 - `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data first, falls back to quest log name matching)
+
+### Settings UI Architecture
+
+The settings window features a compact modern dark theme with card-based layout:
+
+**Design Specifications:**
+- **Frame Size**: 600x450 (reduced from 900x670 for compact footprint)
+- **Backdrop**: Dark tooltip backdrop (`UI-Tooltip-Background`) with color (0.08, 0.08, 0.12, 0.95)
+- **Border**: Tooltip border (`UI-Tooltip-Border`) with color (0.3, 0.3, 0.4, 0.8)
+- **Typography**: 11px `FRIZQT__.TTF` font throughout for compact readability
+- **Accent Color**: Blue/violet (0.42, 0.55, 0.83) for titles and active states
+- **Card Sections**: Semi-transparent dark backgrounds (0.05, 0.05, 0.08, 0.7) with subtle borders
+
+**UI Components:**
+- **Left Menu**: Vertical navigation buttons (Guides, Display, Talents, About) with active tab highlighting
+  - Active tab gets white text color (1, 1, 1) and background highlight
+  - Inactive tabs use gray text (0.8, 0.8, 0.8)
+  - Highlight frame follows active selection with smooth transitions
+- **Content Pages**: Card-based sections for settings groups
+  - Guide Pack card: Pack dropdown, Load/Unload buttons, guide notes, starting guide selector
+  - Automation card: Auto-accept/turnin/flight checkboxes (marked as BETA)
+  - Display card: Text/navigation scale sliders
+  - Talents card: Enable/disable toggles, template dropdown, move notification button
+- **Checkboxes**: Initialized with `GLV_InitCheckboxFont()` to apply 11px font consistently
+- **Menu Hover**: `GLV_OnMenuLeave()` handler maintains active tab color on mouse exit
+
+**Display Settings Management:**
+```lua
+-- Guard flag prevents false "changed" detection during slider initialization
+displaySettingsInitializing = true/false
+
+-- Functions:
+GLV_MarkDisplaySettingsChanged()      -- Mark display settings dirty (ignored during init)
+GLV_CheckReloadOnClose()               -- Show reload confirmation if changes made
+GLV_ResetDisplaySettingsChanged()      -- Clear dirty flag (called on OnShow)
+GLV_BeginSliderInit()                  -- Start slider init (suppresses change marking)
+GLV_EndSliderInit()                    -- End slider init (re-enables change detection)
+```
+
+**Reload Confirmation Dialog:**
+- Replaced automatic `/reload` with `StaticPopup_Show("GLV_RELOAD_UI")` confirmation
+- Only triggers when Display tab settings are modified
+- Prevents false reload triggers when visiting Display tab without making changes
+- Guard flag (`displaySettingsInitializing`) prevents slider initialization from marking settings dirty
+
+**Key Functions:**
+- `GLV_ShowGuide(frame)` - Switch between settings pages, update menu highlight position
+- `GLV_InitCheckboxFont(checkbox)` - Apply compact 11px font to checkbox text
+- `GLV_OnMenuLeave(menuButton)` - Restore default color unless button is active tab
 
 ### Talent Suggestion System
 
@@ -394,10 +443,10 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, talent settings UI, toast position functions
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog
 - `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
 - `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
-- `Frames/SettingsFrame.xml` - Settings UI including talent settings page
+- `Frames/SettingsFrame.xml` - Settings UI with compact modern dark theme (600x450, dark tooltip backdrop, card-based sections, 11px fonts, blue/violet accent, active tab highlight)
 - `TalentTemplates/*.lua` - Class-specific talent templates (9 files, one per class)
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups), quest NPC name lookup (`GetQuestTurninNPCName()`, `GetQuestAcceptNPCName()`)
 
