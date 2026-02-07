@@ -128,6 +128,7 @@ Spell data is retrieved via Nampower API instead of a local database:
 The navigation frame displays different modes based on current step:
 - **Arrow Mode** (default): Shows directional arrow to waypoint with distance/objective
 - **Multi-waypoint Mode**: Automatically advances to next waypoint when reaching current destination (within 5 yards)
+- **XP Progress Mode**: Shows purple StatusBar with real-time XP progress for `[XP]` steps (replaces arrow, turns green when requirement met)
 - **Equip Item Mode**: Shows item icon with "Equip" instruction when step contains equip action
 - **Hearthstone Mode**: Shows hearthstone icon for `[H]` steps with click-to-use functionality and auto-complete after cast
 - **Next Guide Mode**: Shows clickable "Next Guide" button when on last step with `[NX]` tag
@@ -151,6 +152,19 @@ The navigation frame displays different modes based on current step:
 - Coordinates are filtered by objective index when navigating to `[QC id,objectiveIndex]` steps
 - Individual objective completion triggers `HandleQuestAction()` with objectiveIndex parameter
 
+**XP Progress Display:**
+- When current step contains `[XP]` tag, navigation frame switches to XP mode
+- Shows purple StatusBar (160x14) with real-time XP values where arrow normally appears
+- Bar turns green when XP requirement is met
+- Displays progress text overlay: "current / max XP" or "Done!" when complete
+- Updated automatically by CharacterTracker on XP_UPDATE and PLAYER_LEVEL_UP events
+- Handles all XP requirement types: level, level_minus, level_plus, level_percent
+- Inline XP progress removed from active steps (only shown on ongoing/pinned steps)
+
+**UI Elements:**
+- `navigationFrame.xpBar` - StatusBar (purple: 0.58, 0.0, 0.82 / green: 0.0, 0.8, 0.0 when done)
+- `navigationFrame.xpBarText` - FontString overlay showing XP progress text
+
 Key methods:
 - `GuideNavigation:ShowNextGuide(nextGuideName)` - Display next guide button and parse/load guide on click
 - `GuideNavigation:HideNextGuide()` - Return to arrow mode
@@ -158,6 +172,10 @@ Key methods:
 - `GuideNavigation:HideEquipItem()` - Return to arrow mode
 - `GuideNavigation:ShowHearthstone(destination)` - Display hearthstone icon with click handler, auto-completes step after ~12s cast
 - `GuideNavigation:HideHearthstone()` - Return to arrow mode
+- `GuideNavigation:ShowXPProgress(experienceRequirement)` - Display XP progress bar with requirement data
+- `GuideNavigation:UpdateXPDisplay()` - Refresh XP bar values (called on XP events)
+- `GuideNavigation:HideXPProgress()` - Return to arrow mode
+- `GuideNavigation:GetXPProgressValues(req)` - Calculate current/max/text/isDone for XP requirement
 - `GuideNavigation:CompleteCurrentStep()` - Mark current step complete and advance to next step
 - `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
 - `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data first, falls back to quest log name matching)
@@ -330,6 +348,11 @@ Guides use tagged format parsed by `GuideParser.lua`:
   - `[XP3+500]` → "Level 3 (+500 XP)"
   - `[XP3.5]` → "Level 3 (50%)"
   - `[XP3 Custom text]` → "Custom text" (overrides default)
+- **[XP] display behavior**:
+  - Active step: XP progress shown in navigation frame as purple StatusBar (replaces arrow)
+  - Ongoing/pinned steps: XP progress shown inline on separate line below step text
+  - Navigation bar updates in real-time on XP_UPDATE and PLAYER_LEVEL_UP events
+  - Bar turns green when requirement is met, displays "Done!" text
 - **[QC] objective tracking**:
   - `[QC id]` → Completes when entire quest is done
   - `[QC id,objectiveIndex]` → Completes when specific objective is done (e.g., `[QC150,1]` for first objective of quest 150)
@@ -359,8 +382,9 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`)
 - `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
-- `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching
-- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling
+- `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching, XP progress display for ongoing steps only (active step XP shown in navigation frame)
+- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling, XP progress StatusBar for [XP] steps
+- `Core/Events/Character.lua` - XP/level tracking, calls GuideNavigation:UpdateXPDisplay() on XP_UPDATE and PLAYER_LEVEL_UP events to refresh navigation XP bar
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Items.lua` - Item collection tracking, BAG_UPDATE event handling, current-step-only validation for [CI] tags, auto-completion when item count requirements met
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags

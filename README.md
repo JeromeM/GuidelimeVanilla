@@ -64,6 +64,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
   - **Trainer Icon**: Shows trainer icon for train steps
   - **Equip Item Icon**: Shows items that need to be equipped
   - **Next Guide Button**: Clickable button on final step to load next guide
+  - **XP Progress Display**: When on an XP requirement step, replaces the arrow with a purple progress bar showing real-time XP values (current/target). Bar turns green when requirement is met.
 - **Movable Frame**: Hold Shift + drag to reposition the arrow
 
 ### 🎯 Quest Tracking
@@ -82,7 +83,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Item Collection Tracking**: Automatically completes collect item steps when you acquire the required items in your bags
 - **Equipment Tracking**: Automatically completes equip item steps when you equip the specified items
 - **Quest Abandonment Handling**: Properly updates state when quests are abandoned
-- **XP Progress Bars**: Visual colored progress bars for grind/XP requirement steps showing current progress
+- **XP Progress Tracking**: XP requirement steps show real-time progress. Active XP steps display a purple progress bar in the navigation frame (where the arrow normally appears) with live XP values. Ongoing (pinned) XP steps show inline progress text in the guide window.
 
 ### 🌟 Talent Suggestion System
 - **Level-up Toast Notifications**: When you gain a level and have an unspent talent point, a notification appears at the top of your screen showing which talent to choose
