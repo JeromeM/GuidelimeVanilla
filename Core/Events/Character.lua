@@ -54,6 +54,11 @@ function CharacterTracker:OnPlayerXPUpdate()
             GLV:UpdateXPProgressDisplay()
         end
 
+        -- Update navigation XP display
+        if GLV.GuideNavigation and GLV.GuideNavigation.UpdateXPDisplay then
+            GLV.GuideNavigation:UpdateXPDisplay()
+        end
+
     end
 end
 
@@ -228,6 +233,11 @@ function CharacterTracker:CheckForXPChanges()
         -- Update XP progress display on UI
         if GLV.UpdateXPProgressDisplay then
             GLV:UpdateXPProgressDisplay()
+        end
+
+        -- Update navigation XP display
+        if GLV.GuideNavigation and GLV.GuideNavigation.UpdateXPDisplay then
+            GLV.GuideNavigation:UpdateXPDisplay()
         end
     end
 end

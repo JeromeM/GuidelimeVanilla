@@ -217,11 +217,10 @@ function GLV:UpdateXPProgressDisplay()
 
     for _, tracker in ipairs(GLV.XPProgressTrackers) do
         if tracker.fontString and tracker.experienceRequirement and tracker.originalText then
-            -- Show progress on active step OR ongoing steps
-            local isActiveStep = tracker.stepIndex == activeStep
+            -- Show progress on ongoing steps only (active step XP shown in navigation frame)
             local isOngoingStep = OngoingStepsManager and OngoingStepsManager:IsActive(tracker.stepIndex)
 
-            if isActiveStep or isOngoingStep then
+            if isOngoingStep then
                 local progress, isDone = GLV.CharacterTracker:GetXPProgress(tracker.experienceRequirement)
                 if progress then
                     -- Put progress on a new line with empty line before
@@ -997,14 +996,14 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
             local scaledLineHeight = getScaledFontLineHeight()
             local usedHeight = (lineCount * scaledLineHeight)
 
-            -- Reserve extra height for XP progress (empty line + progress bar)
-            if line.experienceRequirement then
+            -- Reserve extra height for XP progress (only for ongoing steps, active step shows in navigation)
+            if line.experienceRequirement and idx ~= activeStep then
                 usedHeight = usedHeight + (scaledLineHeight * 2)
             end
 
             textFrame:SetHeight(usedHeight)
 
-            -- Track [XP] steps for progress display (only show on active step)
+            -- Track [XP] steps for progress display (only for ongoing steps)
             if line.experienceRequirement then
                 table.insert(GLV.XPProgressTrackers, {
                     fontString = textFrame,

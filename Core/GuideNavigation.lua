@@ -182,7 +182,33 @@ function GuideNavigation:CreateNavigationFrame()
     navigationFrame.distance:SetTextColor(0.8, 0.8, 0.8)
     navigationFrame.distance:SetText("")
     navigationFrame.distance:SetJustifyH("CENTER")
-    
+
+    -- XP Progress StatusBar (initially hidden)
+    navigationFrame.xpBar = CreateFrame("StatusBar", "GLV_NavXPBar", navigationFrame)
+    navigationFrame.xpBar:SetWidth(160)
+    navigationFrame.xpBar:SetHeight(14)
+    navigationFrame.xpBar:SetPoint("TOP", navigationFrame.questName, "BOTTOM", 0, -5)
+    navigationFrame.xpBar:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 4,
+        edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    navigationFrame.xpBar:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
+    navigationFrame.xpBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    navigationFrame.xpBar:SetStatusBarColor(0.58, 0.0, 0.82)
+    navigationFrame.xpBar:SetMinMaxValues(0, 100)
+    navigationFrame.xpBar:SetValue(0)
+    navigationFrame.xpBar:Hide()
+
+    -- XP bar text overlay
+    navigationFrame.xpBarText = navigationFrame.xpBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    navigationFrame.xpBarText:SetPoint("CENTER", navigationFrame.xpBar)
+    navigationFrame.xpBarText:SetTextColor(1, 1, 1)
+    navigationFrame.xpBarText:SetText("")
+
     local savedPos = GLV.Settings:GetOption({"Navigation", "FramePosition"})
     if savedPos and savedPos[1] and savedPos[2] then
         navigationFrame:ClearAllPoints()
@@ -367,6 +393,7 @@ function GuideNavigation:RemoveCurrentWaypoint()
     self:ClearAllWaypoints()
     self:HideEquipItem()
     self:HideHearthstone()
+    self:HideXPProgress()
 end
 
 --[[ NAVIGATION VISIBILITY CONTROL ]]--
@@ -392,6 +419,9 @@ function GuideNavigation:Hide()
         navigationFrame.objective:SetText("")
         navigationFrame.questProgress:SetText("")
         navigationFrame.distance:SetText("")
+        if navigationFrame.xpBar then
+            navigationFrame.xpBar:Hide()
+        end
     end
     isNavigationActive = false
 end
@@ -1357,12 +1387,131 @@ function GuideNavigation:HideHearthstone()
     navigationFrame.arrow:Show()
 end
 
+--[[ XP PROGRESS DISPLAY ]]--
+
+-- Get XP progress values for the navigation progress bar
+-- Returns: current, max, text, isDone
+function GuideNavigation:GetXPProgressValues(req)
+    if not req then return 0, 1, "", false end
+
+    local playerLevel = UnitLevel("player")
+    local playerXP = UnitXP("player")
+    local playerMaxXP = UnitXPMax("player")
+
+    if req.type == "level" then
+        if playerLevel >= req.targetLevel then
+            return 1, 1, "Done!", true
+        end
+        return playerXP, playerMaxXP, playerXP .. " / " .. playerMaxXP .. " XP", false
+
+    elseif req.type == "level_minus" then
+        if playerLevel >= req.targetLevel then
+            return 1, 1, "Done!", true
+        elseif playerLevel == (req.targetLevel - 1) then
+            local target = playerMaxXP - req.xpMinus
+            if playerXP >= target then
+                return 1, 1, "Done!", true
+            end
+            return playerXP, target, playerXP .. " / " .. target .. " XP", false
+        else
+            return playerXP, playerMaxXP, "Lvl " .. playerLevel .. " / " .. (req.targetLevel - 1), false
+        end
+
+    elseif req.type == "level_plus" then
+        if playerLevel > req.targetLevel then
+            return 1, 1, "Done!", true
+        elseif playerLevel == req.targetLevel then
+            if playerXP >= req.xpPlus then
+                return 1, 1, "Done!", true
+            end
+            return playerXP, req.xpPlus, playerXP .. " / " .. req.xpPlus .. " XP", false
+        else
+            return playerXP, playerMaxXP, "Lvl " .. playerLevel .. " / " .. req.targetLevel, false
+        end
+
+    elseif req.type == "level_percent" then
+        if playerLevel > req.targetLevel then
+            return 1, 1, "Done!", true
+        elseif playerLevel == req.targetLevel then
+            local targetXP = math.floor((req.targetPercent / 100) * playerMaxXP)
+            if playerXP >= targetXP then
+                return 1, 1, "Done!", true
+            end
+            local pct = math.floor((playerXP / targetXP) * 100)
+            return playerXP, targetXP, playerXP .. " / " .. targetXP .. " XP (" .. pct .. "%)", false
+        else
+            return playerXP, playerMaxXP, "Lvl " .. playerLevel .. " / " .. req.targetLevel, false
+        end
+    end
+
+    return 0, 1, "", false
+end
+
+-- Shows XP progress in navigation frame instead of the arrow
+function GuideNavigation:ShowXPProgress(experienceRequirement)
+    if not navigationFrame then
+        self:CreateNavigationFrame()
+    end
+    if not navigationFrame then return end
+
+    -- Store requirement for periodic updates
+    self.currentXPRequirement = experienceRequirement
+
+    -- Hide arrow, show XP elements
+    navigationFrame.arrow:Hide()
+    navigationFrame.xpBar:Show()
+    navigationFrame.objective:SetText("")
+    navigationFrame.questProgress:SetText("")
+    navigationFrame.distance:SetText("")
+
+    -- Set the requirement text as quest name
+    navigationFrame.questName:SetText("|cFFBB99FF" .. (experienceRequirement.text or "XP Required") .. "|r")
+    navigationFrame.questName:SetTextColor(1, 1, 1)
+
+    -- Update bar values
+    self:UpdateXPDisplay()
+
+    navigationFrame:Show()
+    isNavigationActive = false  -- Don't update arrow rotation
+end
+
+-- Update XP display values (called when XP changes)
+function GuideNavigation:UpdateXPDisplay()
+    if not navigationFrame or not self.currentXPRequirement then return end
+    if not navigationFrame.xpBar or not navigationFrame.xpBar:IsShown() then return end
+
+    local current, max, text, isDone = self:GetXPProgressValues(self.currentXPRequirement)
+
+    navigationFrame.xpBar:SetMinMaxValues(0, max)
+    navigationFrame.xpBar:SetValue(current)
+    navigationFrame.xpBarText:SetText(text)
+
+    if isDone then
+        navigationFrame.xpBar:SetStatusBarColor(0.0, 0.8, 0.0) -- Green when done
+        navigationFrame.questName:SetText("|cFF00FF00" .. (self.currentXPRequirement.text or "XP") .. " - Done!|r")
+    else
+        navigationFrame.xpBar:SetStatusBarColor(0.58, 0.0, 0.82) -- Purple XP color
+        navigationFrame.questName:SetText("|cFFBB99FF" .. (self.currentXPRequirement.text or "XP Required") .. "|r")
+    end
+end
+
+-- Hides XP progress and restores arrow mode
+function GuideNavigation:HideXPProgress()
+    if not navigationFrame then return end
+    if navigationFrame.xpBar then
+        navigationFrame.xpBar:Hide()
+    end
+    navigationFrame.arrow:Show()
+    self.currentXPRequirement = nil
+end
+
 -- Updates waypoint for a specific guide step
 function GuideNavigation:UpdateWaypointForStep(stepData)
     self:RemoveCurrentWaypoint()
     self:HideEquipItem()
     self:HideNextGuide()
     self:HideHearthstone()
+    self:HideXPProgress()
 
     -- Reset transition flag to allow new transitions
     hasTriggeredTransition = false
@@ -1371,6 +1520,16 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     allWaypoints = {}
     currentWaypointIndex = 1
     currentStepData = stepData
+
+    -- Check for XP step
+    if stepData and stepData.lines then
+        for _, line in ipairs(stepData.lines) do
+            if line.experienceRequirement then
+                self:ShowXPProgress(line.experienceRequirement)
+                return
+            end
+        end
+    end
 
     -- Check for EQUIP step
     if stepData and stepData.lines then
