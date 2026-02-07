@@ -14,17 +14,21 @@ local GLV = LibStub("GuidelimeVanilla")
 
 -- Track if display settings have changed (requires reload)
 local displaySettingsChanged = false
+-- Guard flag: true while sliders are being initialized (prevents false "changed" marks)
+local displaySettingsInitializing = false
 
--- Mark display settings as changed
+-- Mark display settings as changed (ignored during slider init)
 function GLV_MarkDisplaySettingsChanged()
-    displaySettingsChanged = true
+    if not displaySettingsInitializing then
+        displaySettingsChanged = true
+    end
 end
 
 -- Check if display settings changed and prompt for reload
 function GLV_CheckReloadOnClose()
     if displaySettingsChanged then
         displaySettingsChanged = false
-        ReloadUI()
+        StaticPopup_Show("GLV_RELOAD_UI")
     end
 end
 
@@ -32,6 +36,29 @@ end
 function GLV_ResetDisplaySettingsChanged()
     displaySettingsChanged = false
 end
+
+-- Begin slider initialization (suppress change detection)
+function GLV_BeginSliderInit()
+    displaySettingsInitializing = true
+end
+
+-- End slider initialization (re-enable change detection)
+function GLV_EndSliderInit()
+    displaySettingsInitializing = false
+end
+
+-- Reload confirmation dialog
+StaticPopupDialogs["GLV_RELOAD_UI"] = {
+    text = "You need to reload your interface for display changes to take effect.",
+    button1 = "Yes",
+    button2 = "No",
+    OnAccept = function()
+        ReloadUI()
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
 
 
 -- Toggle settings frame visibility
@@ -58,48 +85,86 @@ function GLV_ShowGuideFrame()
     end
 end
 
--- Show specific guide page and hide all others
+-- Helper to set checkbox text to compact 11px font
+function GLV_InitCheckboxFont(checkbox)
+    local text = getglobal(checkbox:GetName().."Text")
+    if text then
+        text:SetFont("Fonts\\FRIZQT__.TTF", 11)
+    end
+end
+
+-- Menu leave handler: restore default color unless this is the active tab
+function GLV_OnMenuLeave(menuButton)
+    local text = getglobal(menuButton:GetName().."Text")
+    if not text then return end
+    -- Check if this menu button is the active one
+    local highlight = getglobal("GLV_SettingsMenuHighlight")
+    if highlight and highlight:IsShown() then
+        local _, relativeTo = highlight:GetPoint(1)
+        if relativeTo == menuButton then
+            text:SetTextColor(1, 1, 1)
+            return
+        end
+    end
+    text:SetTextColor(0.8, 0.8, 0.8)
+end
+
+-- Show specific guide page and hide all others, with menu highlight
 function GLV_ShowGuide(frame)
-    local frames = {
-        GLV_SettingsGuidesPage,
-        GLV_SettingsDisplayPage,
-        GLV_SettingsTalentsPage,
-        GLV_SettingsAboutPage,
+    local menuButtons = {
+        {GLV_SettingsGuidesPage, GLV_SettingsMenuGuides},
+        {GLV_SettingsDisplayPage, GLV_SettingsMenuDisplay},
+        {GLV_SettingsTalentsPage, GLV_SettingsMenuTalents},
+        {GLV_SettingsAboutPage, GLV_SettingsMenuAbout},
     }
 
-    -- Hide all other frames first
-    for _, f in pairs(frames) do
-        if f:IsVisible() then
-            f:Hide()
+    for _, pair in ipairs(menuButtons) do
+        pair[1]:Hide()
+        -- Reset menu text color to default
+        local text = getglobal(pair[2]:GetName().."Text")
+        if text then
+            text:SetTextColor(0.8, 0.8, 0.8)
         end
     end
 
     -- Show the requested frame
     frame:Show()
+
+    -- Highlight active menu button
+    for _, pair in ipairs(menuButtons) do
+        if pair[1] == frame then
+            local text = getglobal(pair[2]:GetName().."Text")
+            if text then
+                text:SetTextColor(1, 1, 1)
+            end
+            -- Move highlight behind active button
+            local highlight = getglobal("GLV_SettingsMenuHighlight")
+            if highlight then
+                highlight:ClearAllPoints()
+                highlight:SetPoint("TOPLEFT", pair[2], "TOPLEFT", 0, 0)
+                highlight:SetPoint("BOTTOMRIGHT", pair[2], "BOTTOMRIGHT", 0, 0)
+                highlight:Show()
+            end
+        end
+    end
 end
 
 -- Initialize the about page with description text
 function GLV_SettingsAboutPage_OnLoad()
     local text = [[
 Guidelime Vanilla is a total overhaul of the official Guidelime, which is not compatible with WoW 1.12.
-The original project is a rewrite of the VanillaGuide from mrmr. But I wanted to have something more functionnal and with the possibility to use actual Guidelime's guide available on CurseForge.
+The original project is a rewrite of the VanillaGuide from mrmr. I wanted something more functional with support for actual Guidelime guides from CurseForge.
 
-I've tried to automatize a lot of things like auto-complete steps with Quest Accept or Quest Complete (as much as the WoW 1.12 API let me do it).
-It's using it's own navigation system.
+Auto-complete steps with Quest Accept/Complete, built-in navigation system, talent suggestions, and more.
 
 Thanks to :
 - |cFFFF0000mrmr|r for the original addon
 - |cFFFF0000Shagu|r for the PfQuest databases
 - |cFFFF0000Laytya|r for the Spells DB
-
-
-Original source for VanillaGuide :
-
-My rewrite of VanillaGuide to VanillaGuideReloaded :
 ]]
 
     local content = GLV_SettingsAboutPageContent
-    content:SetWidth(700)                -- Max width before line break
+    content:SetWidth(400)                -- Max width before line break
     content:SetNonSpaceWrap(true)        -- Allows cutting even without spaces
     content:SetJustifyH("LEFT")          -- Horizontal alignment
     content:SetJustifyV("TOP")           -- Vertical alignment
@@ -330,11 +395,13 @@ function GLV_UnloadCurrentGuide()
     GLV_Settings:Hide()
 end
 
--- Initialize scale slider from settings
+-- Initialize scale slider from settings (wrapped with guard to prevent false change detection)
 function GLV_InitScaleSlider(slider, settingKeys)
+    GLV_BeginSliderInit()
     local value = GLV.Settings:GetOption(settingKeys) or 1
     slider:SetValue(value)
     getglobal(slider:GetName().."Text"):SetText(string.format("%.1f", value))
+    GLV_EndSliderInit()
 end
 
 -- Handle guide text scale slider change
