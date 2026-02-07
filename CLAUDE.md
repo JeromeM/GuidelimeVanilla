@@ -22,6 +22,10 @@ GuideLime Vanilla is a World of Warcraft Classic (1.12) addon that provides an e
 
 These agents MUST be run in this order before any `git push` operation.
 
+**Version bump rules (for `version-bump-prepush` agent):**
+- **1-6 commits**: Increment Z (patch) — e.g. 0.6.3 → 0.6.4
+- **More than 6 commits**: Increment Y (minor) and reset Z — e.g. 0.6.4 → 0.7.0
+
 ## Slash Commands
 
 The addon registers `/glv` and `/guidelime` commands with the following subcommands:
