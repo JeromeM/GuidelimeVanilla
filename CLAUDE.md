@@ -220,7 +220,7 @@ GLV.TalentTemplates["WARRIOR"]["Arms with Respec"] = {
 All 9 classes now have complete leveling builds sourced from talents.turtlecraft.gg (TurtleWoW):
 
 - **Warrior**: Arms (TurtleWoW)
-- **Paladin**: Retribution (TurtleWoW)
+- **Paladin**: Retribution (TurtleWoW), Crimson Paladin (Protection→Holy/Prot, respecs at 41)
 - **Hunter**: Beast Mastery (TurtleWoW)
 - **Rogue**: Combat Swords (TurtleWoW)
 - **Priest**: Discipline (TurtleWoW)
