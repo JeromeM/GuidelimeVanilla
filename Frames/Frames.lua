@@ -461,6 +461,41 @@ function GLV_OnWorldMapPathCheckboxClick(checkbox)
     end
 end
 
+-- Frame strata options for guide window
+local STRATA_OPTIONS = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
+
+-- Initialize frame strata dropdown
+function GLV_InitStrataDropdown(dropdown)
+    local current = GLV.Settings:GetOption({"UI", "FrameStrata"}) or "DIALOG"
+
+    UIDropDownMenu_Initialize(dropdown, function()
+        for _, strata in ipairs(STRATA_OPTIONS) do
+            local info = {}
+            info.text = strata
+            info.value = strata
+            info.func = function()
+                local val = this.value
+                UIDropDownMenu_SetSelectedValue(dropdown, val)
+                UIDropDownMenu_SetText(val, dropdown)
+                GLV.Settings:SetOption(val, {"UI", "FrameStrata"})
+                GLV_ApplyFrameStrata(val)
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    UIDropDownMenu_SetSelectedValue(dropdown, current)
+    UIDropDownMenu_SetText(current, dropdown)
+end
+
+-- Apply frame strata to guide window
+function GLV_ApplyFrameStrata(strata)
+    local mainFrame = getglobal("GLV_Main")
+    if mainFrame then
+        mainFrame:SetFrameStrata(strata)
+    end
+end
+
 -- Handle navigation scale slider change
 function GLV_OnNavScaleSliderChanged(slider, settingKeys)
     local value = slider:GetValue()

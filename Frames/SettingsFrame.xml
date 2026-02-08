@@ -779,6 +779,61 @@
                                     </CheckButton>
                                 </Frames>
                             </Frame>
+
+                            <!-- Frame Strata Card -->
+                            <Frame name="$parentStrataCard">
+                                <Size>
+                                    <AbsDimension x="430" y="60"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="$parentMinimapCard" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="0" y="-10"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" edgeFile="Interface\Tooltips\UI-Tooltip-Border" tile="true">
+                                    <EdgeSize><AbsValue val="8"/></EdgeSize>
+                                    <TileSize><AbsValue val="8"/></TileSize>
+                                    <BackgroundInsets><AbsInset left="2" right="2" top="2" bottom="2"/></BackgroundInsets>
+                                </Backdrop>
+                                <Scripts>
+                                    <OnLoad>
+                                        this:SetBackdropColor(0.1, 0.1, 0.15, 0.6);
+                                        this:SetBackdropBorderColor(0.3, 0.3, 0.4, 0.5);
+                                    </OnLoad>
+                                </Scripts>
+
+                                <Layers>
+                                    <Layer>
+                                        <FontString name="$parentTitle" font="Fonts\FRIZQT__.TTF" text="Guide Window Layer" justifyH="LEFT">
+                                            <FontHeight><AbsValue val="11"/></FontHeight>
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT">
+                                                    <Offset x="10" y="-8"/>
+                                                </Anchor>
+                                            </Anchors>
+                                            <Color r="0.42" g="0.55" b="0.83"/>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+
+                                <Frames>
+                                    <Frame name="GLV_SettingsDisplayPageStrataDropdown" inherits="UIDropDownMenuTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                                <Offset x="-6" y="-20"/>
+                                            </Anchor>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                UIDropDownMenu_SetWidth(160, this);
+                                            </OnLoad>
+                                            <OnShow>
+                                                GLV_InitStrataDropdown(this);
+                                            </OnShow>
+                                        </Scripts>
+                                    </Frame>
+                                </Frames>
+                            </Frame>
                         </Frames>
 
                     </Frame>

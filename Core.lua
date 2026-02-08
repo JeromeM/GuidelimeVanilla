@@ -114,6 +114,12 @@ function addon:OnEnable()
         GLV.TalentTracker:Init()
     end
     
+    -- Apply saved frame strata to guide window
+    local strata = Settings:GetOption({"UI", "FrameStrata"})
+    if strata then
+        GLV_ApplyFrameStrata(strata)
+    end
+
     -- Initialize Guide Navigation integration AFTER the guide is loaded
     self:ScheduleEvent(function()
         if GLV.GuideNavigation then

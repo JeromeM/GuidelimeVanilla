@@ -34,6 +34,9 @@ The addon registers `/glv` and `/guidelime` commands with the following subcomma
 - `/glv hide` - Hide the guide window (shows chat message with reopen instructions)
 - `/glv settings` - Open the settings window
 
+**Additional Slash Commands:**
+- `/glvminimap` - Show minimap path debug information (displays path state, waypoint data, pfQuest integration status)
+
 **Close Button Behavior:**
 - The close button (X) on the main guide window now hides the window instead of navigating steps
 - When closed, displays: "|cFF6B8BD4[GuideLime]|r Guide window hidden. Type |cFFFFFF00/glv show|r to display it again."
@@ -60,6 +63,7 @@ Key global objects:
 - `GLV.GossipTracker` - Gossip dialog tracking
 - `GLV.TalentTracker` - Talent suggestion tracking (level-up notifications, talent frame highlights)
 - `GLV.GuideNavigation` - Arrow navigation and guide transitions (arrow display, next guide button)
+- `GLV.MinimapPath` - Minimap and world map dotted path rendering (draws paths from player to waypoint)
 - `GLV.CurrentGuide` - Currently loaded guide data (includes `.clickToNext` and `.next` for guide chaining)
 - `GLV.CurrentDisplaySteps` - Filtered/displayed steps array
 - `GLV.loadedGuides` - Table of registered guides organized by pack: `GLV.loadedGuides[packName][guideId]`
@@ -98,6 +102,8 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 **Display Settings** (Settings > Display):
 - `{"UI", "GuideTextScale"}` - Scale multiplier for guide step text (0.8-1.5, default 1.0)
 - `{"UI", "NavigationScale"}` - Scale multiplier for navigation arrow frame (0.8-1.5, default 1.0)
+- `{"UI", "MinimapPath"}` - Show dotted path on minimap from player to waypoint (default true)
+- `{"UI", "WorldMapPath"}` - Show dotted path on world map from player to waypoint (default true)
 
 **Talent Settings** (Settings > Talents):
 - `{"Talents", "Enabled"}` - Enable talent suggestions (default true)
@@ -183,6 +189,69 @@ Key methods:
 - `GuideNavigation:CompleteCurrentStep()` - Mark current step complete and advance to next step
 - `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
 - `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data first, falls back to quest log name matching)
+- `GuideNavigation:IsArrowNavigationActive()` - Returns whether arrow navigation is currently active (used by MinimapPath)
+- `GuideNavigation:GetCurrentWaypoint()` - Returns current waypoint data for debugging and path rendering
+
+### Minimap & World Map Path System
+
+The addon draws dotted paths from the player position to the active navigation waypoint on both minimap and world map:
+
+**Features:**
+- **Minimap Path**: Subtle dotted line (8 dots) from player to waypoint, visible when in same zone
+- **World Map Path**: Longer dotted line (12 dots) visible when viewing the waypoint's zone on world map
+- **Independent Toggles**: Minimap and world map paths can be enabled/disabled separately in Settings > Display
+- **pfQuest Integration**: Automatically disables pfQuest minimap nodes and routes when either path is enabled to reduce clutter, restores them when both paths are disabled
+- **Smart Visibility**: Paths only appear when navigation is active and player is in the correct zone
+
+**Implementation Details:**
+
+Minimap dots:
+- **Count**: 8 dots
+- **Size**: 2x2 pixels
+- **Color**: Light blue (0.6, 0.8, 1.0) with 0.7 alpha
+- **Start Offset**: 8 pixels from player position
+- **Update Rate**: 0.15 seconds (6.67 FPS)
+- **Visibility**: Only shows when player is in same zone as waypoint
+
+World map dots:
+- **Count**: 12 dots
+- **Size**: 3x3 pixels
+- **Color**: Medium blue (0.5, 0.7, 1.0) with 0.7 alpha
+- **Visibility**: Only shows when world map is open and viewing waypoint's zone
+
+**pfQuest Integration:**
+- Saves original pfQuest config when disabling nodes: `minimapnodes`, `showspawn`, `showcluster`, `showspawnmini`, `showclustermini`, `routes`
+- Only saves state if pfQuest was actually enabled (avoids unnecessary saves)
+- Restores original state when both paths are disabled
+- Calls `pfMap:UpdateMinimap()` and `pfMap:UpdateNodes()` after config changes
+
+**Dot Pool Management:**
+- Dots are pre-created frames parented to Minimap and WorldMapButton
+- Frame strata: TOOLTIP (minimap), FULLSCREEN (world map)
+- Uses ChatFrame background texture for simple circular appearance
+- Dots are positioned using Astrolabe coordinate calculations for minimap
+- World map uses zone-relative coordinates (0-1 range) converted to pixels
+
+**Key Methods:**
+- `MinimapPath:Init()` - Initialize dot pools, load settings, start update frame (scheduled 2.5s after addon load)
+- `MinimapPath:CreateMinimapDots()` - Create 8 minimap dot frames
+- `MinimapPath:CreateWorldMapDots()` - Create 12 world map dot frames
+- `MinimapPath:UpdateMinimap()` - Calculate and position minimap dots along path (checks zone match, distance, visibility)
+- `MinimapPath:UpdateWorldMap()` - Calculate and position world map dots along path (checks zone match, world map visibility)
+- `MinimapPath:EnableMinimap()` - Enable minimap path and update pfQuest state
+- `MinimapPath:DisableMinimap()` - Disable minimap path, hide dots, update pfQuest state
+- `MinimapPath:EnableWorldMap()` - Enable world map path and update pfQuest state
+- `MinimapPath:DisableWorldMap()` - Disable world map path, hide dots, update pfQuest state
+- `MinimapPath:HideMinimapDots()` - Hide all minimap dots
+- `MinimapPath:HideWorldMapDots()` - Hide all world map dots
+- `MinimapPath:DebugDump()` - Display debug information (via `/glvminimap` command)
+
+**Settings Integration:**
+- Settings > Display > Navigation Path card
+- Two independent checkboxes: "Show Path on Minimap" and "Show Path on World Map"
+- Both default to enabled (true) on first load
+- Handler functions: `GLV_OnMinimapPathCheckboxClick()`, `GLV_OnWorldMapPathCheckboxClick()`
+- Init functions: `GLV_InitMinimapPathCheckbox()`, `GLV_InitWorldMapPathCheckbox()`
 
 ### Settings UI Architecture
 
@@ -204,7 +273,7 @@ The settings window features a compact modern dark theme with card-based layout:
 - **Content Pages**: Card-based sections for settings groups
   - Guide Pack card: Pack dropdown, Load/Unload buttons, guide notes, starting guide selector
   - Automation card: Auto-accept/turnin/flight checkboxes (marked as BETA)
-  - Display card: Text/navigation scale sliders
+  - Display card: Text/navigation scale sliders, navigation path toggles (minimap/world map)
   - Talents card: Enable/disable toggles, template dropdown, move notification button
 - **Checkboxes**: Initialized with `GLV_InitCheckboxFont()` to apply 11px font consistently
 - **Menu Hover**: `GLV_OnMenuLeave()` handler maintains active tab color on mouse exit
@@ -432,21 +501,22 @@ Guides use tagged format parsed by `GuideParser.lua`:
 
 ## Key Files
 
-- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`)
+- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`), MinimapPath initialization (scheduled 2.5s after load)
 - `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching, XP progress display for ongoing steps only (active step XP shown in navigation frame)
-- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling, XP progress StatusBar for [XP] steps
+- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling, XP progress StatusBar for [XP] steps, waypoint query methods for MinimapPath
+- `Core/MinimapPath.lua` - Minimap and world map dotted path rendering (8 minimap dots, 12 world map dots), pfQuest integration (auto-disable nodes when paths active), Astrolabe coordinate calculations, update loop (0.15s interval)
 - `Core/Events/Character.lua` - XP/level tracking, calls GuideNavigation:UpdateXPDisplay() on XP_UPDATE and PLAYER_LEVEL_UP events to refresh navigation XP bar
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Items.lua` - Item collection tracking, BAG_UPDATE event handling, current-step-only validation for [CI] tags, auto-completion when item count requirements met
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog, minimap/world map path checkbox handlers
 - `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
 - `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
-- `Frames/SettingsFrame.xml` - Settings UI with compact modern dark theme (600x450, dark tooltip backdrop, card-based sections, 11px fonts, blue/violet accent, active tab highlight)
+- `Frames/SettingsFrame.xml` - Settings UI with compact modern dark theme (600x450, dark tooltip backdrop, card-based sections, 11px fonts, blue/violet accent, active tab highlight), Navigation Path card with minimap/world map path toggles
 - `TalentTemplates/*.lua` - Class-specific talent templates (9 files, one per class)
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups), quest NPC name lookup (`GetQuestTurninNPCName()`, `GetQuestAcceptNPCName()`)
 
