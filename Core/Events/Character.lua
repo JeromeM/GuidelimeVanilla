@@ -111,42 +111,36 @@ function CharacterTracker:OnSpellLearned()
 
                         -- Try Nampower's API to check if spell is learned
                         if spellId and GetSpellNameAndRankForId then
-                            -- Get the spell name from the ID (e.g., 3279 -> "Apprentice First Aid")
+                            -- GetSpellNameAndRankForId returns: name="First Aid", rank="Apprentice"
                             local actualName, actualRank = GetSpellNameAndRankForId(spellId)
 
                             if actualName then
-                                -- Determine required tier and skill name from spell name
+                                -- Determine required tier from rank string
                                 local requiredMaxSkill = nil
-                                local skillName = actualName
 
-                                if string.find(actualName, "^Apprentice ") then
+                                if actualRank == "Apprentice" then
                                     requiredMaxSkill = 75
-                                    skillName = string.gsub(actualName, "^Apprentice ", "")
-                                elseif string.find(actualName, "^Journeyman ") then
+                                elseif actualRank == "Journeyman" then
                                     requiredMaxSkill = 150
-                                    skillName = string.gsub(actualName, "^Journeyman ", "")
-                                elseif string.find(actualName, "^Expert ") then
+                                elseif actualRank == "Expert" then
                                     requiredMaxSkill = 225
-                                    skillName = string.gsub(actualName, "^Expert ", "")
-                                elseif string.find(actualName, "^Artisan ") then
+                                elseif actualRank == "Artisan" then
                                     requiredMaxSkill = 300
-                                    skillName = string.gsub(actualName, "^Artisan ", "")
-                                elseif string.find(actualName, "^Master ") then
+                                elseif actualRank == "Master" then
                                     requiredMaxSkill = 375
-                                    skillName = string.gsub(actualName, "^Master ", "")
                                 end
 
                                 if requiredMaxSkill then
-                                    -- Check player's skill max level
+                                    -- actualName is already the skill name (e.g., "First Aid", "Cooking")
                                     for i = 1, GetNumSkillLines() do
                                         local name, header, isExpanded, skillRank, numTempPoints, skillModifier, skillMaxRank = GetSkillLineInfo(i)
-                                        if name == skillName then
+                                        if name == actualName then
                                             spellFound = (skillMaxRank >= requiredMaxSkill)
                                             break
                                         end
                                     end
                                 else
-                                    -- No tier prefix, just check if spell is in spellbook
+                                    -- No known tier rank, just check if spell is in spellbook
                                     if GetSpellIdForName then
                                         local foundId = GetSpellIdForName(actualName)
                                         spellFound = (foundId and foundId > 0)

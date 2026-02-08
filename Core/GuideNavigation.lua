@@ -611,9 +611,11 @@ function GuideNavigation:UpdateNavigation()
         navigationFrame.arrow:SetAlpha(1.0)
     end
     
+    if not currentWaypoint then return end
+
     local angle = self:CalculateAngle(currentWaypoint)
     local arrowIndex = self:AngleToArrowIndex(angle)
-    
+
     local left, right, top, bottom = self:GetArrowTexCoords(arrowIndex)
     navigationFrame.arrow:SetTexCoord(left, right, top, bottom)
 end
