@@ -97,7 +97,9 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Respec Support**: Talent templates can define a respec transition point to switch builds mid-leveling (for developers creating custom templates)
 
 ### 🎨 User Interface
-- **Clean Design**: Organized interface with consistent styling
+- **Compact Modern Design**: Settings UI features a sleek dark theme (600x450) with card-based sections and blue/violet accent colors
+- **Active Tab Highlighting**: Visual indicator in left menu shows the currently selected settings page
+- **Reload Confirmation Dialog**: When closing settings after changing display options, a dialog prompts to reload the UI for changes to take effect
 - **Clickable Icons**: Special action icons (Hearthstone, items to use)
 - **Color-coded Steps**: Visual distinction between step types and states
 - **Quest Tags**: Colored markers for accept and turnin steps
@@ -105,7 +107,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Display Settings**: Customizable UI scaling available in Settings > Display:
   - **Guide Text Scale** (0.8-1.5): Adjust the size of guide step text
   - **Navigation Scale** (0.8-1.5): Adjust the size of the navigation arrow frame
-  - **Auto-reload**: UI automatically reloads when display settings are changed for instant effect
+  - **Manual Reload**: Changes to display settings now require manual UI reload confirmation instead of automatic reload
 
 ## Installation
 

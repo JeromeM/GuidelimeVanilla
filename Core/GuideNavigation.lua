@@ -366,6 +366,11 @@ function GuideNavigation:ClearWaypoint()
     currentWaypoint = nil
 end
 
+-- Returns whether the arrow navigation is actively running
+function GuideNavigation:IsArrowNavigationActive()
+    return isNavigationActive
+end
+
 -- Returns the current waypoint (for debugging)
 function GuideNavigation:GetCurrentWaypoint()
     return currentWaypoint

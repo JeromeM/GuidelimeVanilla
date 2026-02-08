@@ -698,6 +698,87 @@
                                     </Slider>
                                 </Frames>
                             </Frame>
+
+                            <!-- Navigation Path Card -->
+                            <Frame name="$parentMinimapCard">
+                                <Size>
+                                    <AbsDimension x="430" y="95"/>
+                                </Size>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageScalesCard" RelativePoint="BOTTOMLEFT">
+                                        <Offset x="0" y="-10"/>
+                                    </Anchor>
+                                </Anchors>
+                                <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" edgeFile="Interface\Tooltips\UI-Tooltip-Border" tile="true">
+                                    <EdgeSize><AbsValue val="8"/></EdgeSize>
+                                    <TileSize><AbsValue val="8"/></TileSize>
+                                    <BackgroundInsets><AbsInset left="2" right="2" top="2" bottom="2"/></BackgroundInsets>
+                                </Backdrop>
+                                <Scripts>
+                                    <OnLoad>
+                                        this:SetBackdropColor(0.1, 0.1, 0.15, 0.6);
+                                        this:SetBackdropBorderColor(0.3, 0.3, 0.4, 0.5);
+                                    </OnLoad>
+                                </Scripts>
+
+                                <Layers>
+                                    <Layer>
+                                        <FontString name="$parentTitle" font="Fonts\FRIZQT__.TTF" text="Navigation Path" justifyH="LEFT">
+                                            <FontHeight><AbsValue val="11"/></FontHeight>
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT">
+                                                    <Offset x="10" y="-8"/>
+                                                </Anchor>
+                                            </Anchors>
+                                            <Color r="0.42" g="0.55" b="0.83"/>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+
+                                <Frames>
+                                    <!-- Show Path on Minimap Checkbox -->
+                                    <CheckButton name="GLV_SettingsDisplayPageMinimapPath" inherits="OptionsCheckButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                                <Offset x="6" y="-22"/>
+                                            </Anchor>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                getglobal(this:GetName().."Text"):SetText("Show Path on Minimap");
+                                                GLV_InitCheckboxFont(this);
+                                            </OnLoad>
+                                            <OnShow>
+                                                GLV_InitMinimapPathCheckbox(this);
+                                            </OnShow>
+                                            <OnClick>
+                                                GLV_OnMinimapPathCheckboxClick(this);
+                                            </OnClick>
+                                        </Scripts>
+                                    </CheckButton>
+
+                                    <!-- Show Path on World Map Checkbox -->
+                                    <CheckButton name="GLV_SettingsDisplayPageWorldMapPath" inherits="OptionsCheckButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageMinimapPath" RelativePoint="BOTTOMLEFT">
+                                                <Offset x="0" y="-2"/>
+                                            </Anchor>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                getglobal(this:GetName().."Text"):SetText("Show Path on World Map");
+                                                GLV_InitCheckboxFont(this);
+                                            </OnLoad>
+                                            <OnShow>
+                                                GLV_InitWorldMapPathCheckbox(this);
+                                            </OnShow>
+                                            <OnClick>
+                                                GLV_OnWorldMapPathCheckboxClick(this);
+                                            </OnClick>
+                                        </Scripts>
+                                    </CheckButton>
+                                </Frames>
+                            </Frame>
                         </Frames>
 
                     </Frame>

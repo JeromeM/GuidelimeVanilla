@@ -73,6 +73,7 @@ function addon:OnInitialize()
             },
         },
     })
+
 end
 
 -- Enable addon and initialize all modules
@@ -119,6 +120,13 @@ function addon:OnEnable()
             GLV.GuideNavigation:Init()
         end
     end, 2.0)
+
+    -- Initialize Minimap Path after navigation is ready
+    self:ScheduleEvent(function()
+        if GLV.MinimapPath then
+            GLV.MinimapPath:Init()
+        end
+    end, 2.5)
 end
 
 

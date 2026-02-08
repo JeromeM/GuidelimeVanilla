@@ -17,6 +17,7 @@ Helpers\DBTools.lua
 Helpers\Colors.lua
 
 Core\GuideNavigation.lua
+Core\MinimapPath.lua
 Core\GuideParser.lua
 Core\GuideLibrary.lua
 Core\GuideWriter.lua

@@ -419,6 +419,48 @@ function GLV_OnGuideScaleSliderChanged(slider, settingKeys)
     end
 end
 
+-- Initialize minimap path checkbox from settings
+function GLV_InitMinimapPathCheckbox(checkbox)
+    local value = GLV.Settings:GetOption({"UI", "MinimapPath"})
+    if value == nil then value = true end
+    checkbox:SetChecked(value)
+end
+
+-- Handle minimap path checkbox click
+function GLV_OnMinimapPathCheckboxClick(checkbox)
+    local checked = checkbox:GetChecked()
+    local isChecked = (checked == 1 or checked == true)
+    GLV.Settings:SetOption(isChecked, {"UI", "MinimapPath"})
+    if GLV.MinimapPath then
+        if isChecked then
+            GLV.MinimapPath:EnableMinimap()
+        else
+            GLV.MinimapPath:DisableMinimap()
+        end
+    end
+end
+
+-- Initialize world map path checkbox from settings
+function GLV_InitWorldMapPathCheckbox(checkbox)
+    local value = GLV.Settings:GetOption({"UI", "WorldMapPath"})
+    if value == nil then value = true end
+    checkbox:SetChecked(value)
+end
+
+-- Handle world map path checkbox click
+function GLV_OnWorldMapPathCheckboxClick(checkbox)
+    local checked = checkbox:GetChecked()
+    local isChecked = (checked == 1 or checked == true)
+    GLV.Settings:SetOption(isChecked, {"UI", "WorldMapPath"})
+    if GLV.MinimapPath then
+        if isChecked then
+            GLV.MinimapPath:EnableWorldMap()
+        else
+            GLV.MinimapPath:DisableWorldMap()
+        end
+    end
+end
+
 -- Handle navigation scale slider change
 function GLV_OnNavScaleSliderChanged(slider, settingKeys)
     local value = slider:GetValue()
