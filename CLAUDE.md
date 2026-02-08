@@ -104,6 +104,7 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 - `{"UI", "NavigationScale"}` - Scale multiplier for navigation arrow frame (0.8-1.5, default 1.0)
 - `{"UI", "MinimapPath"}` - Show dotted path on minimap from player to waypoint (default true)
 - `{"UI", "WorldMapPath"}` - Show dotted path on world map from player to waypoint (default true)
+- `{"UI", "FrameStrata"}` - Frame strata layer for main guide window (BACKGROUND, LOW, MEDIUM, HIGH, DIALOG; default DIALOG)
 
 **Talent Settings** (Settings > Talents):
 - `{"Talents", "Enabled"}` - Enable talent suggestions (default true)
@@ -273,7 +274,7 @@ The settings window features a compact modern dark theme with card-based layout:
 - **Content Pages**: Card-based sections for settings groups
   - Guide Pack card: Pack dropdown, Load/Unload buttons, guide notes, starting guide selector
   - Automation card: Auto-accept/turnin/flight checkboxes (marked as BETA)
-  - Display card: Text/navigation scale sliders, navigation path toggles (minimap/world map)
+  - Display card: Text/navigation scale sliders, navigation path toggles (minimap/world map), frame strata dropdown
   - Talents card: Enable/disable toggles, template dropdown, move notification button
 - **Checkboxes**: Initialized with `GLV_InitCheckboxFont()` to apply 11px font consistently
 - **Menu Hover**: `GLV_OnMenuLeave()` handler maintains active tab color on mouse exit
@@ -301,6 +302,8 @@ GLV_EndSliderInit()                    -- End slider init (re-enables change det
 - `GLV_ShowGuide(frame)` - Switch between settings pages, update menu highlight position
 - `GLV_InitCheckboxFont(checkbox)` - Apply compact 11px font to checkbox text
 - `GLV_OnMenuLeave(menuButton)` - Restore default color unless button is active tab
+- `GLV_InitStrataDropdown(dropdown)` - Initialize frame strata dropdown with 5 layer options (BACKGROUND, LOW, MEDIUM, HIGH, DIALOG)
+- `GLV_ApplyFrameStrata(strata)` - Apply selected frame strata to main guide window (applied on load and on change)
 
 ### Talent Suggestion System
 
@@ -501,7 +504,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 
 ## Key Files
 
-- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`), MinimapPath initialization (scheduled 2.5s after load)
+- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`), MinimapPath initialization (scheduled 2.5s after load), frame strata application on load
 - `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching, XP progress display for ongoing steps only (active step XP shown in navigation frame)
@@ -513,10 +516,10 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog, minimap/world map path checkbox handlers
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog, minimap/world map path checkbox handlers, frame strata dropdown initialization and application
 - `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
 - `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
-- `Frames/SettingsFrame.xml` - Settings UI with compact modern dark theme (600x450, dark tooltip backdrop, card-based sections, 11px fonts, blue/violet accent, active tab highlight), Navigation Path card with minimap/world map path toggles
+- `Frames/SettingsFrame.xml` - Settings UI with compact modern dark theme (600x450, dark tooltip backdrop, card-based sections, 11px fonts, blue/violet accent, active tab highlight), Navigation Path card with minimap/world map path toggles, Frame Strata card with layer dropdown
 - `TalentTemplates/*.lua` - Class-specific talent templates (9 files, one per class)
 - `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups), quest NPC name lookup (`GetQuestTurninNPCName()`, `GetQuestAcceptNPCName()`)
 

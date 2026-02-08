@@ -59,6 +59,11 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Zone-Aware Navigation**: Arrow automatically hides when in different zones and updates when you enter the correct zone
 - **Quest Objectives Display**: Shows kill/collect progress directly on the navigation frame
 - **Real-time Distance Updates**: Color-coded distance indicators (green=close, yellow=medium, red=far)
+- **Dotted Path Overlays**: Visual path indicators on minimap and world map:
+  - **Minimap Path**: Shows dotted line from player to waypoint (8 blue dots)
+  - **World Map Path**: Shows dotted line from player to waypoint (12 blue dots)
+  - **pfQuest Integration**: Automatically hides pfQuest nodes when paths are enabled to prevent clutter
+  - Both paths can be toggled independently in Settings > Display
 - **Interactive Navigation Icons**: Navigation frame displays context-specific clickable icons:
   - **Hearthstone Icon**: Click to use hearthstone on hearthstone steps, auto-completes after cast
   - **Trainer Icon**: Shows trainer icon for train steps
@@ -104,9 +109,12 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Color-coded Steps**: Visual distinction between step types and states
 - **Quest Tags**: Colored markers for accept and turnin steps
 - **Close Button**: Hide the guide window by clicking the close button - shows a chat message with `/glv show` command to reopen
-- **Display Settings**: Customizable UI scaling available in Settings > Display:
+- **Display Settings**: Customizable UI scaling and display options available in Settings > Display:
   - **Guide Text Scale** (0.8-1.5): Adjust the size of guide step text
   - **Navigation Scale** (0.8-1.5): Adjust the size of the navigation arrow frame
+  - **Minimap Path**: Toggle dotted path overlay on minimap toward waypoint
+  - **World Map Path**: Toggle dotted path overlay on world map toward waypoint
+  - **Guide Window Layer**: Dropdown to control guide window stacking order (BACKGROUND, LOW, MEDIUM, HIGH, DIALOG) for compatibility with other addons
   - **Manual Reload**: Changes to display settings now require manual UI reload confirmation instead of automatic reload
 
 ## Installation
