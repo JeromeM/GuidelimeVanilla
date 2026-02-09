@@ -310,7 +310,7 @@ GLV_EndSliderInit()                    -- End slider init (re-enables change det
 The addon includes an intelligent talent suggestion system that helps players optimize their leveling builds:
 
 **Features:**
-- **Level-up Toast Notifications**: Shows non-intrusive fade-in/fade-out popup when gaining a talent point (4s default, 6s for respec messages)
+- **Level-up Toast Notifications**: Shows persistent fade-in popup when gaining a talent point - stays visible until clicked or talent is spent
 - **Talent Frame Highlighting**: Adds green glow around suggested talent in the talent frame (works with both TalentFrame and TWTalentFrame)
 - **Class-specific Templates**: Pre-configured talent builds from Icy Veins for all 9 classes
 - **Template Registration API**: Custom templates can be added via addon API
@@ -401,9 +401,10 @@ local talents = GLV:GetTemplateTalents(template, class)
 ```
 
 **Key Methods:**
-- `TalentTracker:Init()` - Initialize talent tracking system, hook into PLAYER_LEVEL_UP
-- `TalentTracker:ShowToast(talentName, talentIcon, treeIndex, customMessage)` - Display toast with fade animation (4s default, 6s for custom messages)
-- `TalentTracker:HideToast()` - Hide and reset toast frame
+- `TalentTracker:Init()` - Initialize talent tracking system, hook into PLAYER_LEVEL_UP and CHARACTER_POINTS_CHANGED
+- `TalentTracker:ShowToast(talentName, talentIcon, treeIndex, customMessage)` - Display toast with fade-in animation (stays visible until dismissed)
+- `TalentTracker:DismissToast()` - Trigger fadeout animation on toast (called when clicked or talent spent)
+- `TalentTracker:HideToast()` - Hide and reset toast frame immediately
 - `TalentTracker:UpdateTalentHighlights()` - Highlight suggested talent in talent frame (uses GetTemplateTalents for correct phase)
 - `TalentTracker:ClearTalentHighlight()` - Remove highlight overlay
 - `TalentTracker:GetSuggestedTalent(level)` - Get talent suggestion for a level
@@ -419,7 +420,9 @@ local talents = GLV:GetTemplateTalents(template, class)
 - `/glvtalent info` - Show current template, suggestions, and respec phase (if applicable)
 
 **UI Frames:**
-- `GLV_TalentToast` - Toast notification frame with fade animation (movable, draggable)
+- `GLV_TalentToast` - Toast notification frame with fade animation (movable, draggable, clickable)
+  - Stays visible until clicked or talent point spent (no auto-hide timer)
+  - `enableMouse=true` with `OnMouseUp` handler to dismiss on click
   - Contains `GLV_TalentToastIcon` for talent icon display
   - Contains `GLV_TalentToastText` for talent suggestion text
   - Contains `GLV_TalentToastMessage` for custom respec messages (hidden by default, gold text)
