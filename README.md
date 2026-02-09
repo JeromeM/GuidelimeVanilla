@@ -73,6 +73,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
   - **Next Guide Button**: Clickable button on final step to load next guide
   - **XP Progress Display**: When on an XP requirement step, replaces the arrow with a purple progress bar showing real-time XP values (current/target). Bar turns green when requirement is met.
 - **Movable Frame**: Hold Shift + drag to reposition the arrow
+- **Death/Corpse Navigation**: When you die, the navigation arrow automatically switches to guide you to your corpse location with a ghostly blue tint. Corpse position persists across disconnects. Normal guide navigation automatically restores when you resurrect.
 
 ### 🎯 Quest Tracking
 - **Automatic Progress**: Checks off steps when quests are accepted, completed, or turned in
@@ -86,14 +87,14 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
   - **Auto Take Flights**: Automatically takes flights when on a flight path step
 - **Flight Path Tracking**: Automatically detects discovered flight paths and flight destinations
 - **Hearthstone Tracking**: Click the hearthstone icon in navigation frame on hearthstone steps to use hearthstone, step auto-completes after cast. Binding location matching now checks inn name, subzone, and zone for improved accuracy
-- **Spell Learning Tracking**: Automatically completes learn spell steps when you train skills or spells (uses Nampower API for profession tier verification)
+- **Spell Learning Tracking**: Automatically completes learn spell steps when you train skills, spells, or weapon proficiencies. Detects profession tiers, regular spells, and weapon skills (uses Nampower API for spell data)
 - **Item Collection Tracking**: Automatically completes collect item steps when you acquire the required items in your bags
 - **Equipment Tracking**: Automatically completes equip item steps when you equip the specified items
 - **Quest Abandonment Handling**: Properly updates state when quests are abandoned
 - **XP Progress Tracking**: XP requirement steps show real-time progress. Active XP steps display a purple progress bar in the navigation frame (where the arrow normally appears) with live XP values. Ongoing (pinned) XP steps show inline progress text in the guide window.
 
 ### 🌟 Talent Suggestion System
-- **Level-up Toast Notifications**: When you gain a level and have an unspent talent point, a notification appears at the top of your screen showing which talent to choose
+- **Level-up Toast Notifications**: When you gain a level and have an unspent talent point, a persistent notification appears at the top of your screen showing which talent to choose. The notification stays visible until you click it or spend the talent point.
 - **Talent Frame Highlighting**: Open your talent frame to see the recommended talent highlighted with a green border
 - **Customizable Templates**: Choose from different talent builds for your class in Settings > Talents
 - **Template Selection**: Enable or disable talent suggestions and select your preferred build (leveling, endgame, etc.)
@@ -123,6 +124,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
   - **Navigation Scale** (0.8-1.5): Adjust the size of the navigation arrow frame
   - **Minimap Path**: Toggle dotted path overlay on minimap toward waypoint
   - **World Map Path**: Toggle dotted path overlay on world map toward waypoint
+  - **Show Minimap Button**: Toggle visibility of the minimap button
   - **Guide Window Layer**: Dropdown to control guide window stacking order (BACKGROUND, LOW, MEDIUM, HIGH, DIALOG) for compatibility with other addons
   - **Manual Reload**: Changes to display settings now require manual UI reload confirmation instead of automatic reload
 
