@@ -104,6 +104,13 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Respec Support**: Talent templates can define a respec transition point to switch builds mid-leveling (for developers creating custom templates)
 
 ### 🎨 User Interface
+- **Minimap Button**: Convenient minimap button for quick access:
+  - **Left-Click**: Toggle guide window visibility
+  - **Right-Click**: Open settings window
+  - **Ctrl+Right-Click and Drag**: Move the button around the minimap edge
+  - **Tooltip**: Shows available controls on mouseover
+  - **Position Persistence**: Button position is saved and restored across sessions
+- **Guide Window Persistence**: Guide window visibility state (shown/hidden) persists across /reload
 - **Compact Modern Design**: Settings UI features a sleek dark theme (600x450) with card-based sections and blue/violet accent colors
 - **Active Tab Highlighting**: Visual indicator in left menu shows the currently selected settings page
 - **Reload Confirmation Dialog**: When closing settings after changing display options, a dialog prompts to reload the UI for changes to take effect

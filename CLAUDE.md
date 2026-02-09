@@ -42,6 +42,15 @@ The addon registers `/glv` and `/guidelime` commands with the following subcomma
 - When closed, displays: "|cFF6B8BD4[GuideLime]|r Guide window hidden. Type |cFFFFFF00/glv show|r to display it again."
 - Functions used: `GLV_HideGuideFrame()`, `GLV_ShowGuideFrame()`, `GLV_ToggleSettings()`
 
+**Minimap Button:**
+- Lua-created minimap button following pfQuest pattern
+- **Left-click**: Toggle guide window visibility
+- **Right-click**: Open settings window
+- **Ctrl+Right-click**: Drag to reposition around minimap edge
+- Tooltip on hover shows available controls
+- Position angle saved in `{"UI", "MinimapButtonAngle"}` and restored on addon load
+- Frame name: `GLV_MinimapButton`
+
 ## Architecture
 
 ### Core Module System
@@ -105,6 +114,8 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 - `{"UI", "MinimapPath"}` - Show dotted path on minimap from player to waypoint (default true)
 - `{"UI", "WorldMapPath"}` - Show dotted path on world map from player to waypoint (default true)
 - `{"UI", "FrameStrata"}` - Frame strata layer for main guide window (BACKGROUND, LOW, MEDIUM, HIGH, DIALOG; default DIALOG)
+- `{"UI", "GuideHidden"}` - Guide window visibility state (boolean, persists across /reload)
+- `{"UI", "MinimapButtonAngle"}` - Minimap button position angle in degrees (default 45, saved when button is repositioned)
 
 **Talent Settings** (Settings > Talents):
 - `{"Talents", "Enabled"}` - Enable talent suggestions (default true)
@@ -278,6 +289,48 @@ World map dots:
 - Both default to enabled (true) on first load
 - Handler functions: `GLV_OnMinimapPathCheckboxClick()`, `GLV_OnWorldMapPathCheckboxClick()`
 - Init functions: `GLV_InitMinimapPathCheckbox()`, `GLV_InitWorldMapPathCheckbox()`
+
+### Minimap Button System
+
+The addon provides a minimap button for quick access to guide window and settings:
+
+**Features:**
+- Lua-created frame (no XML definition) following pfQuest pattern
+- **Left-click**: Toggle guide window visibility (calls `GLV_HideGuideFrame()` / `GLV_ShowGuideFrame()`)
+- **Right-click**: Open settings window (calls `GLV_ToggleSettings()`)
+- **Ctrl+Right-click**: Enter drag mode to reposition around minimap edge
+- Tooltip displays available controls on hover
+
+**Implementation Details:**
+- **Frame Name**: `GLV_MinimapButton`
+- **Size**: 31x31 pixels
+- **Icon**: `Interface\\Icons\\INV_Misc_Book_09` (book icon with TexCoord 0.05-0.95 for clean edges)
+- **Border Overlay**: `Interface\\Minimap\\MiniMap-TrackingBorder` (53x53 pixels)
+- **Frame Level**: 9 (appears above default minimap elements)
+- **Highlight Texture**: `Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight`
+- **Radius**: 80 pixels from minimap center
+
+**Drag-to-Reposition:**
+- Ctrl+Right-click starts drag mode
+- OnUpdate handler tracks cursor position and calculates angle from minimap center
+- OnMouseUp saves final position angle to `{"UI", "MinimapButtonAngle"}` setting
+- Click event consumed after drag to prevent accidental settings window open
+- Position restored on ADDON_LOADED event via `GLV_MinimapButton_UpdatePosition(angle)`
+
+**Visibility State Persistence:**
+- `GLV_ShowGuideFrame()` and `GLV_HideGuideFrame()` both save state to `{"UI", "GuideHidden"}`
+- State restored in `Core.lua` OnEnable: if `guideHidden` is true, `GLV_Main:Hide()` is called
+- Ensures guide window visibility persists across `/reload` and logout/login
+
+**Key Functions:**
+- `GLV_MinimapButton_UpdatePosition(angle)` - Position button at given angle (degrees) around minimap edge
+- `GLV_MinimapButton_OnClick(button)` - Handle left/right click events (ignores click after drag)
+- `GLV_MinimapButton_StartDrag()` - Enter drag mode with OnUpdate tracking loop
+- `GLV_MinimapButton_OnMouseUp()` - End drag, save angle to settings, mark dragging flag
+
+**Constants:**
+- `MINIMAP_BUTTON_RADIUS = 80` - Distance from minimap center
+- `minimapButtonDragging` - Flag to prevent click event after drag ends
 
 ### Settings UI Architecture
 
@@ -543,7 +596,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 
 ## Key Files
 
-- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`), MinimapPath initialization (scheduled 2.5s after load), frame strata application on load
+- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`), MinimapPath initialization (scheduled 2.5s after load), frame strata application on load, guide window visibility restoration from `{"UI", "GuideHidden"}` setting
 - `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching, XP progress display for ongoing steps only (active step XP shown in navigation frame)
@@ -555,7 +608,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
 - `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights), skips auto-completing steps with both FLY_TO lines and quest tags (QA/QC/QT) to let QuestTracker handle final completion
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog, minimap/world map path checkbox handlers, frame strata dropdown initialization and application
+- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()` (both save visibility state to settings), `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog, minimap/world map path checkbox handlers, frame strata dropdown initialization and application, minimap button functions (`GLV_MinimapButton_UpdatePosition()`, `GLV_MinimapButton_OnClick()`, `GLV_MinimapButton_StartDrag()`, `GLV_MinimapButton_OnMouseUp()` for drag-to-reposition)
 - `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
 - `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
 - `Frames/SettingsFrame.xml` - Settings UI with compact modern dark theme (600x450, dark tooltip backdrop, card-based sections, 11px fonts, blue/violet accent, active tab highlight), Navigation Path card with minimap/world map path toggles, Frame Strata card with layer dropdown

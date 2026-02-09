@@ -702,7 +702,7 @@
                             <!-- Navigation Path Card -->
                             <Frame name="$parentMinimapCard">
                                 <Size>
-                                    <AbsDimension x="430" y="95"/>
+                                    <AbsDimension x="430" y="115"/>
                                 </Size>
                                 <Anchors>
                                     <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageScalesCard" RelativePoint="BOTTOMLEFT">
@@ -774,6 +774,27 @@
                                             </OnShow>
                                             <OnClick>
                                                 GLV_OnWorldMapPathCheckboxClick(this);
+                                            </OnClick>
+                                        </Scripts>
+                                    </CheckButton>
+
+                                    <!-- Show Minimap Button Checkbox -->
+                                    <CheckButton name="GLV_SettingsDisplayPageMinimapButton" inherits="OptionsCheckButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageWorldMapPath" RelativePoint="BOTTOMLEFT">
+                                                <Offset x="0" y="-2"/>
+                                            </Anchor>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                getglobal(this:GetName().."Text"):SetText("Show Minimap Button");
+                                                GLV_InitCheckboxFont(this);
+                                            </OnLoad>
+                                            <OnShow>
+                                                GLV_InitMinimapButtonCheckbox(this);
+                                            </OnShow>
+                                            <OnClick>
+                                                GLV_OnMinimapButtonCheckboxClick(this);
                                             </OnClick>
                                         </Scripts>
                                     </CheckButton>

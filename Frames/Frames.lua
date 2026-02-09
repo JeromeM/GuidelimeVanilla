@@ -801,6 +801,27 @@ function GLV_TalentToast_RestorePosition()
     end
 end
 
+-- Initialize minimap button visibility checkbox from settings
+function GLV_InitMinimapButtonCheckbox(checkbox)
+    local value = GLV.Settings:GetOption({"UI", "MinimapButton"})
+    if value == nil then value = true end
+    checkbox:SetChecked(value)
+end
+
+-- Handle minimap button visibility checkbox click
+function GLV_OnMinimapButtonCheckboxClick(checkbox)
+    local checked = checkbox:GetChecked()
+    local isChecked = (checked == 1 or checked == true)
+    GLV.Settings:SetOption(isChecked, {"UI", "MinimapButton"})
+    if GLV_MinimapButton then
+        if isChecked then
+            GLV_MinimapButton:Show()
+        else
+            GLV_MinimapButton:Hide()
+        end
+    end
+end
+
 -- ============================================================================
 -- MINIMAP BUTTON FUNCTIONS
 -- ============================================================================
@@ -864,13 +885,18 @@ do
         GameTooltip:Hide()
     end)
 
-    -- Restore saved position on ADDON_LOADED
+    -- Restore saved position and visibility on ADDON_LOADED
     btn:RegisterEvent("ADDON_LOADED")
     btn:SetScript("OnEvent", function()
         if event == "ADDON_LOADED" and arg1 == "GuidelimeVanilla" then
             local angle = 45
             if GLV and GLV.Settings then
                 angle = GLV.Settings:GetOption({"UI", "MinimapButtonAngle"}) or 45
+                -- Restore visibility setting (default: shown)
+                local showButton = GLV.Settings:GetOption({"UI", "MinimapButton"})
+                if showButton == false then
+                    GLV_MinimapButton:Hide()
+                end
             end
             GLV_MinimapButton_UpdatePosition(angle)
             GLV_MinimapButton:UnregisterEvent("ADDON_LOADED")
