@@ -117,6 +117,9 @@ GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
 - `{"UI", "GuideHidden"}` - Guide window visibility state (boolean, persists across /reload)
 - `{"UI", "MinimapButtonAngle"}` - Minimap button position angle in degrees (default 45, saved when button is repositioned)
 
+**Navigation Settings** (internal, not exposed in UI):
+- `{"Navigation", "CorpsePosition"}` - Corpse position array {c, z, x, y} persisted when player dies (cleared on resurrection, survives disconnect while dead)
+
 **Talent Settings** (Settings > Talents):
 - `{"Talents", "Enabled"}` - Enable talent suggestions (default true)
 - `{"Talents", "ShowToast"}` - Show toast notification on level-up (default true)
@@ -150,6 +153,7 @@ Spell data is retrieved via Nampower API instead of a local database:
 The navigation frame displays different modes based on current step:
 - **Arrow Mode** (default): Shows directional arrow to waypoint with distance/objective
 - **Multi-waypoint Mode**: Automatically advances to next waypoint when reaching current destination (within 5 yards)
+- **Death/Corpse Navigation Mode**: Automatically activates on death, shows ghostly blue-tinted arrow pointing to corpse with "Your dead body" objective, restores previous navigation state on resurrection
 - **XP Progress Mode**: Shows purple StatusBar with real-time XP progress for `[XP]` steps (replaces arrow, turns green when requirement met)
 - **Equip Item Mode**: Shows item icon with "Equip" instruction when step contains equip action
 - **Hearthstone Mode**: Shows hearthstone icon for `[H]` steps with click-to-use functionality and auto-complete after cast
@@ -200,6 +204,17 @@ The navigation frame displays different modes based on current step:
 - Tracks `currentUseItemId` from step lines for fallback display
 - Progress refresh timer: `useItemProgressTimer` (resets every 1.0s)
 
+**Death/Corpse Navigation:**
+- Automatically activates when player dies (PLAYER_DEAD event)
+- Captures corpse position at moment of death and persists to settings (survives disconnect while dead)
+- Arrow points to corpse location with ghostly blue tint (0.7, 0.7, 0.9, 0.8)
+- Displays "Your dead body" as objective with blue text color
+- Saves complete navigation state before death (waypoints, quest actions, XP requirements, special modes)
+- On resurrection (PLAYER_ALIVE or PLAYER_UNGHOST events), restores previous navigation state exactly
+- Handles disconnect-while-dead scenario: checks `UnitIsGhost("player")` on addon load and restores corpse navigation from persisted position
+- Guard in `UpdateWaypointForStep()` prevents guide step changes from overriding corpse navigation
+- Navigation state restoration includes: current waypoint, waypoint sequences, quest tracking, XP progress, special modes (equip/hearthstone/use item)
+
 **UI Elements:**
 - `navigationFrame.xpBar` - StatusBar (purple: 0.58, 0.0, 0.82 / green: 0.0, 0.8, 0.0 when done)
 - `navigationFrame.xpBarText` - FontString overlay showing XP progress text
@@ -224,10 +239,15 @@ Key methods:
 - `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
 - `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data first, falls back to quest log name matching)
 - `GuideNavigation:IsArrowNavigationActive()` - Returns whether arrow navigation is currently active (used by MinimapPath)
+- `GuideNavigation:IsDeathNavigationActive()` - Returns whether death navigation is currently active (public accessor for external queries)
 - `GuideNavigation:GetCurrentWaypoint()` - Returns current waypoint data for debugging and path rendering
-- `GuideNavigation:UpdateWaypointForStep(stepData)` - Extract waypoints and use item ID from step, falls back to ShowUseItem() when no coordinates found but [UI] tag present
-- `GuideNavigation:UpdateNavigation()` - Main update loop, handles zone mismatch with use item fallback, refreshes quest progress every 1s in no-waypoint mode
+- `GuideNavigation:UpdateWaypointForStep(stepData)` - Extract waypoints and use item ID from step, falls back to ShowUseItem() when no coordinates found but [UI] tag present, guards against overriding corpse navigation during death
+- `GuideNavigation:UpdateNavigation()` - Main update loop, handles zone mismatch with use item fallback, refreshes quest progress every 1s in no-waypoint mode, applies ghostly blue tint when death navigation is active
 - `GuideNavigation:RemoveCurrentWaypoint()` - Clear waypoints and hide all special modes (calls HideUseItem, HideEquipItem, HideHearthstone, HideXPProgress)
+- `GuideNavigation:ActivateCorpseNavigation()` - Common helper to activate corpse navigation mode (used by OnPlayerDead and Init reconnect detection)
+- `GuideNavigation:OnPlayerDead()` - Capture corpse position, persist to settings, save navigation state, activate corpse navigation
+- `GuideNavigation:OnPlayerAlive()` - Restore previous navigation state on resurrection, clear persisted corpse position, return arrow to normal color
+- `GuideNavigation:RegisterDeathEvents()` - Register PLAYER_DEAD, PLAYER_ALIVE, PLAYER_UNGHOST events
 
 ### Minimap & World Map Path System
 
@@ -600,7 +620,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
 - `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching, XP progress display for ongoing steps only (active step XP shown in navigation frame)
-- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling, XP progress StatusBar for [XP] steps, waypoint query methods for MinimapPath
+- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling, XP progress StatusBar for [XP] steps, waypoint query methods for MinimapPath, death/corpse navigation system (captures position on death, shows ghostly blue arrow to corpse, restores navigation state on resurrection, persists corpse position across disconnect)
 - `Core/MinimapPath.lua` - Minimap and world map dotted path rendering (8 minimap dots, 12 world map dots), pfQuest integration (auto-disable nodes when paths active), Astrolabe coordinate calculations, update loop (0.15s interval)
 - `Core/Events/Character.lua` - XP/level tracking, spell/skill learning detection (checks GetSkillLineInfo for weapon skills, listens to LEARNED_SPELL_IN_TAB and SKILL_LINES_CHANGED events), calls GuideNavigation:UpdateXPDisplay() on XP_UPDATE and PLAYER_LEVEL_UP events to refresh navigation XP bar
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
