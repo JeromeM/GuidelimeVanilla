@@ -19,6 +19,12 @@ function CharacterTracker:Init()
         GLV.Ace:RegisterEvent("PLAYER_LEVEL_UP", function() self:OnPlayerXPUpdate() end)
 
         GLV.Ace:RegisterEvent("LEARNED_SPELL_IN_TAB", function() self:OnSpellLearned() end)
+        GLV.Ace:RegisterEvent("SKILL_LINES_CHANGED", function()
+            -- Delayed check to catch weapon skill learning (not fired by LEARNED_SPELL_IN_TAB)
+            GLV.Ace:ScheduleEvent("GLV_SkillLineCheck", function()
+                self:OnSpellLearned()
+            end, 0.5)
+        end)
     end
 
     self.previousPlayerLevel = UnitLevel("player")
@@ -140,8 +146,18 @@ function CharacterTracker:OnSpellLearned()
                                         end
                                     end
                                 else
-                                    -- No known tier rank, just check if spell is in spellbook
-                                    if GetSpellIdForName then
+                                    -- No known tier rank - could be a weapon skill or other skill
+                                    -- Check skill lines first (weapon skills like Two-Handed Swords)
+                                    for i = 1, GetNumSkillLines() do
+                                        local name = GetSkillLineInfo(i)
+                                        if name == actualName then
+                                            spellFound = true
+                                            break
+                                        end
+                                    end
+
+                                    -- If not found in skills, check spellbook
+                                    if not spellFound and GetSpellIdForName then
                                         local foundId = GetSpellIdForName(actualName)
                                         spellFound = (foundId and foundId > 0)
                                     end
