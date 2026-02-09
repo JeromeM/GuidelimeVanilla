@@ -650,6 +650,38 @@ The addon includes automatic tracking for hearthstone-related steps using `[H]` 
 - Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone arrived at [destination]"
 - Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound to [location] (zone: [subzone]) - step completed!"
 
+## Flight Path Step Validation
+
+The addon includes automatic tracking for flight path steps using the `[F]` or `[P]` tags:
+
+**Behavior:**
+- `TaxiTracker:CheckAndCompleteFlyToSteps()` validates steps with FLY_TO lines after flight arrival
+- **Quest Tag Priority**: Steps that have both FLY_TO lines AND quest tags (QA/QC/QT) are NOT auto-completed by TaxiTracker
+- This prevents premature step completion when the quest action should be the final completion trigger
+- QuestTracker handles final completion for such steps after the quest action is performed
+
+**Event Handling:**
+- Listens to `TAXIMAP_OPENED`, `TAXIMAP_CLOSED` events to detect flight start/end
+- Hooks `TaxiNodeOnButtonEnter` to capture destination names
+- Uses Ace2 scheduler to delay validation slightly after landing
+
+**Key Methods:**
+- `TaxiTracker:Init()` - Initialize taxi tracking, register events, hook taxi map functions
+- `TaxiTracker:OnTaxiMapOpened()` - Detect flight map opening
+- `TaxiTracker:OnTaxiMapClosed()` - Detect takeoff and store destination
+- `TaxiTracker:CheckAndCompleteFlyToSteps(destinationName)` - Validate FLY_TO steps after arrival, skips steps with quest tags
+
+**Step Completion:**
+- Auto-completes steps with matching FLY_TO destination after flight arrival
+- Skips steps that also have `questTags` array with quest actions (QA/QC/QT)
+- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
+- Debug message: "TaxiTracker: FLY_TO matched but step has quest tags, skipping auto-complete for step N"
+
+**Important Notes:**
+- Flight path names must match destination names exactly (case-sensitive)
+- Steps with both flight and quest tags require quest completion for final step advancement
+- This ensures proper sequencing: "Fly to X and turn in quest Y" waits for quest turnin
+
 ## Guide Pack Architecture
 
 Guides are distributed as separate addons (guide packs) that depend on GuidelimeVanilla:
