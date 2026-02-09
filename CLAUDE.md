@@ -130,7 +130,7 @@ Quest/NPC/Item data from ShaguDB stored in `Assets/db/` folder:
 
 Spell data is retrieved via Nampower API instead of a local database:
 - `GetSpellRec(spellId)` - Returns full spell record with fields: `name`, `rank`, `spellIconID`, `manaCost`, `school`, `spellLevel`, etc.
-- `GetSpellNameAndRankForId(spellId)` - Returns spell name and rank string
+- `GetSpellNameAndRankForId(spellId)` - Returns spell name and rank as separate values (e.g., `"First Aid", "Apprentice"` — NOT `"Apprentice First Aid"`). Use `rank` field for profession tier detection.
 - `GLV:getSpellName(id)` - Wrapper that uses GetSpellRec to get spell name
 - `GLV:getSpellInfo(id)` - Returns table with name, rank, icon, manaCost, school, level
 
