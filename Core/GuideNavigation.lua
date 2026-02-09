@@ -397,6 +397,7 @@ end
 function GuideNavigation:RemoveCurrentWaypoint()
     self:ClearAllWaypoints()
     self:HideEquipItem()
+    self:HideUseItem()
     self:HideHearthstone()
     self:HideXPProgress()
 end
@@ -444,7 +445,27 @@ end
 
 -- Updates the navigation display
 function GuideNavigation:UpdateNavigation()
-    if not navigationFrame or not currentWaypoint or not isNavigationActive then
+    if not navigationFrame or not isNavigationActive then
+        return
+    end
+
+    -- Use item fallback mode (no waypoint) - periodically refresh quest progress
+    if not currentWaypoint then
+        if self.currentUseItemId and self.currentQuestId and GLV.QuestTracker then
+            self.useItemProgressTimer = (self.useItemProgressTimer or 0) + UPDATE_FREQUENCY
+            if self.useItemProgressTimer >= 1.0 then
+                self.useItemProgressTimer = 0
+                local objectives = GLV.QuestTracker:GetQuestProgress(self.currentQuestId)
+                if objectives and table.getn(objectives) > 0 then
+                    local progressLines = {}
+                    for _, obj in ipairs(objectives) do
+                        local color = obj.completed and "|cFF00FF00" or "|cFFFFFF00"
+                        table.insert(progressLines, color .. obj.text .. "|r")
+                    end
+                    navigationFrame.questProgress:SetText(table.concat(progressLines, "\n"))
+                end
+            end
+        end
         return
     end
     
@@ -462,15 +483,56 @@ function GuideNavigation:UpdateNavigation()
         end
     end
 
-    if not currentWaypoint.z or playerPos.z ~= currentWaypoint.z then
-        -- Hide navigation when in different zone
-        navigationFrame:Hide()
-        return
-    end
+    local isZoneMismatch = not currentWaypoint.z or playerPos.z ~= currentWaypoint.z
 
-    -- Show navigation when in correct zone
-    if not navigationFrame:IsVisible() then
-        navigationFrame:Show()
+    if isZoneMismatch then
+        if self.currentUseItemId then
+            -- Show use item icon as fallback when arrow not available (e.g., in tram/instance)
+            local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(self.currentUseItemId)
+            navigationFrame.itemIcon:SetTexture(itemTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
+            navigationFrame.arrow:Hide()
+            navigationFrame.itemButton:Show()
+
+            -- Set click handler for using the item
+            local useItemId = self.currentUseItemId
+            navigationFrame.itemButton:SetScript("OnClick", function()
+                for bag = 0, 4 do
+                    local numSlots = GetContainerNumSlots(bag)
+                    if numSlots then
+                        for slot = 1, numSlots do
+                            local link = GetContainerItemLink(bag, slot)
+                            if link and string.find(link, "item:" .. useItemId .. ":") then
+                                UseContainerItem(bag, slot)
+                                return
+                            end
+                        end
+                    end
+                end
+            end)
+            navigationFrame.itemButton:SetScript("OnEnter", function()
+                GameTooltip:SetOwner(this, "ANCHOR_BOTTOM")
+                GameTooltip:SetText("Click to use item")
+                GameTooltip:Show()
+            end)
+
+            if not navigationFrame:IsVisible() then
+                navigationFrame:Show()
+            end
+        else
+            -- No fallback available, hide navigation
+            navigationFrame:Hide()
+            return
+        end
+    else
+        -- Same zone - restore arrow if item button was shown as fallback
+        if navigationFrame.itemButton:IsShown() then
+            navigationFrame.itemButton:Hide()
+            navigationFrame.arrow:Show()
+        end
+
+        if not navigationFrame:IsVisible() then
+            navigationFrame:Show()
+        end
     end
     
     if currentWaypoint.description then
@@ -563,14 +625,20 @@ function GuideNavigation:UpdateNavigation()
         navigationFrame.questProgress:SetText("")
     end
 
+    -- Skip distance/arrow calculations when in different zone (fallback mode)
+    if isZoneMismatch then
+        navigationFrame.distance:SetText("")
+        return
+    end
+
     local distance, xDelta, yDelta = self:CalculateDistance(playerPos, currentWaypoint)
-    
+
     local distanceText = self:FormatDistance(distance)
     navigationFrame.distance:SetText("Distance: " .. distanceText)
-    
+
     local r, g, b = self:GetDistanceColor(distance)
     navigationFrame.arrow:SetVertexColor(r, g, b, 1)
-    
+
     if distance < WAYPOINT_REACH_DISTANCE then
         navigationFrame.distance:SetTextColor(0, 1, 0)
         navigationFrame.arrow:SetAlpha(0.5)
@@ -610,7 +678,7 @@ function GuideNavigation:UpdateNavigation()
         navigationFrame.distance:SetTextColor(0.8, 0.8, 0.8)
         navigationFrame.arrow:SetAlpha(1.0)
     end
-    
+
     if not currentWaypoint then return end
 
     local angle = self:CalculateAngle(currentWaypoint)
@@ -1262,6 +1330,78 @@ function GuideNavigation:HideEquipItem()
     navigationFrame.arrow:Show()
 end
 
+-- Shows use item icon when no navigation coordinates are available (e.g., tram/instance)
+function GuideNavigation:ShowUseItem(itemId, stepData)
+    if not navigationFrame then
+        self:CreateNavigationFrame()
+    end
+    if not navigationFrame then return end
+
+    -- Get item texture
+    local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(itemId)
+    if not itemTexture then
+        itemTexture = "Interface\\Icons\\INV_Misc_QuestionMark"
+    end
+
+    -- Setup icon and click handler
+    navigationFrame.itemIcon:SetTexture(itemTexture)
+    navigationFrame.itemButton:SetScript("OnClick", function()
+        for bag = 0, 4 do
+            local numSlots = GetContainerNumSlots(bag)
+            if numSlots then
+                for slot = 1, numSlots do
+                    local link = GetContainerItemLink(bag, slot)
+                    if link and string.find(link, "item:" .. itemId .. ":") then
+                        UseContainerItem(bag, slot)
+                        return
+                    end
+                end
+            end
+        end
+    end)
+
+    -- Show item button, hide arrow
+    navigationFrame.arrow:Hide()
+    navigationFrame.itemButton:Show()
+
+    -- Show quest info
+    local questId = self.currentQuestId
+    local questName = questId and GLV:GetQuestNameByID(questId) or ""
+    navigationFrame.questName:SetText(questName)
+    navigationFrame.questName:SetTextColor(1, 0.8, 0)
+    navigationFrame.objective:SetText("Use item")
+
+    -- Show quest progress
+    if questId and GLV.QuestTracker then
+        local objectives, allComplete = GLV.QuestTracker:GetQuestProgress(questId)
+        if objectives and table.getn(objectives) > 0 then
+            local progressLines = {}
+            for _, obj in ipairs(objectives) do
+                local color = obj.completed and "|cFF00FF00" or "|cFFFFFF00"
+                table.insert(progressLines, color .. obj.text .. "|r")
+            end
+            navigationFrame.questProgress:SetText(table.concat(progressLines, "\n"))
+        else
+            navigationFrame.questProgress:SetText("")
+        end
+    else
+        navigationFrame.questProgress:SetText("")
+    end
+
+    navigationFrame.distance:SetText("Click to use")
+    navigationFrame:Show()
+
+    isNavigationActive = true  -- Keep OnUpdate running for progress updates
+    self.useItemProgressTimer = 0
+end
+
+-- Hides use item icon and restores arrow mode
+function GuideNavigation:HideUseItem()
+    if not navigationFrame then return end
+    navigationFrame.itemButton:Hide()
+    navigationFrame.arrow:Show()
+end
+
 -- Shows the next guide button for the last step
 function GuideNavigation:ShowNextGuide(nextGuideName)
     if not navigationFrame then
@@ -1528,6 +1668,17 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     currentWaypointIndex = 1
     currentStepData = stepData
 
+    -- Extract use item ID for fallback display when arrow not available
+    self.currentUseItemId = nil
+    if stepData and stepData.lines then
+        for _, line in ipairs(stepData.lines) do
+            if line.useItemId then
+                self.currentUseItemId = line.useItemId
+                break
+            end
+        end
+    end
+
     -- Check for XP step
     if stepData and stepData.lines then
         for _, line in ipairs(stepData.lines) do
@@ -1686,6 +1837,9 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     if targetCoords then
         local description = self:GetStepDescription(stepData, targetCoords, currentAction)
         self:AddWaypoint(targetCoords, description)
+    elseif self.currentUseItemId then
+        -- No coordinates found but step has a use item - show item icon as fallback
+        self:ShowUseItem(self.currentUseItemId, stepData)
     end
 end
 
