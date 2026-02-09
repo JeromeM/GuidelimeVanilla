@@ -341,11 +341,8 @@ function TalentTracker:UpdateToastAnimation(elapsed)
         toast:SetAlpha(state.alpha)
 
     elseif state.phase == "visible" then
-        local visibleTime = self.toastVisibleOverride or TOAST_VISIBLE_TIME
-        if state.elapsed >= visibleTime then
-            state.phase = "fadeout"
-            state.elapsed = 0
-        end
+        -- Toast stays visible until dismissed by click or talent spent
+        return
 
     elseif state.phase == "fadeout" then
         state.alpha = 1 - (state.elapsed / TOAST_FADE_OUT_TIME)
@@ -366,6 +363,15 @@ function TalentTracker:HideTalentToast()
         toast:Hide()
         toast:SetScript("OnUpdate", nil)
         self.toastState.phase = "none"
+    end
+end
+
+-- Dismiss toast with fade out (triggered by click or talent spent)
+function TalentTracker:DismissToast()
+    local state = self.toastState
+    if state.phase == "visible" or state.phase == "fadein" then
+        state.phase = "fadeout"
+        state.elapsed = 0
     end
 end
 
@@ -473,7 +479,10 @@ function TalentTracker:HookTalentFrame()
     if GLV.Ace and not self.characterPointsHooked then
         self.characterPointsHooked = true
         GLV.Ace:RegisterEvent("CHARACTER_POINTS_CHANGED", function()
-            -- Only update if a talent frame is visible
+            -- Hide toast when talent point is spent
+            TalentTracker:DismissToast()
+
+            -- Only update highlights if a talent frame is visible
             local visibleFrame = self:GetVisibleTalentFrame()
             if visibleFrame then
                 GLV.Ace:ScheduleEvent("GLV_UpdateHighlightsOnPointSpent", function()
