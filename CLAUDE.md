@@ -461,6 +461,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 | `[A class]` | Class-specific step (prepends "Class :" at line start) | `[A Mage] [QA3104]` |
 | `[XP level]` | XP requirement (auto-generates text if none provided) | `[XP4-290]` or `[XP3]` or `[XP3.5]` |
 | `[T]` | Train at trainer (shows trainer icon) | `[T] Learn skills` |
+| `[LE id,Spell Name]` or `[LE Spell Name]` | Learn spell/skill (auto-completes when learned, checks skill lines for weapon skills) | `[LE 1180,Two-Handed Swords]` |
 | `[CI id,count]` | Collect item (auto-completes when items in bags) | `[CI1179,10]` |
 | `[OC]` | Optional, completes with next | `[OC]Grind north` |
 | `[NX x-y Name]` | Link to next guide (shows clickable button on last step) | `[NX 11-13 Westfall]` |
@@ -514,7 +515,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching, XP progress display for ongoing steps only (active step XP shown in navigation frame)
 - `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling, XP progress StatusBar for [XP] steps, waypoint query methods for MinimapPath
 - `Core/MinimapPath.lua` - Minimap and world map dotted path rendering (8 minimap dots, 12 world map dots), pfQuest integration (auto-disable nodes when paths active), Astrolabe coordinate calculations, update loop (0.15s interval)
-- `Core/Events/Character.lua` - XP/level tracking, calls GuideNavigation:UpdateXPDisplay() on XP_UPDATE and PLAYER_LEVEL_UP events to refresh navigation XP bar
+- `Core/Events/Character.lua` - XP/level tracking, spell/skill learning detection (checks GetSkillLineInfo for weapon skills, listens to LEARNED_SPELL_IN_TAB and SKILL_LINES_CHANGED events), calls GuideNavigation:UpdateXPDisplay() on XP_UPDATE and PLAYER_LEVEL_UP events to refresh navigation XP bar
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Items.lua` - Item collection tracking, BAG_UPDATE event handling, current-step-only validation for [CI] tags, auto-completion when item count requirements met
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
@@ -649,6 +650,35 @@ The addon includes automatic tracking for hearthstone-related steps using `[H]` 
 - Uses `CurrentDisplayToOriginal` mapping to track step state correctly
 - Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone arrived at [destination]"
 - Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound to [location] (zone: [subzone]) - step completed!"
+
+## Spell/Skill Learning Detection
+
+The addon includes automatic tracking for spell/skill learning steps using the `[LE]` tag:
+
+**Behavior:**
+- `CharacterTracker:OnSpellLearned()` validates spell/skill learning for steps with `learnSpells` data
+- Supports profession tier detection (Apprentice, Journeyman, Expert, Artisan, Master ranks)
+- Checks `GetSkillLineInfo()` for weapon skills (e.g., "Two-Handed Swords") that appear in Skills panel
+- Falls back to spellbook lookup via `GetSpellIdForName()` if not found in skill lines
+
+**Event Handling:**
+- Listens to `LEARNED_SPELL_IN_TAB` event for standard spell learning
+- Listens to `SKILL_LINES_CHANGED` event as fallback for weapon skill learning (0.5s delay)
+- Initial check scheduled 3s after addon load to ensure guide is fully loaded
+
+**Detection Strategy:**
+1. **Profession Tiers**: Match tier rank (Apprentice/Journeyman/Expert/Artisan/Master) and check if skill max rank meets requirement
+2. **Weapon Skills**: Check skill lines first for skills like "Two-Handed Swords" that don't appear in spellbook
+3. **Regular Spells**: Fall back to spellbook lookup if not found in skill lines
+
+**Key Methods:**
+- `CharacterTracker:Init()` - Initialize character tracking, register LEARNED_SPELL_IN_TAB and SKILL_LINES_CHANGED events
+- `CharacterTracker:OnSpellLearned()` - Validate all uncompleted LEARN steps and auto-complete when requirements met
+
+**Step Completion:**
+- Checks all `learnSpells` entries in uncompleted steps
+- Only completes step when ALL learn spell requirements are met
+- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
 
 ## Flight Path Step Validation
 
