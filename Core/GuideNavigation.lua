@@ -1680,6 +1680,11 @@ function GuideNavigation:ActivateCorpseNavigation()
     self:HideHearthstone()
     self:HideXPProgress()
 
+    -- Clear quest tracking so objectives don't display during death
+    self.currentQuestId = nil
+    self.currentActionType = nil
+    self.currentObjectiveIndex = nil
+
     -- Set waypoint directly using saved corpse position (already in Astrolabe format)
     currentWaypoint = {
         c = corpsePosition[1],
@@ -2063,13 +2068,12 @@ function GuideNavigation:Init()
     self:RegisterDeathEvents()
 end
 
--- Register PLAYER_DEAD, PLAYER_ALIVE, PLAYER_UNGHOST events
+-- Register PLAYER_DEAD and PLAYER_UNGHOST events
+-- Note: PLAYER_ALIVE fires when releasing spirit (dead -> ghost), NOT on resurrection
+-- Only PLAYER_UNGHOST fires on actual resurrection (ghost -> alive)
 function GuideNavigation:RegisterDeathEvents()
     GLV.Ace:RegisterEvent("PLAYER_DEAD", function()
         GuideNavigation:OnPlayerDead()
-    end)
-    GLV.Ace:RegisterEvent("PLAYER_ALIVE", function()
-        GuideNavigation:OnPlayerAlive()
     end)
     GLV.Ace:RegisterEvent("PLAYER_UNGHOST", function()
         GuideNavigation:OnPlayerAlive()
