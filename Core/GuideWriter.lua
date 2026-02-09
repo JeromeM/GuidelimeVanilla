@@ -996,11 +996,6 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
             local scaledLineHeight = getScaledFontLineHeight()
             local usedHeight = (lineCount * scaledLineHeight)
 
-            -- Reserve extra height for XP progress (only for ongoing steps, active step shows in navigation)
-            if line.experienceRequirement and idx ~= activeStep then
-                usedHeight = usedHeight + (scaledLineHeight * 2)
-            end
-
             textFrame:SetHeight(usedHeight)
 
             -- Track [XP] steps for progress display (only for ongoing steps)

@@ -203,6 +203,15 @@ function TaxiTracker:CheckAndCompleteFlyToSteps(destinationName)
                         local originalIndex = GLV.CurrentDisplayToOriginal[displayIndex]
 
                         if originalIndex and not stepState[originalIndex] then
+                            -- Don't auto-complete if step also has quest tags (QA/QC/QT)
+                            -- The quest tracker will handle final completion
+                            if stepData.questTags and table.getn(stepData.questTags) > 0 then
+                                if GLV.Debug then
+                                    GLV.Ace:Print("TaxiTracker", "FLY_TO matched but step has quest tags, skipping auto-complete for step " .. displayIndex)
+                                end
+                                break
+                            end
+
                             stepState[originalIndex] = true
                             GLV.Settings:SetOption(stepState, {"Guide","Guides", currentGuideId, "StepState"})
 
