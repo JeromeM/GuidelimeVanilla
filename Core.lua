@@ -120,6 +120,12 @@ function addon:OnEnable()
         GLV_ApplyFrameStrata(strata)
     end
 
+    -- Restore guide window visibility
+    local guideHidden = Settings:GetOption({"UI", "GuideHidden"})
+    if guideHidden and GLV_Main then
+        GLV_Main:Hide()
+    end
+
     -- Initialize Guide Navigation integration AFTER the guide is loaded
     self:ScheduleEvent(function()
         if GLV.GuideNavigation then

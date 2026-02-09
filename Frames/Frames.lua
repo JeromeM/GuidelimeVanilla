@@ -74,6 +74,9 @@ end
 function GLV_HideGuideFrame()
     if GLV_Main then
         GLV_Main:Hide()
+        if GLV and GLV.Settings then
+            GLV.Settings:SetOption(true, {"UI", "GuideHidden"})
+        end
         DEFAULT_CHAT_FRAME:AddMessage("|cFF6B8BD4[GuideLime]|r Guide window hidden. Type |cFFFFFF00/glv show|r to display it again.")
     end
 end
@@ -82,6 +85,9 @@ end
 function GLV_ShowGuideFrame()
     if GLV_Main then
         GLV_Main:Show()
+        if GLV and GLV.Settings then
+            GLV.Settings:SetOption(false, {"UI", "GuideHidden"})
+        end
     end
 end
 
@@ -793,4 +799,147 @@ function GLV_TalentToast_RestorePosition()
         toast:ClearAllPoints()
         toast:SetPoint("CENTER", UIParent, "CENTER", posX, posY)
     end
+end
+
+-- ============================================================================
+-- MINIMAP BUTTON FUNCTIONS
+-- ============================================================================
+
+local minimapButtonDragging = false
+local MINIMAP_BUTTON_RADIUS = 80
+
+-- Create the minimap button entirely in Lua (following pfQuest pattern)
+do
+    local btn = CreateFrame("Button", "GLV_MinimapButton", Minimap)
+    btn:SetClampedToScreen(true)
+    btn:SetMovable(true)
+    btn:EnableMouse(true)
+    btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    btn:SetWidth(31)
+    btn:SetHeight(31)
+    btn:SetFrameLevel(9)
+    btn:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    btn:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 0, 0)
+
+    -- Icon texture
+    btn.icon = btn:CreateTexture(nil, "BACKGROUND")
+    btn.icon:SetWidth(20)
+    btn.icon:SetHeight(20)
+    btn.icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
+    btn.icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
+    btn.icon:SetPoint("CENTER", 1, 1)
+
+    -- Border overlay
+    btn.overlay = btn:CreateTexture(nil, "OVERLAY")
+    btn.overlay:SetWidth(53)
+    btn.overlay:SetHeight(53)
+    btn.overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    btn.overlay:SetPoint("TOPLEFT", 0, 0)
+
+    -- Scripts
+    btn:SetScript("OnMouseDown", function()
+        if IsControlKeyDown() and arg1 == "RightButton" then
+            GLV_MinimapButton_StartDrag()
+        end
+    end)
+
+    btn:SetScript("OnMouseUp", function()
+        GLV_MinimapButton_OnMouseUp()
+    end)
+
+    btn:SetScript("OnClick", function()
+        GLV_MinimapButton_OnClick(arg1)
+    end)
+
+    btn:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(GLV_MinimapButton, "ANCHOR_LEFT")
+        GameTooltip:AddLine("GuideLime Vanilla", 0.42, 0.55, 0.83)
+        GameTooltip:AddLine("|cFFFFFFFFLeft-Click:|r Toggle guide window", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("|cFFFFFFFFRight-Click:|r Open settings", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("|cFFFFFFFFCtrl+Right-Click:|r Move button", 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+    end)
+
+    btn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    -- Restore saved position on ADDON_LOADED
+    btn:RegisterEvent("ADDON_LOADED")
+    btn:SetScript("OnEvent", function()
+        if event == "ADDON_LOADED" and arg1 == "GuidelimeVanilla" then
+            local angle = 45
+            if GLV and GLV.Settings then
+                angle = GLV.Settings:GetOption({"UI", "MinimapButtonAngle"}) or 45
+            end
+            GLV_MinimapButton_UpdatePosition(angle)
+            GLV_MinimapButton:UnregisterEvent("ADDON_LOADED")
+        end
+    end)
+end
+
+-- Position the minimap button at a given angle (degrees)
+function GLV_MinimapButton_UpdatePosition(angle)
+    local rad = math.rad(angle)
+    local x = math.cos(rad) * MINIMAP_BUTTON_RADIUS
+    local y = math.sin(rad) * MINIMAP_BUTTON_RADIUS
+    GLV_MinimapButton:ClearAllPoints()
+    GLV_MinimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+-- Handle click events
+function GLV_MinimapButton_OnClick(button)
+    -- Consume click after drag ends
+    if minimapButtonDragging then
+        minimapButtonDragging = false
+        return
+    end
+
+    if button == "LeftButton" then
+        if GLV_Main and GLV_Main:IsVisible() then
+            GLV_HideGuideFrame()
+        else
+            GLV_ShowGuideFrame()
+        end
+    elseif button == "RightButton" then
+        GLV_ToggleSettings()
+    end
+end
+
+-- Start drag mode (called from OnMouseDown with Ctrl+Right)
+function GLV_MinimapButton_StartDrag()
+    minimapButtonDragging = true
+    GameTooltip:Hide()
+    GLV_MinimapButton:SetScript("OnUpdate", function()
+        local mx, my = GetCursorPosition()
+        local scale = Minimap:GetEffectiveScale()
+        mx = mx / scale
+        my = my / scale
+
+        local cx = Minimap:GetLeft() + (Minimap:GetWidth() / 2)
+        local cy = Minimap:GetBottom() + (Minimap:GetHeight() / 2)
+
+        local angle = math.deg(math.atan2(my - cy, mx - cx))
+        GLV_MinimapButton_UpdatePosition(angle)
+    end)
+end
+
+-- Handle mouse up (stop drag if active)
+function GLV_MinimapButton_OnMouseUp()
+    if not minimapButtonDragging then return end
+
+    -- Stop OnUpdate tracking
+    GLV_MinimapButton:SetScript("OnUpdate", nil)
+
+    -- Save current angle
+    local bx = GLV_MinimapButton:GetLeft() + (GLV_MinimapButton:GetWidth() / 2)
+    local by = GLV_MinimapButton:GetBottom() + (GLV_MinimapButton:GetHeight() / 2)
+    local cx = Minimap:GetLeft() + (Minimap:GetWidth() / 2)
+    local cy = Minimap:GetBottom() + (Minimap:GetHeight() / 2)
+    local angle = math.deg(math.atan2(by - cy, bx - cx))
+
+    if GLV and GLV.Settings then
+        GLV.Settings:SetOption(angle, {"UI", "MinimapButtonAngle"})
+    end
+    -- Keep minimapButtonDragging = true so OnClick consumes the event
 end
