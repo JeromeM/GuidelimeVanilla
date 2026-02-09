@@ -142,6 +142,7 @@ The navigation frame displays different modes based on current step:
 - **XP Progress Mode**: Shows purple StatusBar with real-time XP progress for `[XP]` steps (replaces arrow, turns green when requirement met)
 - **Equip Item Mode**: Shows item icon with "Equip" instruction when step contains equip action
 - **Hearthstone Mode**: Shows hearthstone icon for `[H]` steps with click-to-use functionality and auto-complete after cast
+- **Use Item Mode**: Shows clickable item icon with quest progress when navigation coordinates unavailable (fallback for `[UI]` steps in instances/trams)
 - **Next Guide Mode**: Shows clickable "Next Guide" button when on last step with `[NX]` tag
 
 **Multi-waypoint Navigation:**
@@ -173,9 +174,27 @@ The navigation frame displays different modes based on current step:
 - Inline XP progress removed from active steps (only shown on ongoing/pinned steps)
 - No extra height is reserved in main guide text area for XP steps (saves vertical space)
 
+**Use Item Navigation Fallback:**
+- When step has `[UI]` tag but no navigation coordinates available (e.g., Deeprun Tram, instances):
+  - Shows clickable item icon with "Use item" objective instead of arrow
+  - Displays quest name in yellow/gold color
+  - Shows real-time quest progress with colored objective lines (green when complete, yellow when incomplete)
+  - Distance text shows "Click to use" instead of numeric distance
+  - Quest progress refreshes every ~1 second via OnUpdate loop
+  - Item click handler searches bags and uses the item automatically
+  - Arrow reappears when player enters correct zone (automatic restoration)
+- Zone mismatch behavior:
+  - If step has `[UI]` tag: Shows use item icon as fallback (keeps navigation frame visible)
+  - If no `[UI]` tag: Hides navigation frame entirely (classic behavior)
+- Tracks `currentUseItemId` from step lines for fallback display
+- Progress refresh timer: `useItemProgressTimer` (resets every 1.0s)
+
 **UI Elements:**
 - `navigationFrame.xpBar` - StatusBar (purple: 0.58, 0.0, 0.82 / green: 0.0, 0.8, 0.0 when done)
 - `navigationFrame.xpBarText` - FontString overlay showing XP progress text
+- `navigationFrame.itemButton` - Clickable button for use item mode (reuses same frame as equip item mode)
+- `navigationFrame.itemIcon` - Item texture display for use item mode
+- `navigationFrame.questProgress` - FontString showing quest objectives with colored completion status
 
 Key methods:
 - `GuideNavigation:ShowNextGuide(nextGuideName)` - Display next guide button and parse/load guide on click
@@ -184,6 +203,8 @@ Key methods:
 - `GuideNavigation:HideEquipItem()` - Return to arrow mode
 - `GuideNavigation:ShowHearthstone(destination)` - Display hearthstone icon with click handler, auto-completes step after ~12s cast
 - `GuideNavigation:HideHearthstone()` - Return to arrow mode
+- `GuideNavigation:ShowUseItem(itemId, stepData)` - Display clickable item icon with quest name and real-time progress when no coordinates available (fallback mode for instances/trams)
+- `GuideNavigation:HideUseItem()` - Return to arrow mode
 - `GuideNavigation:ShowXPProgress(experienceRequirement)` - Display XP progress bar with requirement data
 - `GuideNavigation:UpdateXPDisplay()` - Refresh XP bar values (called on XP events)
 - `GuideNavigation:HideXPProgress()` - Return to arrow mode
@@ -193,6 +214,9 @@ Key methods:
 - `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data first, falls back to quest log name matching)
 - `GuideNavigation:IsArrowNavigationActive()` - Returns whether arrow navigation is currently active (used by MinimapPath)
 - `GuideNavigation:GetCurrentWaypoint()` - Returns current waypoint data for debugging and path rendering
+- `GuideNavigation:UpdateWaypointForStep(stepData)` - Extract waypoints and use item ID from step, falls back to ShowUseItem() when no coordinates found but [UI] tag present
+- `GuideNavigation:UpdateNavigation()` - Main update loop, handles zone mismatch with use item fallback, refreshes quest progress every 1s in no-waypoint mode
+- `GuideNavigation:RemoveCurrentWaypoint()` - Clear waypoints and hide all special modes (calls HideUseItem, HideEquipItem, HideHearthstone, HideXPProgress)
 
 ### Minimap & World Map Path System
 
@@ -463,6 +487,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 | `[T]` | Train at trainer (shows trainer icon) | `[T] Learn skills` |
 | `[LE id,Spell Name]` or `[LE Spell Name]` | Learn spell/skill (auto-completes when learned, checks skill lines for weapon skills) | `[LE 1180,Two-Handed Swords]` |
 | `[CI id,count]` | Collect item (auto-completes when items in bags) | `[CI1179,10]` |
+| `[UI id]` | Use item (shows clickable icon with quest progress when no coordinates available) | `[UI2746]` |
 | `[OC]` | Optional, completes with next | `[OC]Grind north` |
 | `[NX x-y Name]` | Link to next guide (shows clickable button on last step) | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
@@ -493,6 +518,15 @@ Guides use tagged format parsed by `GuideParser.lua`:
   - Example: `[CI1179,10]` completes when player has 10+ of item 1179
   - Only validates the current active step (prevents duplicate [CI] tags from completing simultaneously)
   - Triggers on BAG_UPDATE events with 0.3s delay for batch processing
+- **[UI] use item fallback**:
+  - `[UI id]` → Shows clickable item icon with quest progress when navigation coordinates are unavailable
+  - Primary use case: Deeprun Tram, instances, or areas where waypoint targeting doesn't work
+  - Navigation frame displays item icon, quest name (yellow/gold), "Use item" objective, and real-time quest progress
+  - Quest progress shows colored objective lines (green when complete, yellow when incomplete)
+  - Progress updates every ~1 second via OnUpdate loop
+  - Click handler automatically searches bags and uses the item
+  - When player enters correct zone with coordinates, arrow navigation automatically restores
+  - Example: `[UI2746]` for using an item during Deeprun Tram quest
 - **[H] hearthstone usage**:
   - `[H]` → Auto-completes when player uses hearthstone and arrives at destination matching bind location
   - Example: `[H] to Stormwind` completes after hearthstone cast to Stormwind

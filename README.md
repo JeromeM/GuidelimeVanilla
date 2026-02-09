@@ -57,6 +57,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Smart TAR Filtering**: TAR tags on quest lines are intelligently skipped - the quest system handles navigation for quest accept/complete/turnin steps
 - **Flexible Coordinate Formats**: Supports multiple coordinate format styles
 - **Zone-Aware Navigation**: Arrow automatically hides when in different zones and updates when you enter the correct zone
+- **Navigation Fallback Mode**: When arrow navigation is unavailable (e.g., Deeprun Tram, different zone), steps with use-item actions display a clickable item icon with real-time quest progress instead of hiding completely
 - **Quest Objectives Display**: Shows kill/collect progress directly on the navigation frame
 - **Real-time Distance Updates**: Color-coded distance indicators (green=close, yellow=medium, red=far)
 - **Dotted Path Overlays**: Visual path indicators on minimap and world map:
@@ -68,6 +69,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
   - **Hearthstone Icon**: Click to use hearthstone on hearthstone steps, auto-completes after cast
   - **Trainer Icon**: Shows trainer icon for train steps
   - **Equip Item Icon**: Shows items that need to be equipped
+  - **Use Item Icon**: When arrow is unavailable (different zone/instance), displays clickable item icon with real-time quest progress for use-item steps
   - **Next Guide Button**: Clickable button on final step to load next guide
   - **XP Progress Display**: When on an XP requirement step, replaces the arrow with a purple progress bar showing real-time XP values (current/target). Bar turns green when requirement is met.
 - **Movable Frame**: Hold Shift + drag to reposition the arrow
