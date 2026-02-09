@@ -36,6 +36,11 @@ local currentStepData = nil  -- Current step data for description generation
 local WAYPOINT_REACH_DISTANCE = 5  -- Distance in yards to consider waypoint reached
 local hasTriggeredTransition = false  -- Prevent multiple recalculations
 
+-- Death/corpse navigation
+local savedWaypointState = nil
+local corpsePosition = nil
+local isDeathNavigation = false
+
 -- Get visited NPCs from persistent storage
 local function getVisitedNPCs()
     local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"})
@@ -637,7 +642,11 @@ function GuideNavigation:UpdateNavigation()
     navigationFrame.distance:SetText("Distance: " .. distanceText)
 
     local r, g, b = self:GetDistanceColor(distance)
-    navigationFrame.arrow:SetVertexColor(r, g, b, 1)
+    if isDeathNavigation then
+        navigationFrame.arrow:SetVertexColor(0.7, 0.7, 0.9, 0.8)
+    else
+        navigationFrame.arrow:SetVertexColor(r, g, b, 1)
+    end
 
     if distance < WAYPOINT_REACH_DISTANCE then
         navigationFrame.distance:SetTextColor(0, 1, 0)
@@ -1652,8 +1661,149 @@ function GuideNavigation:HideXPProgress()
     self.currentXPRequirement = nil
 end
 
+--[[ DEATH / CORPSE NAVIGATION ]]--
+
+-- Activates corpse navigation mode (common helper for OnPlayerDead and Init reconnect)
+function GuideNavigation:ActivateCorpseNavigation()
+    if not corpsePosition then return end
+
+    if not navigationFrame then
+        self:CreateNavigationFrame()
+    end
+
+    isDeathNavigation = true
+
+    -- Hide all special modes
+    self:HideEquipItem()
+    self:HideUseItem()
+    self:HideNextGuide()
+    self:HideHearthstone()
+    self:HideXPProgress()
+
+    -- Set waypoint directly using saved corpse position (already in Astrolabe format)
+    currentWaypoint = {
+        c = corpsePosition[1],
+        z = corpsePosition[2],
+        x = corpsePosition[3],
+        y = corpsePosition[4],
+        description = "Your dead body"
+    }
+
+    -- Apply ghostly blue tint to arrow
+    navigationFrame.arrow:Show()
+    navigationFrame.arrow:SetVertexColor(0.7, 0.7, 0.9, 0.8)
+
+    -- Show navigation frame
+    navigationFrame.questName:SetText("")
+    navigationFrame.objective:SetText("Your dead body")
+    navigationFrame.objective:SetTextColor(0.7, 0.7, 0.9)
+    navigationFrame.questProgress:SetText("")
+    navigationFrame:Show()
+    isNavigationActive = true
+
+    if GLV.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Death navigation activated - guiding to corpse")
+    end
+end
+
+-- Called when the player dies
+function GuideNavigation:OnPlayerDead()
+    -- Capture player position (this IS the corpse position at the moment of death)
+    local pos = self:GetPlayerPosition()
+    if not pos or not pos.c then return end
+
+    -- Save corpse position as array {c, z, x, y}
+    corpsePosition = {pos.c, pos.z, pos.x, pos.y}
+
+    -- Persist corpse position to settings (survives disconnect)
+    GLV.Settings:SetOption(corpsePosition, {"Navigation", "CorpsePosition"})
+
+    -- Save current navigation state for restoration after resurrection
+    savedWaypointState = {
+        currentWaypoint = currentWaypoint,
+        isNavigationActive = isNavigationActive,
+        allWaypoints = allWaypoints,
+        currentWaypointIndex = currentWaypointIndex,
+        currentStepData = currentStepData,
+        currentQuestId = self.currentQuestId,
+        currentActionType = self.currentActionType,
+        currentObjectiveIndex = self.currentObjectiveIndex,
+        currentUseItemId = self.currentUseItemId,
+        currentXPRequirement = self.currentXPRequirement
+    }
+
+    self:ActivateCorpseNavigation()
+end
+
+-- Called when the player resurrects (PLAYER_ALIVE or PLAYER_UNGHOST)
+function GuideNavigation:OnPlayerAlive()
+    if not isDeathNavigation then return end
+
+    isDeathNavigation = false
+    corpsePosition = nil
+
+    -- Clear persisted corpse position
+    GLV.Settings:SetOption(nil, {"Navigation", "CorpsePosition"})
+
+    -- Restore arrow to normal color
+    if navigationFrame and navigationFrame.arrow then
+        navigationFrame.arrow:SetVertexColor(1, 1, 1, 1)
+    end
+    if navigationFrame and navigationFrame.objective then
+        navigationFrame.objective:SetTextColor(1, 1, 1)
+    end
+
+    if savedWaypointState then
+        -- Restore saved navigation state
+        currentWaypoint = savedWaypointState.currentWaypoint
+        allWaypoints = savedWaypointState.allWaypoints or {}
+        currentWaypointIndex = savedWaypointState.currentWaypointIndex or 1
+        currentStepData = savedWaypointState.currentStepData
+        self.currentQuestId = savedWaypointState.currentQuestId
+        self.currentActionType = savedWaypointState.currentActionType
+        self.currentObjectiveIndex = savedWaypointState.currentObjectiveIndex
+        self.currentUseItemId = savedWaypointState.currentUseItemId
+        self.currentXPRequirement = savedWaypointState.currentXPRequirement
+
+        if savedWaypointState.isNavigationActive and currentWaypoint then
+            -- Navigation was active before death, restore it
+            navigationFrame:Show()
+            isNavigationActive = true
+        else
+            -- Navigation was hidden before death
+            self:Hide()
+        end
+
+        -- If there was an XP requirement active, re-show it
+        if self.currentXPRequirement then
+            self:ShowXPProgress(self.currentXPRequirement)
+        end
+
+        savedWaypointState = nil
+    else
+        -- No saved state, try to recalculate from current step
+        if currentStepData then
+            self:UpdateWaypointForStep(currentStepData)
+        else
+            self:Hide()
+        end
+    end
+
+    if GLV.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Player resurrected - navigation restored")
+    end
+end
+
+-- Returns whether death navigation is currently active (for external queries)
+function GuideNavigation:IsDeathNavigationActive()
+    return isDeathNavigation
+end
+
 -- Updates waypoint for a specific guide step
 function GuideNavigation:UpdateWaypointForStep(stepData)
+    -- Don't let guide step changes override corpse navigation while dead
+    if isDeathNavigation then return end
+
     self:RemoveCurrentWaypoint()
     self:HideEquipItem()
     self:HideNextGuide()
@@ -1880,11 +2030,24 @@ function GuideNavigation:Init()
     end
 
     playerPos = self:GetPlayerPosition()
-    
+
+    -- Check if player is a ghost at login (disconnected while dead)
+    if UnitIsGhost("player") then
+        local savedCorpse = GLV.Settings:GetOption({"Navigation", "CorpsePosition"})
+        if savedCorpse then
+            corpsePosition = savedCorpse
+            self:CreateNavigationFrame()
+            self:ActivateCorpseNavigation()
+            -- Register death events before returning
+            self:RegisterDeathEvents()
+            return  -- Skip normal guide nav init
+        end
+    end
+
     if GLV.CurrentGuide then
         local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
         local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
-        
+
         if currentStep > 0 then
             if GLV.CurrentDisplaySteps and GLV.CurrentDisplaySteps[currentStep] then
                 local stepData = GLV.CurrentDisplaySteps[currentStep]
@@ -1895,6 +2058,22 @@ function GuideNavigation:Init()
             end
         end
     end
+
+    -- Register death/resurrection events
+    self:RegisterDeathEvents()
+end
+
+-- Register PLAYER_DEAD, PLAYER_ALIVE, PLAYER_UNGHOST events
+function GuideNavigation:RegisterDeathEvents()
+    GLV.Ace:RegisterEvent("PLAYER_DEAD", function()
+        GuideNavigation:OnPlayerDead()
+    end)
+    GLV.Ace:RegisterEvent("PLAYER_ALIVE", function()
+        GuideNavigation:OnPlayerAlive()
+    end)
+    GLV.Ace:RegisterEvent("PLAYER_UNGHOST", function()
+        GuideNavigation:OnPlayerAlive()
+    end)
 end
 
 -- Expose to GLV
