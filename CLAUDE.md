@@ -171,6 +171,7 @@ The navigation frame displays different modes based on current step:
 - Updated automatically by CharacterTracker on XP_UPDATE and PLAYER_LEVEL_UP events
 - Handles all XP requirement types: level, level_minus, level_plus, level_percent
 - Inline XP progress removed from active steps (only shown on ongoing/pinned steps)
+- No extra height is reserved in main guide text area for XP steps (saves vertical space)
 
 **UI Elements:**
 - `navigationFrame.xpBar` - StatusBar (purple: 0.58, 0.0, 0.82 / green: 0.0, 0.8, 0.0 when done)
@@ -517,7 +518,7 @@ Guides use tagged format parsed by `GuideParser.lua`:
 - `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
 - `Core/Events/Items.lua` - Item collection tracking, BAG_UPDATE event handling, current-step-only validation for [CI] tags, auto-completion when item count requirements met
 - `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
-- `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights)
+- `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights), skips auto-completing steps with both FLY_TO lines and quest tags (QA/QC/QT) to let QuestTracker handle final completion
 - `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
 - `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()`, `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog, minimap/world map path checkbox handlers, frame strata dropdown initialization and application
 - `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
