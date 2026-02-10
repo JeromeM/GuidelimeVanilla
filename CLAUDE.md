@@ -727,36 +727,55 @@ The addon includes automatic tracking for hearthstone-related steps using `[H]` 
 **Behavior:**
 - `GossipTracker:CheckHearthstoneArrival()` validates ONLY the current active step (not all uncompleted steps)
 - `GossipTracker:CheckHearthstoneBind()` validates ONLY the current active step (not all uncompleted steps)
+- `GossipTracker:CompleteBindStep()` immediately completes `[S]` steps when `ConfirmBinder` fires (no location check needed)
 - This prevents duplicate `[H]` or `[S]` tags (e.g., multiple `[H Goldshire]` steps) from auto-completing simultaneously
 - Matches the same single-step validation pattern used by QuestTracker and ItemTracker
 
 **Event Handling:**
 - Listens to `SPELLCAST_STOP` event to detect hearthstone cast completion
 - Uses 1.0s scheduled delay after cast to allow teleport to complete
-- Hooks `ConfirmBinder` function to detect when hearthstone is bound at an innkeeper
+- Hooks `ConfirmBinder` function to detect when hearthstone is bound at an innkeeper (completes step immediately)
+- Listens to `MINIMAP_ZONE_CHANGED` event as fallback for zone-based bind detection (e.g., after `/reload` or exiting inn)
 - Initial check scheduled 3s after addon load to ensure guide is fully loaded
 
 **Key Methods:**
-- `GossipTracker:Init()` - Initialize gossip tracking, register events, hook ConfirmBinder
+- `GossipTracker:Init()` - Initialize gossip tracking, register events, hook ConfirmBinder, register MINIMAP_ZONE_CHANGED event
 - `GossipTracker:OnSpellcastStop()` - Handle spell cast stop event with 1.0s delay
-- `GossipTracker:CheckHearthstoneArrival()` - Validate current step's `[H]` tag after hearthstone use
-- `GossipTracker:CheckHearthstoneBind()` - Validate current step's `[S]` tag after setting hearthstone
+- `GossipTracker:CompleteBindStep()` - Immediately complete current `[S]` step when ConfirmBinder fires (0.5s delay, no location check)
+- `GossipTracker:CheckHearthstoneArrival()` - Validate current step's `[H]` tag after hearthstone use with broader zone matching
+- `GossipTracker:CheckHearthstoneBind()` - Validate current step's `[S]` tag with location-based matching (fallback for zone changes and `/reload`)
 
 **Step Completion:**
-- `[H]` steps: Auto-complete when player arrives at destination matching bind location
-- `[S]` steps: Auto-complete when player binds hearthstone to the required location
-- Bind location matching is case-insensitive and supports partial matches against:
-  - Inn name (from `GetBindLocation()`)
-  - Current subzone (from `GetSubZoneText()`)
-  - Current zone (from `GetZoneText()`)
+- **`[S]` bind steps**: Auto-complete immediately when `ConfirmBinder` fires (0.5s delay)
+  - No location check needed - if the player is on a `[S]` step and just confirmed binding, they're at the correct inn (the guide sent them there)
+  - Location-based matching is unreliable inside inn buildings since `GetSubZoneText()` returns inn name (e.g., "Stoutlager Inn") instead of town name (e.g., "Thelsamar")
+  - Fallback zone-based matching still runs on `MINIMAP_ZONE_CHANGED` for edge cases (e.g., exiting inn or after `/reload`)
+- **`[H]` hearthstone steps**: Auto-complete when player arrives at destination matching bind location
+  - Bind location matching is case-insensitive and supports partial matches against:
+    - Inn name (from `GetBindLocation()`)
+    - Current subzone (from `GetSubZoneText()`)
+    - Minimap zone (from `GetMinimapZoneText()`)
+    - Current zone (from `GetZoneText()`)
+  - Uses broader matching strategy to handle subzone transitions (e.g., "Stoutlager Inn" → "Thelsamar")
 - Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
+
+**Zone Matching Improvements:**
+- Both `CheckHearthstoneArrival()` and `CheckHearthstoneBind()` now use multiple zone text sources for robust matching:
+  - `GetBindLocation()` - Inn name from hearthstone binding
+  - `GetSubZoneText()` - Current subzone (e.g., inn building name or town district)
+  - `GetMinimapZoneText()` - Minimap zone text (often more accurate for broader subzones)
+  - `GetZoneText()` - Zone name (e.g., "Loch Modan")
+  - `GetRealZoneText()` - Real zone text (used in `CheckHearthstoneBind()` for additional matching)
+- Handles transitions between inn buildings and towns (e.g., inside "Stoutlager Inn" vs outside in "Thelsamar")
 
 **Important Notes:**
 - Only checks `currentStep` from settings, not entire `CurrentDisplaySteps` array
 - Skips already completed steps (checks `stepState[origIdx]`)
 - Uses `CurrentDisplayToOriginal` mapping to track step state correctly
 - Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone arrived at [destination]"
-- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound to [location] (zone: [subzone]) - step completed!"
+- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound (ConfirmBinder) - step completed!"
+- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound to [location] (zone: [subzone]) - step completed!" (fallback zone-based completion)
+- Debug message: "|cFF00FFFF[GuideLime]|r Bind check: required='[location]' bind='[inn]' subzone='[subzone]' minimap='[minimap]' zone='[zone]'" (verbose zone matching debug)
 
 ## Spell/Skill Learning Detection
 
