@@ -1,17 +1,17 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-GuideLime Vanilla is a World of Warcraft Classic (1.12) addon that provides an enhanced guide system with automatic quest tracking, autonomous navigation, and smart UI management. It's a port of the Guidelime addon adapted for Vanilla WoW (TurtleWoW private server).
+GuideLime Vanilla is a World of Warcraft Classic (1.12) addon providing an enhanced guide system with automatic quest tracking, autonomous navigation, and smart UI management. Port of Guidelime for Vanilla WoW (TurtleWoW private server).
 
 ## Development Environment
 
 - **Target**: WoW Classic 1.12 (Turtle WoW)
-- **Language**: Lua 5.0 (no modern Lua features like `#` operator, use `table.getn()`)
-- **Testing**: Load addon in WoW, use `/reload` to test changes
-- **Debug Mode**: Set `GLV.Debug = true` in Core.lua for verbose logging
+- **Language**: Lua 5.0 (no `#` operator, no `string.gmatch`, use `table.getn()`, `string.gfind()`)
+- **Testing**: `/reload` for existing file changes. New TOC entries require full game restart.
+- **Debug Mode**: `GLV.Debug = true` in Core.lua
 
 ## IMPORTANT: Git Workflow
 
@@ -20,986 +20,178 @@ GuideLime Vanilla is a World of Warcraft Classic (1.12) addon that provides an e
 2. `readme-feature-sync` - Before pushing to sync README with implemented features
 3. `version-bump-prepush` - Before pushing to increment the addon version
 
-These agents MUST be run in this order before any `git push` operation.
-
-**Version bump rules (for `version-bump-prepush` agent):**
-- **1-6 commits**: Increment Z (patch) — e.g. 0.7.0 → 0.7.1
-- **More than 6 commits**: Increment Y (minor) and reset Z — e.g. 0.7.1 → 0.8.0
-
-## Slash Commands
-
-The addon registers `/glv` and `/guidelime` commands with the following subcommands:
-
-- `/glv show` - Show the guide window (brings it back after hiding)
-- `/glv hide` - Hide the guide window (shows chat message with reopen instructions)
-- `/glv settings` - Open the settings window
-
-**Additional Slash Commands:**
-- `/glvminimap` - Show minimap path debug information (displays path state, waypoint data, pfQuest integration status)
-
-**Close Button Behavior:**
-- The close button (X) on the main guide window now hides the window instead of navigating steps
-- When closed, displays: "|cFF6B8BD4[GuideLime]|r Guide window hidden. Type |cFFFFFF00/glv show|r to display it again."
-- Functions used: `GLV_HideGuideFrame()`, `GLV_ShowGuideFrame()`, `GLV_ToggleSettings()`
-
-**Minimap Button:**
-- Lua-created minimap button following pfQuest pattern
-- **Left-click**: Toggle guide window visibility
-- **Right-click**: Open settings window
-- **Ctrl+Right-click**: Drag to reposition around minimap edge
-- Tooltip on hover shows available controls
-- Position angle saved in `{"UI", "MinimapButtonAngle"}` and restored on addon load
-- Frame name: `GLV_MinimapButton`
+**Version bump rules:** 1-6 commits = patch Z, >6 commits = minor Y (reset Z)
 
 ## Architecture
 
-### Core Module System
-
-The addon uses LibStub for module registration and Ace2 libraries for core functionality:
+### Module System
 
 ```
-GLV = LibStub("GuidelimeVanilla")  -- Main addon object, accessible everywhere
-GLV.Addon = AceAddon instance     -- Ace2 addon with events, hooks, console, DB
+GLV = LibStub("GuidelimeVanilla")  -- Main addon object
+GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 ```
 
-Key global objects:
-- `GLV.Settings` - Settings manager with nested key access
-- `GLV.Parser` - Guide text parser
-- `GLV.QuestTracker` - Quest event tracking
-- `GLV.ItemTracker` - Item collection tracking (auto-completes [CI] steps)
-- `GLV.CharacterTracker` - XP/level tracking
-- `GLV.TaxiTracker` - Flight path tracking
-- `GLV.GossipTracker` - Gossip dialog tracking
-- `GLV.TalentTracker` - Talent suggestion tracking (level-up notifications, talent frame highlights)
-- `GLV.GuideNavigation` - Arrow navigation and guide transitions (arrow display, next guide button)
-- `GLV.MinimapPath` - Minimap and world map dotted path rendering (draws paths from player to waypoint)
-- `GLV.CurrentGuide` - Currently loaded guide data (includes `.clickToNext` and `.next` for guide chaining)
-- `GLV.CurrentDisplaySteps` - Filtered/displayed steps array
-- `GLV.loadedGuides` - Table of registered guides organized by pack: `GLV.loadedGuides[packName][guideId]`
-- `GLV.guidePackAddons` - Maps pack names to addon names for metadata lookup: `GLV.guidePackAddons["Pack Name"] = "AddonName"`
-- `GLV.guidePackStartingGuides` - Maps pack names to race-to-guide mappings: `GLV.guidePackStartingGuides[packName][race] = "Guide Name"`
-- `GLV.TalentTemplates` - Registered talent templates: `GLV.TalentTemplates[class][templateName] = {type, talents, respec?}`
-- `GLV.DefaultTalentTemplates` - Default template per class: `GLV.DefaultTalentTemplates["WARRIOR"] = "Arms (Icy Veins)"`
-- `GLV:GetTemplateTalents(template, class)` - Helper that resolves correct talents table based on respec state
+**Core modules** (on GLV namespace):
+- `Settings` - Nested key access: `GetOption({"Guide", "CurrentGuide"})` / `SetOption(value, {...})`
+- `Parser` - Guide text parser
+- `QuestTracker` - Quest accept/complete/turnin tracking, auto-accept/turnin automation
+- `ItemTracker` - `[CI]` item collection tracking (BAG_UPDATE)
+- `CharacterTracker` - XP/level tracking, spell/skill learning detection (`[LE]`)
+- `TaxiTracker` - Flight path tracking and automation (`[F]`/`[P]`)
+- `GossipTracker` - Gossip dialog, hearthstone bind/use detection (`[H]`/`[S]`)
+- `TalentTracker` - Talent suggestions, level-up toasts, talent frame highlighting
+- `GuideNavigation` - **Orchestrator**: frame creation, arrow rendering, update loop, delegates to NavigationModes and WaypointResolver
+- `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar) + death/corpse navigation
+- `WaypointResolver` - Coordinate resolution (7-priority system), quest status, step descriptions
+- `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration
+
+**Data objects**:
+- `GLV.CurrentGuide` - Loaded guide (`.next` for chaining, `.clickToNext`)
+- `GLV.CurrentDisplaySteps` / `CurrentDisplayStepsCount` / `CurrentDisplayToOriginal` - Step display state
+- `GLV.loadedGuides[packName][guideId]` - All registered guides
+- `GLV.TalentTemplates[class][templateName]` - Talent build templates
 
 ### Data Flow
 
-1. **Guide Pack Installation**: External addon loads with `Dependencies: GuidelimeVanilla`
-2. **Guide Registration**: Pack calls `GLV:RegisterGuide(text, group)` to register guides
-3. **Pack Selection**: User selects pack in Settings > Guides, stored in `{"Guide", "ActivePack"}`
-4. **Guide Loading**: `GLV:LoadGuide(group, id)` parses guide, creates UI steps
-5. **Event Tracking**: Hooks on quest accept/complete trigger `QuestTracker:HandleQuestAction()`
-6. **UI Updates**: `GLV:RefreshGuide()` redraws steps, `updateStepColors()` handles highlighting
+1. Guide pack addon registers guides via `GLV:RegisterGuide(text, group)`
+2. User selects pack in Settings > Guides, clicks Load
+3. `GLV:LoadGuide()` parses guide, creates UI steps
+4. Event trackers (quest/item/gossip/taxi) fire `HandleQuestAction()` on events
+5. `GLV:RefreshGuide()` rebuilds UI (debounced 0.1s), calls `OnStepChanged()`
 
-### Settings System
+### Navigation System (3-file split)
 
-Access settings via nested key arrays:
-```lua
-GLV.Settings:GetOption({"Guide", "Guides", guideId, "StepState"})
-GLV.Settings:SetOption(value, {"Guide", "CurrentGuide"})
-```
+**GuideNavigation.lua** (orchestrator):
+- Creates nav frame, manages arrow rendering at 50 FPS
+- `UpdateWaypointForStep(stepData)` - Entry point: auto-skips impossible QT steps, then delegates to WaypointResolver/NavigationModes
+- `CheckAutoSkipTurnins(stepData)` - Auto-completes steps with `[QT]` when quest not in player's log
+- Multi-waypoint tracking: auto-advances when player reaches waypoint (5 yard threshold)
+- Delegate methods maintain external API compatibility
 
-**Guide Pack Settings**:
-- `{"Guide", "ActivePack"}` - Currently selected guide pack name (nil if none selected)
-- `{"Guide", "Guides", guideId, "VisitedTARs", stepIndex}` - Per-step visited NPC tracking (persists across /reload)
+**NavigationModes.lua** (display modes):
+- Show/Hide methods for: EquipItem, UseItem, Hearthstone, NextGuide, XPProgress
+- Death navigation: captures corpse position on death, blue-tinted arrow to body, restores state on resurrection
+- Receives nav frame via `SetNavigationFrame(frame)`
 
-**Automation Settings** (Settings > Guides):
-- `{"Automation", "AutoAcceptQuests"}` - Auto-accept quests when current step has `[QA]` tag
-- `{"Automation", "AutoTurninQuests"}` - Auto-turnin quests when current step has `[QT]` tag (skips if reward choice required)
-- `{"Automation", "AutoTakeFlight"}` - Auto-take flight when current step has `[F]` tag
-
-**Display Settings** (Settings > Display):
-- `{"UI", "GuideTextScale"}` - Scale multiplier for guide step text (0.8-1.5, default 1.0)
-- `{"UI", "NavigationScale"}` - Scale multiplier for navigation arrow frame (0.8-1.5, default 1.0)
-- `{"UI", "MinimapPath"}` - Show dotted path on minimap from player to waypoint (default true)
-- `{"UI", "WorldMapPath"}` - Show dotted path on world map from player to waypoint (default true)
-- `{"UI", "FrameStrata"}` - Frame strata layer for main guide window (BACKGROUND, LOW, MEDIUM, HIGH, DIALOG; default DIALOG)
-- `{"UI", "GuideHidden"}` - Guide window visibility state (boolean, persists across /reload)
-- `{"UI", "MinimapButtonAngle"}` - Minimap button position angle in degrees (default 45, saved when button is repositioned)
-
-**Navigation Settings** (internal, not exposed in UI):
-- `{"Navigation", "CorpsePosition"}` - Corpse position array {c, z, x, y} persisted when player dies (cleared on resurrection, survives disconnect while dead)
-
-**Talent Settings** (Settings > Talents):
-- `{"Talents", "Enabled"}` - Enable talent suggestions (default true)
-- `{"Talents", "ShowToast"}` - Show toast notification on level-up (default true)
-- `{"Talents", "HighlightTalent"}` - Highlight suggested talent in talent frame (default true)
-- `{"Talents", "ActiveTemplate", class}` - Active template name for a class (e.g., `{"Talents", "ActiveTemplate", "MAGE"}`)
-- `{"Talents", "RespecDone", class}` - Boolean tracking respec state per class (nil = pre-respec phase 1, true = post-respec phase 2)
-- `{"Talents", "LastShownLevel"}` - Last level where talent toast was shown (used to prevent duplicate popups)
-- `{"Talents", "ToastPositionX"}` - X offset from screen center for toast notification (nil = default centered position)
-- `{"Talents", "ToastPositionY"}` - Y offset from screen center for toast notification (nil = default centered position)
+**WaypointResolver.lua** (pure logic, no UI):
+- `ResolveWaypoints(stepData)` returns `{waypoints, description, specialMode, specialModeData, questId, actionType, objectiveIndex, useItemId}`
+- 7-priority resolution: explicit [G] coords > ordered TAR+quest NPCs > legacy TAR > quest DB coords > line coords > step coords > quest objectives
+- `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching
+- `GetCurrentQuestAction(stepData)` - Returns first uncompleted action (QT > QA > QC priority)
 
 ### Database (VGDB)
 
-Quest/NPC/Item data from ShaguDB stored in `Assets/db/` folder:
-- `VGDB.quests[locale][id]` - Quest data with `.T` (title), `.start`, `.end`, `.obj`
-  - `.end` can have `.O` array for quests that turn in at objects instead of NPCs
-  - `.start` can have `.O` array for quest-giving objects
-- `VGDB.units.data[id]` - NPC coords in `.coords[n] = {x, y, zoneId}`
-- `VGDB.items.data[id]` - Item coords and drop sources (`.U`, `.O`)
+Quest/NPC/Item data from ShaguDB in `Assets/db/`:
+- `VGDB.quests.data[id]` - Quest data: `.start.U` (giver NPCs), `.end.U` (turnin NPCs), `.obj` (objectives)
+- `VGDB.units.data[id]` - NPC data: `.coords[n] = {x, y, zoneId, ?}`
+- `VGDB.items.data[id]` - Item drop sources
 - `VGDB.zones[locale][id]` - Zone name translations
+- `GetNPCCoordinates(npcId)` prefers coordinates in player's current zone (multi-spawn NPCs)
 
-### Nampower API (Spells)
+### Settings Keys (commonly used)
 
-Spell data is retrieved via Nampower API instead of a local database:
-- `GetSpellRec(spellId)` - Returns full spell record with fields: `name`, `rank`, `spellIconID`, `manaCost`, `school`, `spellLevel`, etc.
-- `GetSpellNameAndRankForId(spellId)` - Returns spell name and rank as separate values. **Important**: For profession spells, may return the full name with tier prefix included (e.g., `"Apprentice Cook"`) with `nil` rank instead of splitting into base name + rank (e.g., `"Cooking"` + `"Apprentice"`). Use `rank` field for profession tier detection when available.
-- `GLV:getSpellName(id)` - Wrapper that uses `GetSpellNameAndRankForId()` first. If the API returns a profession spell with tier prefix in the name (e.g., "Apprentice Cook"), extracts the tier prefix, strips it from the name (e.g., "Cook"), and uses partial matching against skill lines to find the actual skill name (e.g., "Cooking"). Falls back to `GetSpellRec()` if name extraction fails.
-- `GLV:getSpellInfo(id)` - Returns table with name, rank, icon, manaCost, school, level
-
-### Navigation System
-
-The navigation frame displays different modes based on current step:
-- **Arrow Mode** (default): Shows directional arrow to waypoint with distance/objective
-- **Multi-waypoint Mode**: Automatically advances to next waypoint when reaching current destination (within 5 yards)
-- **Death/Corpse Navigation Mode**: Automatically activates on death, shows ghostly blue-tinted arrow pointing to corpse with "Your dead body" objective, restores previous navigation state on resurrection
-- **XP Progress Mode**: Shows purple StatusBar with real-time XP progress for `[XP]` steps (replaces arrow, turns green when requirement met)
-- **Equip Item Mode**: Shows item icon with "Equip" instruction when step contains equip action
-- **Hearthstone Mode**: Shows hearthstone icon for `[H]` steps with click-to-use functionality and auto-complete after cast
-- **Use Item Mode**: Shows clickable item icon with quest progress when navigation coordinates unavailable (fallback for `[UI]` steps in instances/trams)
-- **Next Guide Mode**: Shows clickable "Next Guide" button when on last step with `[NX]` tag
-
-**Multi-waypoint Navigation:**
-- Steps with multiple `[G]` or `[TAR]` tags create waypoint sequences
-- Navigation automatically advances to next waypoint when player reaches current one
-- Tracks progress: `allWaypoints[]`, `currentWaypointIndex`, `currentStepData`
-- Distance threshold: 5 yards (`WAYPOINT_REACH_DISTANCE`)
-
-**Ordered Waypoint Navigation:**
-- TAR targets are visited in sequence, then automatically transition to quest objectives (QC/QT/QA)
-- Visited TARs are persisted in settings to survive `/reload`
-- TARs on lines with quest tags (QA/QC/QT) are skipped - the quest system handles navigation
-- When last TAR is reached, navigation recalculates to find remaining quest objectives
-- Waypoint metadata includes: `type`, `npcId`, `questId`, `actionType` for smart transitions
-
-**Quest Objective Tracking:**
-- Stores `currentObjectiveIndex` (nil for whole quest, 1/2/3 for specific objective)
-- `GetCurrentQuestAction()` returns action, questId, actionType, and objectiveIndex
-- Coordinates are filtered by objective index when navigating to `[QC id,objectiveIndex]` steps
-- Individual objective completion triggers `HandleQuestAction()` with objectiveIndex parameter
-
-**XP Progress Display:**
-- When current step contains `[XP]` tag, navigation frame switches to XP mode
-- Shows purple StatusBar (160x14) with real-time XP values where arrow normally appears
-- Bar turns green when XP requirement is met
-- Displays progress text overlay: "current / max XP" or "Done!" when complete
-- Updated automatically by CharacterTracker on XP_UPDATE and PLAYER_LEVEL_UP events
-- Handles all XP requirement types: level, level_minus, level_plus, level_percent
-- Inline XP progress removed from active steps (only shown on ongoing/pinned steps)
-- No extra height is reserved in main guide text area for XP steps (saves vertical space)
-
-**Use Item Navigation Fallback:**
-- When step has `[UI]` tag but no navigation coordinates available (e.g., Deeprun Tram, instances):
-  - Shows clickable item icon with "Use item" objective instead of arrow
-  - Displays quest name in yellow/gold color
-  - Shows real-time quest progress with colored objective lines (green when complete, yellow when incomplete)
-  - Distance text shows "Click to use" instead of numeric distance
-  - Quest progress refreshes every ~1 second via OnUpdate loop
-  - Item click handler searches bags and uses the item automatically
-  - Arrow reappears when player enters correct zone (automatic restoration)
-- Zone mismatch behavior:
-  - If step has `[UI]` tag: Shows use item icon as fallback (keeps navigation frame visible)
-  - If no `[UI]` tag: Hides navigation frame entirely (classic behavior)
-- Tracks `currentUseItemId` from step lines for fallback display
-- Progress refresh timer: `useItemProgressTimer` (resets every 1.0s)
-
-**Death/Corpse Navigation:**
-- Automatically activates when player dies (PLAYER_DEAD event)
-- Captures corpse position at moment of death and persists to settings (survives disconnect while dead)
-- Arrow points to corpse location with ghostly blue tint (0.7, 0.7, 0.9, 0.8)
-- Displays "Your dead body" as objective with blue text color
-- Saves complete navigation state before death (waypoints, quest actions, XP requirements, special modes)
-- On resurrection (PLAYER_ALIVE or PLAYER_UNGHOST events), restores previous navigation state exactly
-- Handles disconnect-while-dead scenario: checks `UnitIsGhost("player")` on addon load and restores corpse navigation from persisted position
-- Guard in `UpdateWaypointForStep()` prevents guide step changes from overriding corpse navigation
-- Navigation state restoration includes: current waypoint, waypoint sequences, quest tracking, XP progress, special modes (equip/hearthstone/use item)
-
-**UI Elements:**
-- `navigationFrame.xpBar` - StatusBar (purple: 0.58, 0.0, 0.82 / green: 0.0, 0.8, 0.0 when done)
-- `navigationFrame.xpBarText` - FontString overlay showing XP progress text
-- `navigationFrame.itemButton` - Clickable button for use item mode (reuses same frame as equip item mode)
-- `navigationFrame.itemIcon` - Item texture display for use item mode
-- `navigationFrame.questProgress` - FontString showing quest objectives with colored completion status
-
-Key methods:
-- `GuideNavigation:ShowNextGuide(nextGuideName)` - Display next guide button and parse/load guide on click
-- `GuideNavigation:HideNextGuide()` - Return to arrow mode
-- `GuideNavigation:ShowEquipItem(itemId)` - Display equip item icon
-- `GuideNavigation:HideEquipItem()` - Return to arrow mode
-- `GuideNavigation:ShowHearthstone(destination)` - Display hearthstone icon with click handler, auto-completes step after ~12s cast
-- `GuideNavigation:HideHearthstone()` - Return to arrow mode
-- `GuideNavigation:ShowUseItem(itemId, stepData)` - Display clickable item icon with quest name and real-time progress when no coordinates available (fallback mode for instances/trams)
-- `GuideNavigation:HideUseItem()` - Return to arrow mode
-- `GuideNavigation:ShowXPProgress(experienceRequirement)` - Display XP progress bar with requirement data
-- `GuideNavigation:UpdateXPDisplay()` - Refresh XP bar values (called on XP events)
-- `GuideNavigation:HideXPProgress()` - Return to arrow mode
-- `GuideNavigation:GetXPProgressValues(req)` - Calculate current/max/text/isDone for XP requirement
-- `GuideNavigation:CompleteCurrentStep()` - Mark current step complete and advance to next step
-- `GuideNavigation:ApplyScale(scale)` - Apply scale multiplier to navigation frame (from settings or manual value)
-- `GuideNavigation:GetQuestStatus(questId)` - Check if quest is in log and complete status (uses QuestTracker data first, falls back to quest log name matching)
-- `GuideNavigation:IsArrowNavigationActive()` - Returns whether arrow navigation is currently active (used by MinimapPath)
-- `GuideNavigation:IsDeathNavigationActive()` - Returns whether death navigation is currently active (public accessor for external queries)
-- `GuideNavigation:GetCurrentWaypoint()` - Returns current waypoint data for debugging and path rendering
-- `GuideNavigation:UpdateWaypointForStep(stepData)` - Extract waypoints and use item ID from step, falls back to ShowUseItem() when no coordinates found but [UI] tag present, guards against overriding corpse navigation during death
-- `GuideNavigation:UpdateNavigation()` - Main update loop, handles zone mismatch with use item fallback, refreshes quest progress every 1s in no-waypoint mode, applies ghostly blue tint when death navigation is active
-- `GuideNavigation:RemoveCurrentWaypoint()` - Clear waypoints and hide all special modes (calls HideUseItem, HideEquipItem, HideHearthstone, HideXPProgress)
-- `GuideNavigation:ActivateCorpseNavigation()` - Common helper to activate corpse navigation mode (used by OnPlayerDead and Init reconnect detection)
-- `GuideNavigation:OnPlayerDead()` - Capture corpse position, persist to settings, save navigation state, activate corpse navigation
-- `GuideNavigation:OnPlayerAlive()` - Restore previous navigation state on resurrection, clear persisted corpse position, return arrow to normal color
-- `GuideNavigation:RegisterDeathEvents()` - Register PLAYER_DEAD, PLAYER_ALIVE, PLAYER_UNGHOST events
-
-### Minimap & World Map Path System
-
-The addon draws dotted paths from the player position to the active navigation waypoint on both minimap and world map:
-
-**Features:**
-- **Minimap Path**: Subtle dotted line (8 dots) from player to waypoint, visible when in same zone
-- **World Map Path**: Longer dotted line (12 dots) visible when viewing the waypoint's zone on world map
-- **Independent Toggles**: Minimap and world map paths can be enabled/disabled separately in Settings > Display
-- **pfQuest Integration**: Automatically disables pfQuest minimap nodes and routes when either path is enabled to reduce clutter, restores them when both paths are disabled
-- **Smart Visibility**: Paths only appear when navigation is active and player is in the correct zone
-
-**Implementation Details:**
-
-Minimap dots:
-- **Count**: 8 dots
-- **Size**: 2x2 pixels
-- **Color**: Light blue (0.6, 0.8, 1.0) with 0.7 alpha
-- **Start Offset**: 8 pixels from player position
-- **Update Rate**: 0.15 seconds (6.67 FPS)
-- **Visibility**: Only shows when player is in same zone as waypoint
-
-World map dots:
-- **Count**: 12 dots
-- **Size**: 3x3 pixels
-- **Color**: Medium blue (0.5, 0.7, 1.0) with 0.7 alpha
-- **Visibility**: Only shows when world map is open and viewing waypoint's zone
-
-**pfQuest Integration:**
-- Saves original pfQuest config when disabling nodes: `minimapnodes`, `showspawn`, `showcluster`, `showspawnmini`, `showclustermini`, `routes`
-- Only saves state if pfQuest was actually enabled (avoids unnecessary saves)
-- Restores original state when both paths are disabled
-- Calls `pfMap:UpdateMinimap()` and `pfMap:UpdateNodes()` after config changes
-
-**Dot Pool Management:**
-- Dots are pre-created frames parented to Minimap and WorldMapButton
-- Frame strata: TOOLTIP (minimap), FULLSCREEN (world map)
-- Uses ChatFrame background texture for simple circular appearance
-- Dots are positioned using Astrolabe coordinate calculations for minimap
-- World map uses zone-relative coordinates (0-1 range) converted to pixels
-
-**Key Methods:**
-- `MinimapPath:Init()` - Initialize dot pools, load settings, start update frame (scheduled 2.5s after addon load)
-- `MinimapPath:CreateMinimapDots()` - Create 8 minimap dot frames
-- `MinimapPath:CreateWorldMapDots()` - Create 12 world map dot frames
-- `MinimapPath:UpdateMinimap()` - Calculate and position minimap dots along path (checks zone match, distance, visibility)
-- `MinimapPath:UpdateWorldMap()` - Calculate and position world map dots along path (checks zone match, world map visibility)
-- `MinimapPath:EnableMinimap()` - Enable minimap path and update pfQuest state
-- `MinimapPath:DisableMinimap()` - Disable minimap path, hide dots, update pfQuest state
-- `MinimapPath:EnableWorldMap()` - Enable world map path and update pfQuest state
-- `MinimapPath:DisableWorldMap()` - Disable world map path, hide dots, update pfQuest state
-- `MinimapPath:HideMinimapDots()` - Hide all minimap dots
-- `MinimapPath:HideWorldMapDots()` - Hide all world map dots
-- `MinimapPath:DebugDump()` - Display debug information (via `/glvminimap` command)
-
-**Settings Integration:**
-- Settings > Display > Navigation Path card
-- Two independent checkboxes: "Show Path on Minimap" and "Show Path on World Map"
-- Both default to enabled (true) on first load
-- Handler functions: `GLV_OnMinimapPathCheckboxClick()`, `GLV_OnWorldMapPathCheckboxClick()`
-- Init functions: `GLV_InitMinimapPathCheckbox()`, `GLV_InitWorldMapPathCheckbox()`
-
-### Minimap Button System
-
-The addon provides a minimap button for quick access to guide window and settings:
-
-**Features:**
-- Lua-created frame (no XML definition) following pfQuest pattern
-- **Left-click**: Toggle guide window visibility (calls `GLV_HideGuideFrame()` / `GLV_ShowGuideFrame()`)
-- **Right-click**: Open settings window (calls `GLV_ToggleSettings()`)
-- **Ctrl+Right-click**: Enter drag mode to reposition around minimap edge
-- Tooltip displays available controls on hover
-
-**Implementation Details:**
-- **Frame Name**: `GLV_MinimapButton`
-- **Size**: 31x31 pixels
-- **Icon**: `Interface\\Icons\\INV_Misc_Book_09` (book icon with TexCoord 0.05-0.95 for clean edges)
-- **Border Overlay**: `Interface\\Minimap\\MiniMap-TrackingBorder` (53x53 pixels)
-- **Frame Level**: 9 (appears above default minimap elements)
-- **Highlight Texture**: `Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight`
-- **Radius**: 80 pixels from minimap center
-
-**Drag-to-Reposition:**
-- Ctrl+Right-click starts drag mode
-- OnUpdate handler tracks cursor position and calculates angle from minimap center
-- OnMouseUp saves final position angle to `{"UI", "MinimapButtonAngle"}` setting
-- Click event consumed after drag to prevent accidental settings window open
-- Position restored on ADDON_LOADED event via `GLV_MinimapButton_UpdatePosition(angle)`
-
-**Visibility State Persistence:**
-- `GLV_ShowGuideFrame()` and `GLV_HideGuideFrame()` both save state to `{"UI", "GuideHidden"}`
-- State restored in `Core.lua` OnEnable: if `guideHidden` is true, `GLV_Main:Hide()` is called
-- Ensures guide window visibility persists across `/reload` and logout/login
-
-**Key Functions:**
-- `GLV_MinimapButton_UpdatePosition(angle)` - Position button at given angle (degrees) around minimap edge
-- `GLV_MinimapButton_OnClick(button)` - Handle left/right click events (ignores click after drag)
-- `GLV_MinimapButton_StartDrag()` - Enter drag mode with OnUpdate tracking loop
-- `GLV_MinimapButton_OnMouseUp()` - End drag, save angle to settings, mark dragging flag
-
-**Constants:**
-- `MINIMAP_BUTTON_RADIUS = 80` - Distance from minimap center
-- `minimapButtonDragging` - Flag to prevent click event after drag ends
-
-### Settings UI Architecture
-
-The settings window features a compact modern dark theme with card-based layout:
-
-**Design Specifications:**
-- **Frame Size**: 600x450 (reduced from 900x670 for compact footprint)
-- **Backdrop**: Dark tooltip backdrop (`UI-Tooltip-Background`) with color (0.08, 0.08, 0.12, 0.95)
-- **Border**: Tooltip border (`UI-Tooltip-Border`) with color (0.3, 0.3, 0.4, 0.8)
-- **Typography**: 11px `FRIZQT__.TTF` font throughout for compact readability
-- **Accent Color**: Blue/violet (0.42, 0.55, 0.83) for titles and active states
-- **Card Sections**: Semi-transparent dark backgrounds (0.05, 0.05, 0.08, 0.7) with subtle borders
-
-**UI Components:**
-- **Left Menu**: Vertical navigation buttons (Guides, Display, Talents, About) with active tab highlighting
-  - Active tab gets white text color (1, 1, 1) and background highlight
-  - Inactive tabs use gray text (0.8, 0.8, 0.8)
-  - Highlight frame follows active selection with smooth transitions
-- **Content Pages**: Card-based sections for settings groups
-  - Guide Pack card: Pack dropdown, Load/Unload buttons, guide notes, starting guide selector
-  - Automation card: Auto-accept/turnin/flight checkboxes (marked as BETA)
-  - Display card: Text/navigation scale sliders, navigation path toggles (minimap/world map), frame strata dropdown
-  - Talents card: Enable/disable toggles, template dropdown, move notification button
-- **Checkboxes**: Initialized with `GLV_InitCheckboxFont()` to apply 11px font consistently
-- **Menu Hover**: `GLV_OnMenuLeave()` handler maintains active tab color on mouse exit
-
-**Display Settings Management:**
 ```lua
--- Guard flag prevents false "changed" detection during slider initialization
-displaySettingsInitializing = true/false
-
--- Functions:
-GLV_MarkDisplaySettingsChanged()      -- Mark display settings dirty (ignored during init)
-GLV_CheckReloadOnClose()               -- Show reload confirmation if changes made
-GLV_ResetDisplaySettingsChanged()      -- Clear dirty flag (called on OnShow)
-GLV_BeginSliderInit()                  -- Start slider init (suppresses change marking)
-GLV_EndSliderInit()                    -- End slider init (re-enables change detection)
+{"Guide", "ActivePack"}                          -- Selected guide pack
+{"Guide", "CurrentGuide"}                        -- Current guide ID
+{"Guide", "Guides", guideId, "CurrentStep"}      -- Active step index
+{"Guide", "Guides", guideId, "StepState"}        -- Step completion table
+{"Guide", "Guides", guideId, "StepQuestState"}   -- Per-action completion tracking
+{"Guide", "Guides", guideId, "VisitedTARs", idx} -- Visited NPCs per step
+{"Automation", "AutoAcceptQuests"}               -- Auto-accept [QA] steps
+{"Automation", "AutoTurninQuests"}               -- Auto-turnin [QT] steps
+{"UI", "GuideTextScale"} / {"UI", "NavigationScale"} -- Scale multipliers
+{"UI", "MinimapPath"} / {"UI", "WorldMapPath"}  -- Path rendering toggles
+{"UI", "GuideHidden"}                            -- Window visibility state
+{"Navigation", "CorpsePosition"}                 -- Persisted corpse pos {c,z,x,y}
+{"Talents", "ActiveTemplate", class}             -- Active talent template
 ```
-
-**Reload Confirmation Dialog:**
-- Replaced automatic `/reload` with `StaticPopup_Show("GLV_RELOAD_UI")` confirmation
-- Only triggers when Display tab settings are modified
-- Prevents false reload triggers when visiting Display tab without making changes
-- Guard flag (`displaySettingsInitializing`) prevents slider initialization from marking settings dirty
-
-**Key Functions:**
-- `GLV_ShowGuide(frame)` - Switch between settings pages, update menu highlight position
-- `GLV_InitCheckboxFont(checkbox)` - Apply compact 11px font to checkbox text
-- `GLV_OnMenuLeave(menuButton)` - Restore default color unless button is active tab
-- `GLV_InitStrataDropdown(dropdown)` - Initialize frame strata dropdown with 5 layer options (BACKGROUND, LOW, MEDIUM, HIGH, DIALOG)
-- `GLV_ApplyFrameStrata(strata)` - Apply selected frame strata to main guide window (applied on load and on change)
-
-### Talent Suggestion System
-
-The addon includes an intelligent talent suggestion system that helps players optimize their leveling builds:
-
-**Features:**
-- **Level-up Toast Notifications**: Shows persistent fade-in popup when gaining a talent point - stays visible until clicked or talent is spent
-- **Talent Frame Highlighting**: Adds green glow around suggested talent in the talent frame (works with both TalentFrame and TWTalentFrame)
-- **Class-specific Templates**: Pre-configured talent builds from Icy Veins for all 9 classes
-- **Template Registration API**: Custom templates can be added via addon API
-- **Respec Support**: Templates can define a transition level for talent resets with automatic phase switching
-- **Smart Detection**: Automatically detects which talent frame addon is active
-
-**Talent Templates:**
-
-Templates are stored per class with level-by-level talent assignments:
-```lua
--- Basic template structure: {[level] = {tree, row, col}}
-GLV.TalentTemplates["MAGE"]["Frost Single-Target (Icy Veins)"] = {
-    type = "leveling",
-    talents = {
-        [10] = {1, 4, 1},  -- Arcane tree, row 4, column 1
-        [11] = {1, 4, 1},  -- Same talent, rank 2
-        [12] = {3, 1, 2},  -- Frost tree, row 1, column 2
-        -- ... continues to level 60
-    }
-}
-
--- Template with respec support (optional)
-GLV.TalentTemplates["WARRIOR"]["Arms with Respec"] = {
-    type = "leveling",
-    talents = {
-        [10] = {1, 1, 1},  -- Phase 1 talents (pre-respec)
-        -- ... up to respec level
-    },
-    respec = {
-        respecAt = 40,  -- Level to trigger respec notification
-        message = "Reset your talents at a class trainer!",  -- Custom message (optional)
-        talents = {
-            [40] = {2, 1, 1},  -- Phase 2 talents (post-respec)
-            -- ... continues to level 60
-        }
-    }
-}
-```
-
-**Respec System:**
-- Templates can define an optional `respec` table with a transition level
-- At the `respecAt` level, a gold toast notification prompts the player to reset talents
-- After respec, `GetTemplateTalents()` switches to phase 2 talents automatically
-- Respec state persists across `/reload` in `{"Talents", "RespecDone", class}` setting
-- Changing template in settings resets the respec state
-- 100% backward-compatible: respec parameter is optional
-
-**Default Templates:**
-
-All 9 classes now have complete leveling builds sourced from talents.turtlecraft.gg (TurtleWoW):
-
-- **Warrior**: Arms (TurtleWoW)
-- **Paladin**: Retribution (TurtleWoW), Crimson Paladin (Protection→Holy/Prot, respecs at 41)
-- **Hunter**: Beast Mastery (TurtleWoW)
-- **Rogue**: Combat Swords (TurtleWoW)
-- **Priest**: Discipline (TurtleWoW)
-- **Shaman**: Enhancement (TurtleWoW)
-- **Mage**: Frost (TurtleWoW)
-- **Warlock**: Affliction (TurtleWoW)
-- **Druid**: Feral (TurtleWoW)
-
-**Template Registration API:**
-```lua
--- Register a custom talent template (basic)
-GLV:RegisterTalentTemplate(class, name, templateType, talents)
--- class: "MAGE", "WARRIOR", etc. (uppercase)
--- name: Display name (e.g., "Frost AoE Leveling")
--- templateType: "leveling" or "endgame"
--- talents: Table of {[level] = {tree, row, col}}
-
--- Register a custom talent template with respec support
-GLV:RegisterTalentTemplate(class, name, templateType, talents, respec)
--- respec: optional table {respecAt = level, message = "string", talents = {[level] = {tree, row, col}}}
--- Example: {respecAt = 40, message = "Reset your talents!", talents = {[40] = {2,1,1}, ...}}
-
--- Get all templates for a class
-local templates = GLV:GetTalentTemplates(class, filterType)
-
--- Get template names for dropdowns
-local names = GLV:GetTalentTemplateNames(class, filterType)
-
--- Get active template for current character
-local activeTemplate = GLV:GetActiveTemplate(class)
-
--- Get correct talents table for a template (resolves respec phase)
-local talents = GLV:GetTemplateTalents(template, class)
--- Returns phase 2 talents if respec is done, otherwise phase 1 talents
-```
-
-**Key Methods:**
-- `TalentTracker:Init()` - Initialize talent tracking system, hook into PLAYER_LEVEL_UP and CHARACTER_POINTS_CHANGED
-- `TalentTracker:ShowToast(talentName, talentIcon, treeIndex, customMessage)` - Display toast with fade-in animation (stays visible until dismissed)
-- `TalentTracker:DismissToast()` - Trigger fadeout animation on toast (called when clicked or talent spent)
-- `TalentTracker:HideToast()` - Hide and reset toast frame immediately
-- `TalentTracker:UpdateTalentHighlights()` - Highlight suggested talent in talent frame (uses GetTemplateTalents for correct phase)
-- `TalentTracker:ClearTalentHighlight()` - Remove highlight overlay
-- `TalentTracker:GetSuggestedTalent(level)` - Get talent suggestion for a level
-- `TalentTracker:DetectTalentFrame()` - Detect active talent frame (TalentFrame or TWTalentFrame)
-- `TalentTracker:OnLevelUp(newLevel)` - Handle level-up event, detect respec transitions, show toast notifications
-- `GLV:GetTemplateTalents(template, class)` - Resolve correct talents table based on respec state (phase 1 or 2)
-
-**Slash Commands:**
-- `/glvtalent` - Show talent system info
-- `/glvtalent debug` - Toggle debug mode
-- `/glvtalent highlight` - Force show talent highlight
-- `/glvtalent toast` - Force show level-up toast
-- `/glvtalent info` - Show current template, suggestions, and respec phase (if applicable)
-
-**UI Frames:**
-- `GLV_TalentToast` - Toast notification frame with fade animation (movable, draggable, clickable)
-  - Stays visible until clicked or talent point spent (no auto-hide timer)
-  - `enableMouse=true` with `OnMouseUp` handler to dismiss on click
-  - Contains `GLV_TalentToastIcon` for talent icon display
-  - Contains `GLV_TalentToastText` for talent suggestion text
-  - Contains `GLV_TalentToastMessage` for custom respec messages (hidden by default, gold text)
-- `GLV_TalentHighlight` - Green glow overlay for talent frame buttons
-- Both frames defined in `Frames/TalentPopup.xml`
-
-**Settings Integration:**
-- Talent settings page in Settings > Talents
-- Enable/disable system, toast notifications, and talent highlights independently
-- Template selection dropdown per character class
-- "Move Notification" button to reposition toast notification (drag to desired location, click to confirm)
-- Toast position saved as center-offset coordinates and persists across sessions
-- Respec state automatically resets when changing templates
-- Settings persist per character
-
-**Toast Position Functions:**
-- `GLV_StartMoveToastNotification()` - Enter move mode for toast frame (shows drag instructions)
-- `GLV_ConfirmToastPosition()` - Confirm and save new toast position
-- `GLV_TalentToast_SavePosition()` - Save toast position to settings (center-offset coordinates)
-- `GLV_TalentToast_RestorePosition()` - Restore saved position on addon load
 
 ## Guide Syntax
-
-Guides use tagged format parsed by `GuideParser.lua`:
 
 | Tag | Meaning | Example |
 |-----|---------|---------|
 | `[N x-y Name]` | Guide name and level range | `[N 1-11 Elwynn Forest]` |
-| `[GA faction]` | Alliance/Horde/Race filter (comma-separated) | `[GA Alliance]` or `[GA Horde,Undead]` |
+| `[GA faction]` | Faction/race filter (comma-separated) | `[GA Alliance]` or `[GA Horde,Undead]` |
 | `[QA id]` | Accept quest | `[QA783]` |
-| `[QC id]` or `[QC id,objectiveIndex]` | Complete quest (or specific objective) | `[QC33]` or `[QC33,2]` |
-| `[QT id]` | Turn in quest | `[QT783]` |
+| `[QC id]` or `[QC id,objIdx]` | Complete quest (or specific objective, 1-based) | `[QC33,2]` |
+| `[QT id]` | Turn in quest (auto-skipped if quest not in log) | `[QT783]` |
 | `[TAR id]` | NPC/target reference | `[TAR823]` |
-| `[G x,y Zone]` | Go to coordinates (multiple per step creates waypoint sequence) | `[G 44,57 Dun Morogh]` or `[G 44.0, 76.1, Mulgore]` |
-| `[A class]` | Class-specific step (prepends "Class :" at line start) | `[A Mage] [QA3104]` |
-| `[XP level]` | XP requirement (auto-generates text if none provided) | `[XP4-290]` or `[XP3]` or `[XP3.5]` |
-| `[T]` | Train at trainer (shows trainer icon) | `[T] Learn skills` |
-| `[LE id,Spell Name]` or `[LE Spell Name]` | Learn spell/skill (auto-completes when learned, checks skill lines for weapon skills) | `[LE 1180,Two-Handed Swords]` |
-| `[CI id,count]` | Collect item (auto-completes when items in bags) | `[CI1179,10]` |
-| `[UI id]` | Use item (shows clickable icon with quest progress when no coordinates available) | `[UI2746]` |
+| `[G x,y Zone]` | Go to coordinates | `[G 44,57 Dun Morogh]` |
+| `[A class]` | Class-specific step | `[A Mage] [QA3104]` |
+| `[XP level]` | XP requirement (formats: `[XP3]`, `[XP3-100]`, `[XP3.5]`) | `[XP4-290]` |
+| `[T]` | Train at trainer | `[T] Learn skills` |
+| `[LE id,Name]` | Learn spell/skill (auto-completes) | `[LE 1180,Two-Handed Swords]` |
+| `[CI id,count]` | Collect item (auto-completes on BAG_UPDATE) | `[CI1179,10]` |
+| `[UI id]` | Use item (fallback icon when no coords) | `[UI2746]` |
 | `[OC]` | Optional, completes with next | `[OC]Grind north` |
-| `[NX x-y Name]` | Link to next guide (shows clickable button on last step) | `[NX 11-13 Westfall]` |
+| `[NX x-y Name]` | Next guide link | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
-| `[H]` | Use hearthstone | `[H] to Stormwind` |
+| `[H]` | Use hearthstone (auto-completes on arrival) | `[H] to Stormwind` |
+| `[S location]` | Bind hearthstone (auto-completes on ConfirmBinder) | `[S Goldshire]` |
+| `[F]` | Take flight | `[F] Fly to Ironforge` |
 
-**Tag Details:**
-
-- **[G] formats**: Supports both `x,y Zone` and `x, y, Zone` (with comma before zone name). Coordinates are hidden from guide text display but still used for navigation.
-- **[A] display**: Text shows as "Mage : [Rest of step text]" at line start with class color
-- **[XP] formats**:
-  - `[XP3]` → "Level 3"
-  - `[XP3-100]` → "Level 3 (-100 XP)"
-  - `[XP3+500]` → "Level 3 (+500 XP)"
-  - `[XP3.5]` → "Level 3 (50%)"
-  - `[XP3 Custom text]` → "Custom text" (overrides default)
-- **[XP] display behavior**:
-  - Active step: XP progress shown in navigation frame as purple StatusBar (replaces arrow)
-  - Ongoing/pinned steps: XP progress shown inline on separate line below step text
-  - Navigation bar updates in real-time on XP_UPDATE and PLAYER_LEVEL_UP events
-  - Bar turns green when requirement is met, displays "Done!" text
-- **[QC] objective tracking**:
-  - `[QC id]` → Completes when entire quest is done
-  - `[QC id,objectiveIndex]` → Completes when specific objective is done (e.g., `[QC150,1]` for first objective of quest 150)
-  - Objective indices are 1-based (1, 2, 3, etc.)
-  - Navigation automatically targets coordinates for the specific objective
-- **[CI] collect item tracking**:
-  - `[CI id,count]` → Auto-completes when player has count or more of item id in bags
-  - Example: `[CI1179,10]` completes when player has 10+ of item 1179
-  - Only validates the current active step (prevents duplicate [CI] tags from completing simultaneously)
-  - Triggers on BAG_UPDATE events with 0.3s delay for batch processing
-- **[UI] use item fallback**:
-  - `[UI id]` → Shows clickable item icon with quest progress when navigation coordinates are unavailable
-  - Primary use case: Deeprun Tram, instances, or areas where waypoint targeting doesn't work
-  - Navigation frame displays item icon, quest name (yellow/gold), "Use item" objective, and real-time quest progress
-  - Quest progress shows colored objective lines (green when complete, yellow when incomplete)
-  - Progress updates every ~1 second via OnUpdate loop
-  - Click handler automatically searches bags and uses the item
-  - When player enters correct zone with coordinates, arrow navigation automatically restores
-  - Example: `[UI2746]` for using an item during Deeprun Tram quest
-- **[H] hearthstone usage**:
-  - `[H]` → Auto-completes when player uses hearthstone and arrives at destination matching bind location
-  - Example: `[H] to Stormwind` completes after hearthstone cast to Stormwind
-  - Only validates the current active step (prevents duplicate [H] tags from completing simultaneously)
-  - Triggers on SPELLCAST_STOP event with 1.0s delay for teleport completion
-  - Bind location matching is case-insensitive and supports partial matches
-- **[S] hearthstone binding**:
-  - `[S location]` → Auto-completes when player binds hearthstone to the required location
-  - Example: `[S Goldshire]` completes after binding hearthstone at Goldshire inn
-  - Only validates the current active step (prevents duplicate [S] tags from completing simultaneously)
-  - Matches against inn name, current subzone, or current zone (case-insensitive, partial match)
-  - Triggers on ConfirmBinder hook with 0.5s delay
-- **Multi-waypoint**: Multiple `[G]` or `[TAR]` tags in one step create auto-advancing waypoint sequence
-
-## Key Files
-
-- `Core.lua` - Addon initialization, character loading, checks for active pack (no auto-loading), slash command registration (`/glv`, `/guidelime`), MinimapPath initialization (scheduled 2.5s after load), frame strata application on load, guide window visibility restoration from `{"UI", "GuideHidden"}` setting
-- `Core/GuideParser.lua` - Tag parsing, step extraction, item icon caching with tooltip queries
-- `Core/GuideLibrary.lua` - Guide registration, pack management, dropdown, loading
-- `Core/GuideWriter.lua` - UI creation, checkbox handling, highlighting, text scaling, fresh item texture fetching, XP progress display for ongoing steps only (active step XP shown in navigation frame)
-- `Core/GuideNavigation.lua` - Arrow navigation using Astrolabe, multi-waypoint auto-advancement, next guide button for guide transitions, frame scaling, XP progress StatusBar for [XP] steps, waypoint query methods for MinimapPath, death/corpse navigation system (captures position on death, shows ghostly blue arrow to corpse, restores navigation state on resurrection, persists corpse position across disconnect)
-- `Core/MinimapPath.lua` - Minimap and world map dotted path rendering (8 minimap dots, 12 world map dots), pfQuest integration (auto-disable nodes when paths active), Astrolabe coordinate calculations, update loop (0.15s interval)
-- `Core/Events/Character.lua` - XP/level tracking, spell/skill learning detection (checks GetSkillLineInfo for weapon skills, listens to LEARNED_SPELL_IN_TAB and SKILL_LINES_CHANGED events), calls GuideNavigation:UpdateXPDisplay() on XP_UPDATE and PLAYER_LEVEL_UP events to refresh navigation XP bar
-- `Core/Events/Quests.lua` - Quest hooks, state tracking, objective tracking with objectiveIndex, automation (auto-accept/turnin), QuestTracker data cleanup on turnin, ForceNavigationUpdate() for rapid quest sequences
-- `Core/Events/Items.lua` - Item collection tracking, BAG_UPDATE event handling, current-step-only validation for [CI] tags, auto-completion when item count requirements met
-- `Core/Events/Gossip.lua` - Gossip/NPC dialog tracking, hearthstone bind detection (matches inn name, subzone, or zone), auto-gossip/auto-turnin logic, current-step-only validation for [H] and [S] tags
-- `Core/Events/Taxi.lua` - Flight path tracking and automation (auto-take flights), skips auto-completing steps with both FLY_TO lines and quest tags (QA/QC/QT) to let QuestTracker handle final completion
-- `Core/Events/Talents.lua` - Talent suggestion system, level-up tracking, toast notifications, talent frame highlighting, template management
-- `Frames/Frames.lua` - UI functions including `GLV_UpdateGuidePackNotes()`, `GLV_LoadSelectedGuidePack()`, `GLV_UnloadCurrentGuide()`, `GLV_ShowGuideFrame()`, `GLV_HideGuideFrame()` (both save visibility state to settings), `GLV_InitCheckboxFont()`, `GLV_OnMenuLeave()`, talent settings UI, toast position functions, display settings change tracking with reload confirmation dialog, minimap/world map path checkbox handlers, frame strata dropdown initialization and application, minimap button functions (`GLV_MinimapButton_UpdatePosition()`, `GLV_MinimapButton_OnClick()`, `GLV_MinimapButton_StartDrag()`, `GLV_MinimapButton_OnMouseUp()` for drag-to-reposition)
-- `Frames/MainFrame.xml` - Main window frame definition, close button wired to `GLV_HideGuideFrame()` (hides window instead of navigating)
-- `Frames/TalentPopup.xml` - Toast notification frame and talent highlight overlay definitions
-- `Frames/SettingsFrame.xml` - Settings UI with compact modern dark theme (600x450, dark tooltip backdrop, card-based sections, 11px fonts, blue/violet accent, active tab highlight), Navigation Path card with minimap/world map path toggles, Frame Strata card with layer dropdown
-- `TalentTemplates/*.lua` - Class-specific talent templates (9 files, one per class)
-- `Helpers/DBTools.lua` - Database query functions (quest/NPC/item/object lookups), quest NPC name lookup (`GetQuestTurninNPCName()`, `GetQuestAcceptNPCName()`)
-
-## Lua 5.0 Compatibility Notes
-
-```lua
--- Use these patterns for Vanilla WoW compatibility:
-table.getn(t)           -- NOT #t
-string.gfind(s, pat)    -- NOT string.gmatch
-string.find(s, pat)     -- NOT string.match (use captures with string.find)
-getglobal("name")       -- For dynamic frame access
-this                    -- Inside XML event handlers, NOT self
-```
-
-## WoW 1.12 UI Limitations
-
-- **No inline textures in text**: The `|Tpath:size|t` escape sequence does NOT work in WoW 1.12. To show icons inline with text, you must create separate Texture/Button frames and position them manually, or use colored text characters as substitutes.
-- **Limited escape sequences**: Only `|cAARRGGBB` (color) and `|r` (reset) work reliably in FontStrings.
-- **Frame methods in scheduled events**: Methods like `IsShown()` may fail when called within scheduled events (e.g., functions queued with `this:Schedule()`). When calculating UI positions in scheduled contexts, rely on frame existence and height checks rather than visibility state.
+Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences.
 
 ## Quest Matching
 
-The addon uses different matching strategies for quest actions to handle WoW 1.12 API limitations:
+- **ACCEPT**: Matches by exact quest ID from QUEST_DETAIL event
+- **COMPLETE/TURNIN**: ID first, name fallback for COMPLETE only
+- **`GetQuestStatus()`**: Uses QuestTracker.store exclusively (no name fallback) to prevent same-name quest confusion
+- **Auto-skip**: Steps with `[QT]` where quest is not in log are automatically completed
+- **Objective tracking**: `[QC id,objectiveIndex]` tracks individual objectives (1-based)
+- **Multi-action steps**: Each action tracked independently in `StepQuestState`, step completes when all done
 
-**ACCEPT Actions (`[QA]` tags):**
-- Matches by exact quest ID only (from QUEST_DETAIL event)
-- No name fallback - the event provides the precise quest ID being offered
-- Most reliable since we know exactly which quest is being accepted
+## Key Files
 
-**COMPLETE/TURNIN Actions (`[QC]`, `[QT]` tags):**
-- Matches by quest ID first
-- Falls back to name matching in `HandleQuestAction()` for detecting completion
-- **IMPORTANT**: `GetQuestStatus(questId)` uses QuestTracker data ONLY (no name fallback) to prevent false matches on same-name quests
-- Quests are removed from `store.Accepted` when turned in to prevent stale data
+| File | Purpose |
+|------|---------|
+| `Core.lua` | Init, slash commands (`/glv`, `/glvminimap`), minimap button |
+| `Settings.lua` | Settings manager with nested key access |
+| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution |
+| `Core/GuideParser.lua` | Tag parsing, step extraction |
+| `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown |
+| `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display |
+| `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, auto-skip QT |
+| `Core/Navigation/NavigationModes.lua` | Display modes + death navigation |
+| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution |
+| `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration |
+| `Core/Events/Quests.lua` | Quest hooks, HandleQuestAction, auto-accept/turnin |
+| `Core/Events/Character.lua` | XP tracking, spell learning detection |
+| `Core/Events/Items.lua` | [CI] item collection tracking |
+| `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
+| `Core/Events/Taxi.lua` | Flight path tracking |
+| `Core/Events/Talents.lua` | Talent suggestions, toast notifications |
+| `Frames/Frames.lua` | UI functions, settings handlers, minimap button |
+| `Frames/*.xml` | Frame definitions (MainFrame, Settings, TalentPopup) |
+| `TalentTemplates/*.lua` | Class talent builds (9 classes) |
 
-**Quest Objective Tracking:**
-- `[QC id,objectiveIndex]` tracks individual quest objectives (1-based index)
-- Objective completion fires `HandleQuestAction()` with both questId and objectiveIndex
-- Steps match only if both questId and objectiveIndex match (or both are nil for whole quest)
-- Navigation system passes objectiveIndex to `GetQuestAllCoords()` for precise coordinate filtering
-
-**Helper Functions:**
-- `GetQuestIDByName(name)` returns first matching quest ID from VGDB
-- `GetQuestStatus(questId)` checks QuestTracker.store first, falls back to quest log name matching for untracked quests
-- `QuestTracker:HandleQuestAction(questId, title, actionType, objectiveIndex)` applies matching strategy
-- Quest completion detection supports both `isComplete == 1` (numeric) and `isComplete == true` (boolean)
-- `GetQuestTurninNPCName(questId)` returns turn-in NPC name from quest database
-- `GetQuestAcceptNPCName(questId)` returns quest giver NPC name from quest database
-
-**Same-Name Quest Handling:**
-- Multiple quests can share the same name (e.g., "In Defense of the King's Lands")
-- QuestTracker stores exact IDs in `store.Accepted[questId]` when quest is accepted
-- `GetQuestStatus()` relies exclusively on this stored data to avoid ID confusion
-- Quests are removed from Accepted when turned in, preventing false "in log" matches
-
-This strategy ensures multi-part quest chains work correctly while maintaining precision for automation.
-
-## Item Collection Tracking
-
-The addon includes automatic tracking for "Collect Item" steps using the `[CI]` tag:
-
-**Behavior:**
-- `ItemTracker:CheckCollectItems()` validates ONLY the current active step (not all uncompleted steps)
-- This prevents duplicate `[CI]` tags (e.g., `[CI1179,10]` appearing in multiple steps) from auto-completing simultaneously
-- Matches the same single-step validation pattern used by QuestTracker
-
-**Event Handling:**
-- Listens to `BAG_UPDATE` events via Ace2 event system
-- Uses 0.3s scheduled delay after bag updates to batch process multiple rapid inventory changes
-- Initial check scheduled 3s after addon load to ensure guide is fully loaded
-
-**Key Methods:**
-- `ItemTracker:Init()` - Initialize item tracking, register BAG_UPDATE event, schedule initial check
-- `ItemTracker:GetItemCount(itemId)` - Count total of item across all bags (0-4)
-- `ItemTracker:OnBagUpdate()` - Handle bag update event with 0.3s delay
-- `ItemTracker:CheckCollectItems()` - Validate current step's collect item requirements and auto-complete if met
-
-**Step Completion:**
-- Checks all `collectItems` entries in current step's lines
-- Only completes step when ALL collect item requirements are met
-- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
-- Debug message: "|cFF00FFFF[Items]|r Auto-completed: Collect items step (step N)"
-
-**Important Notes:**
-- Only checks `currentStep` from settings, not entire `CurrentDisplaySteps` array
-- Skips already completed steps (checks `stepState[origIdx]`)
-- Uses `CurrentDisplayToOriginal` mapping to track step state correctly
-
-## Hearthstone Step Validation
-
-The addon includes automatic tracking for hearthstone-related steps using `[H]` and `[S]` tags:
-
-**Behavior:**
-- `GossipTracker:CheckHearthstoneArrival()` validates ONLY the current active step (not all uncompleted steps)
-- `GossipTracker:CheckHearthstoneBind()` validates ONLY the current active step (not all uncompleted steps)
-- `GossipTracker:CompleteBindStep()` immediately completes `[S]` steps when `ConfirmBinder` fires (no location check needed)
-- This prevents duplicate `[H]` or `[S]` tags (e.g., multiple `[H Goldshire]` steps) from auto-completing simultaneously
-- Matches the same single-step validation pattern used by QuestTracker and ItemTracker
-
-**Event Handling:**
-- Listens to `SPELLCAST_STOP` event to detect hearthstone cast completion
-- Uses 1.0s scheduled delay after cast to allow teleport to complete
-- Hooks `ConfirmBinder` function to detect when hearthstone is bound at an innkeeper (completes step immediately)
-- Listens to `MINIMAP_ZONE_CHANGED` event as fallback for zone-based bind detection (e.g., after `/reload` or exiting inn)
-- Initial check scheduled 3s after addon load to ensure guide is fully loaded
-
-**Key Methods:**
-- `GossipTracker:Init()` - Initialize gossip tracking, register events, hook ConfirmBinder, register MINIMAP_ZONE_CHANGED event
-- `GossipTracker:OnSpellcastStop()` - Handle spell cast stop event with 1.0s delay
-- `GossipTracker:CompleteBindStep()` - Immediately complete current `[S]` step when ConfirmBinder fires (0.5s delay, no location check)
-- `GossipTracker:CheckHearthstoneArrival()` - Validate current step's `[H]` tag after hearthstone use with broader zone matching
-- `GossipTracker:CheckHearthstoneBind()` - Validate current step's `[S]` tag with location-based matching (fallback for zone changes and `/reload`)
-
-**Step Completion:**
-- **`[S]` bind steps**: Auto-complete immediately when `ConfirmBinder` fires (0.5s delay)
-  - No location check needed - if the player is on a `[S]` step and just confirmed binding, they're at the correct inn (the guide sent them there)
-  - Location-based matching is unreliable inside inn buildings since `GetSubZoneText()` returns inn name (e.g., "Stoutlager Inn") instead of town name (e.g., "Thelsamar")
-  - Fallback zone-based matching still runs on `MINIMAP_ZONE_CHANGED` for edge cases (e.g., exiting inn or after `/reload`)
-- **`[H]` hearthstone steps**: Auto-complete when player arrives at destination matching bind location
-  - Bind location matching is case-insensitive and supports partial matches against:
-    - Inn name (from `GetBindLocation()`)
-    - Current subzone (from `GetSubZoneText()`)
-    - Minimap zone (from `GetMinimapZoneText()`)
-    - Current zone (from `GetZoneText()`)
-  - Uses broader matching strategy to handle subzone transitions (e.g., "Stoutlager Inn" → "Thelsamar")
-- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
-
-**Zone Matching Improvements:**
-- Both `CheckHearthstoneArrival()` and `CheckHearthstoneBind()` now use multiple zone text sources for robust matching:
-  - `GetBindLocation()` - Inn name from hearthstone binding
-  - `GetSubZoneText()` - Current subzone (e.g., inn building name or town district)
-  - `GetMinimapZoneText()` - Minimap zone text (often more accurate for broader subzones)
-  - `GetZoneText()` - Zone name (e.g., "Loch Modan")
-  - `GetRealZoneText()` - Real zone text (used in `CheckHearthstoneBind()` for additional matching)
-- Handles transitions between inn buildings and towns (e.g., inside "Stoutlager Inn" vs outside in "Thelsamar")
-
-**Important Notes:**
-- Only checks `currentStep` from settings, not entire `CurrentDisplaySteps` array
-- Skips already completed steps (checks `stepState[origIdx]`)
-- Uses `CurrentDisplayToOriginal` mapping to track step state correctly
-- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone arrived at [destination]"
-- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound (ConfirmBinder) - step completed!"
-- Debug message: "|cFF00FFFF[GuideLime]|r Hearthstone bound to [location] (zone: [subzone]) - step completed!" (fallback zone-based completion)
-- Debug message: "|cFF00FFFF[GuideLime]|r Bind check: required='[location]' bind='[inn]' subzone='[subzone]' minimap='[minimap]' zone='[zone]'" (verbose zone matching debug)
-
-## Spell/Skill Learning Detection
-
-The addon includes automatic tracking for spell/skill learning steps using the `[LE]` tag:
-
-**Behavior:**
-- `CharacterTracker:OnSpellLearned()` validates spell/skill learning for steps with `learnSpells` data
-- Supports profession tier detection (Apprentice, Journeyman, Expert, Artisan, Master ranks)
-- Checks `GetSkillLineInfo()` for weapon skills (e.g., "Two-Handed Swords") that appear in Skills panel
-- Falls back to spellbook lookup via `GetSpellIdForName()` if not found in skill lines
-- **Profession Name Extraction**: Handles cases where Nampower API returns profession spells with tier prefix in the name (e.g., "Apprentice Cook" instead of "Cooking" + "Apprentice"). Extracts the tier prefix, strips it from the raw name to get the base name (e.g., "Cook"), then uses partial matching against skill lines to find the actual skill (e.g., "Cooking").
-
-**Event Handling:**
-- Listens to `LEARNED_SPELL_IN_TAB` event for standard spell learning
-- Listens to `SKILL_LINES_CHANGED` event as fallback for weapon skill learning (0.5s delay)
-- Initial check scheduled 3s after addon load to ensure guide is fully loaded (increased from 1s to match other trackers)
-
-**Detection Strategy:**
-1. **Profession Tiers**: Match tier rank (Apprentice/Journeyman/Expert/Artisan/Master). For profession spells where API returns full name with tier prefix:
-   - Extract tier prefix from raw name (e.g., "Apprentice" from "Apprentice Cook")
-   - Strip tier prefix to get base name (e.g., "Cook")
-   - Use partial matching against skill lines to find actual skill (e.g., "Cook" matches "Cooking")
-   - Check if skill max rank meets the tier requirement
-2. **Weapon Skills**: Check skill lines first for skills like "Two-Handed Swords" that don't appear in spellbook
-3. **Regular Spells**: Fall back to spellbook lookup if not found in skill lines
-
-**Key Methods:**
-- `CharacterTracker:Init()` - Initialize character tracking, register LEARNED_SPELL_IN_TAB and SKILL_LINES_CHANGED events
-- `CharacterTracker:OnSpellLearned()` - Validate all uncompleted LEARN steps and auto-complete when requirements met. Uses tier extraction and partial matching for profession spells.
-- `GLV:getSpellName(id)` - Helper function that extracts profession tier prefix and performs partial skill line matching to return the proper skill name
-
-**Step Completion:**
-- Checks all `learnSpells` entries in uncompleted steps
-- Only completes step when ALL learn spell requirements are met
-- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
-
-**Profession Spell Edge Cases:**
-- Some profession spells return "Apprentice Cook" as name with `nil` rank instead of "Cooking" + "Apprentice"
-- Both display (via `getSpellName()`) and detection (via `OnSpellLearned()`) handle this by extracting the tier prefix and using partial matching
-- Example: "Apprentice Cook" → extract "Apprentice" → strip to get "Cook" → match against "Cooking" skill line
-- This ensures proper display ("Cooking" instead of "Apprentice Cook") and auto-completion for `[LE]` steps
-
-## Flight Path Step Validation
-
-The addon includes automatic tracking for flight path steps using the `[F]` or `[P]` tags:
-
-**Behavior:**
-- `TaxiTracker:CheckAndCompleteFlyToSteps()` validates steps with FLY_TO lines after flight arrival
-- **Quest Tag Priority**: Steps that have both FLY_TO lines AND quest tags (QA/QC/QT) are NOT auto-completed by TaxiTracker
-- This prevents premature step completion when the quest action should be the final completion trigger
-- QuestTracker handles final completion for such steps after the quest action is performed
-
-**Event Handling:**
-- Listens to `TAXIMAP_OPENED`, `TAXIMAP_CLOSED` events to detect flight start/end
-- Hooks `TaxiNodeOnButtonEnter` to capture destination names
-- Uses Ace2 scheduler to delay validation slightly after landing
-
-**Key Methods:**
-- `TaxiTracker:Init()` - Initialize taxi tracking, register events, hook taxi map functions
-- `TaxiTracker:OnTaxiMapOpened()` - Detect flight map opening
-- `TaxiTracker:OnTaxiMapClosed()` - Detect takeoff and store destination
-- `TaxiTracker:CheckAndCompleteFlyToSteps(destinationName)` - Validate FLY_TO steps after arrival, skips steps with quest tags
-
-**Step Completion:**
-- Auto-completes steps with matching FLY_TO destination after flight arrival
-- Skips steps that also have `questTags` array with quest actions (QA/QC/QT)
-- Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
-- Debug message: "TaxiTracker: FLY_TO matched but step has quest tags, skipping auto-complete for step N"
-
-**Important Notes:**
-- Flight path names must match destination names exactly (case-sensitive)
-- Steps with both flight and quest tags require quest completion for final step advancement
-- This ensures proper sequencing: "Fly to X and turn in quest Y" waits for quest turnin
-
-## Guide Pack Architecture
-
-Guides are distributed as separate addons (guide packs) that depend on GuidelimeVanilla:
-
-### How Guide Packs Work
-
-1. Guide pack addon declares `## Dependencies: GuidelimeVanilla` in its .toc
-2. Pack's init.lua gets GLV reference: `local GLV = LibStub("GuidelimeVanilla")`
-3. Pack registers its addon name for metadata: `GLV.guidePackAddons["Pack Name"] = "AddonName"`
-4. Each guide file calls `GLV:RegisterGuide(text, "Pack Name")`
-5. Guides are stored in `GLV.loadedGuides["Pack Name"][guideId]`
-6. User selects active pack in Settings > Guides dropdown
-7. User clicks "Load" button to activate the pack
-8. Main dropdown populates with guides from active pack only
-
-### Guide Pack Management Functions
+## Lua 5.0 / WoW 1.12 Notes
 
 ```lua
-GLV:GetAvailableGuidePacks()              -- Returns list of installed pack names
-GLV:GetActiveGuidePack()                  -- Returns currently selected pack name
-GLV:SetActiveGuidePack(name)              -- Set active pack and refresh dropdown
-GLV:ShowNoGuideMessage()                  -- Display "no guides" message in UI
-GLV:RegisterStartingGuides(pack, mapping) -- Register race-to-guide mappings for a pack
-GLV:GetStartingGuideForRace(pack, race)   -- Get starting guide name for a race in a pack
-GLV:PopulateDropdown(group)               -- Populate dropdown with guides, filtered by player faction/race
+table.getn(t)           -- NOT #t
+string.gfind(s, pat)    -- NOT string.gmatch
+string.find(s, pat)     -- NOT string.match (use captures)
+getglobal("name")       -- For dynamic frame access
+this                    -- Inside XML handlers, NOT self
 ```
 
-### Multi-level Dropdown System
+- No inline textures (`|T...|t`) in FontStrings - only `|cAARRGGBB` and `|r` work
+- `IsShown()` may fail in scheduled events - use frame existence checks instead
+- New TOC entries require full game restart (not just `/reload`)
 
-WoW 1.12's UIDropDownMenu has a hard limit of 32 buttons per level. Guide packs with many guides now use multi-level submenus to avoid overflow:
+## Guide Pack API
 
-**Behavior:**
-- **≤30 guides**: Flat dropdown list (original behavior)
-- **>30 guides**: Guides are grouped into level range submenus (Levels 1-10, 11-20, 21-30, etc.)
-
-**Implementation:**
-- Helper functions in `Core/GuideLibrary.lua`:
-  - `filterGuides(guides, playerFaction, playerRace)` - Pre-filter guides by player faction/race
-  - `getGuideDisplayName(guideData)` - Build display name with level range
-  - `groupGuidesByLevelRange(sortedGuides)` - Group guides into level buckets
-- `PopulateDropdown()` checks guide count and switches mode automatically
-- Multi-level mode uses `hasArrow = 1` for submenus and `UIDROPDOWNMENU_MENU_LEVEL`/`UIDROPDOWNMENU_MENU_VALUE` for navigation
-- Level 1 shows range categories (e.g., "Levels 1-10 (15)"), Level 2 shows individual guides
-
-**Constants:**
-- `DROPDOWN_MAX_BUTTONS = 30` - Threshold for switching to multi-level mode (set below WoW's 32-button limit for safety)
-
-### Faction/Race Filtering
-
-The guide dropdown automatically filters guides based on the player's current faction and race:
-
-- Guides with `[GA Alliance]` only appear for Alliance characters
-- Guides with `[GA Horde]` only appear for Horde characters
-- Guides with `[GA Horde,Undead]` only appear for Horde characters AND specifically for Undead players
-- Guides without a `[GA]` tag appear for all factions/races
-
-The filtering uses player data from settings:
-- `{"CharInfo", "Faction"}` - Player's faction ("Alliance" or "Horde")
-- `{"CharInfo", "Race"}` - Player's race ("Human", "Dwarf", "Night Elf", "Gnome", "Orc", "Troll", "Tauren", "Undead")
-
-When a guide is registered via `GLV:RegisterGuide()`, the `faction` field is extracted from the guide's `[GA]` tag and stored in the guide metadata. The dropdown population function then parses this comma-separated faction string to determine visibility.
-
-### Starting Guide System
-
-Guide packs can register race-specific starting guides to automatically suggest appropriate guides for new characters:
-
-**Registration:**
 ```lua
-GLV:RegisterStartingGuides("Pack Name", {
-    ["Human"] = "1-11 Elwynn Forest",
-    ["Dwarf"] = "1-11 Dun Morogh",
-    ["Night Elf"] = "1-11 Teldrassil",
-    ["Gnome"] = "1-11 Dun Morogh",
-    ["Orc"] = "1-12 Durotar",
-    ["Troll"] = "1-12 Durotar",
-    ["Tauren"] = "1-12 Mulgore",
-    ["Undead"] = "1-12 Tirisfal Glades"
-})
-```
-
-**Usage:**
-```lua
-local race = UnitRace("player")
-local guideName = GLV:GetStartingGuideForRace("Pack Name", race)
--- Returns guide name or nil if no mapping exists
-```
-
-**Key Points:**
-- Race names must match WoW API strings exactly (case-sensitive)
-- Guide names should match the display name in the guide's `[N]` tag
-- Multiple races can map to the same starting guide
-- Optional feature - packs work fine without starting guide registration
-
-### Creating a Guide Pack Addon
-
-```
-GuidelimeVanilla_MyPack/
-├── GuidelimeVanilla_MyPack.toc
-├── init.lua
-└── Guide_Zone.lua
-```
-
-**GuidelimeVanilla_MyPack.toc:**
-```
-## Interface: 11200
-## Title: Guidelime Vanilla - My Pack
-## Notes: Description of your guide pack
-## Author: Your Name
-## Version: 1.0.0
-## Dependencies: GuidelimeVanilla
-```
-
-**init.lua:**
-```lua
+-- In guide pack's init.lua:
 local GLV = LibStub("GuidelimeVanilla")
-if not GLV then
-    DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[My Pack]|r GuidelimeVanilla is required!")
-    return
-end
+GLV.guidePackAddons["Pack Name"] = "AddonFolderName"
+GLV:RegisterStartingGuides("Pack Name", {["Human"] = "1-11 Elwynn Forest", ...})
 
--- Register addon name for metadata lookup
-GLV.guidePackAddons = GLV.guidePackAddons or {}
-GLV.guidePackAddons["My Pack Name"] = "GuidelimeVanilla_MyPack"
+-- In guide files:
+GLV:RegisterGuide([[ [N 1-10 Zone] [GA Alliance] ... ]], "Pack Name")
 
--- Register starting guides for each race (optional but recommended)
-GLV:RegisterStartingGuides("My Pack Name", {
-    ["Human"] = "1-11 Elwynn Forest",
-    ["Dwarf"] = "1-11 Dun Morogh",
-    ["Night Elf"] = "1-11 Teldrassil",
-    -- Add more races as needed
-})
-
-DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[My Pack]|r Loaded successfully")
+-- Talent template API:
+GLV:RegisterTalentTemplate(class, name, "leveling", {[10]={tree,row,col}, ...}, respec?)
 ```
 
-**Guide file:**
-```lua
-local GLV = LibStub("GuidelimeVanilla")
-GLV:RegisterGuide([[
-[N 1-10 Zone Name]
-[GA Alliance]
-...
-]], "My Pack Name")
-```
-
-**Important Notes:**
-- Pack name in `GLV.guidePackAddons` must match the group name used in `RegisterGuide()`
-- Addon name in metadata must match the .toc filename (without .toc extension)
-- Users must manually select and load the pack via Settings > Guides (no auto-loading)
-- Main guide dropdown is disabled until a pack is loaded
-- Starting guide registration is optional but recommended for automatic guide selection based on character race
-- Race names must match WoW API race strings: "Human", "Dwarf", "Night Elf", "Gnome", "Orc", "Troll", "Tauren", "Undead"
-- Guide names in starting guide mappings should match the guide display names (without level ranges if possible)
+Guide packs declare `## Dependencies: GuidelimeVanilla` in their .toc. Users must select and load packs via Settings > Guides. Dropdown auto-groups into submenus when >30 guides. Guides filtered by player faction/race via `[GA]` tag.
