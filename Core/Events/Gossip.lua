@@ -20,10 +20,16 @@ function GossipTracker:Init()
         -- Hook ConfirmBinder to detect when hearthstone is bound
         GLV.Ace:Hook("ConfirmBinder", function()
             GLV.Ace.hooks["ConfirmBinder"]()
-            -- Check after a short delay to let the game update
+            -- Complete bind step immediately - if the player is on a [S] step and just
+            -- confirmed binding, they're at the right inn (the guide sent them there).
+            -- Location-based matching is unreliable inside buildings (subzone = inn name).
             GLV.Ace:ScheduleEvent("GLV_CheckHearthBind", function()
-                self:CheckHearthstoneBind()
+                self:CompleteBindStep()
             end, 0.5)
+        end)
+        -- Re-check on subzone change (e.g. exiting inn: "Stoutlager Inn" -> "Thelsamar")
+        GLV.Ace:RegisterEvent("MINIMAP_ZONE_CHANGED", function()
+            self:CheckHearthstoneBind()
         end)
     end
 
@@ -60,12 +66,22 @@ function GossipTracker:CheckHearthstoneArrival()
     local originalIndex = GLV.CurrentDisplayToOriginal[currentStep]
     if not originalIndex or stepState[originalIndex] then return end
 
+    -- Get all zone texts for broader matching
+    local currentSubZone = string.lower(GetSubZoneText() or "")
+    local currentMinimapZone = string.lower(GetMinimapZoneText() or "")
+    local currentZone = string.lower(GetZoneText() or "")
+
     for _, line in ipairs(stepData.lines) do
         if line.stepType == "HEARTHSTONE" and line.hearthDestination then
             local dest = string.lower(line.hearthDestination)
             local bind = string.lower(bindLocation)
 
-            if string.find(bind, dest) or string.find(dest, bind) then
+            local isMatch = string.find(bind, dest) or string.find(dest, bind)
+                or string.find(currentSubZone, dest) or string.find(dest, currentSubZone)
+                or string.find(currentMinimapZone, dest) or string.find(dest, currentMinimapZone)
+                or string.find(currentZone, dest) or string.find(dest, currentZone)
+
+            if isMatch then
                 stepState[originalIndex] = true
                 GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
 
@@ -133,7 +149,42 @@ end
 
 --[[ OBJECTS FUNCTIONS ]]--
 
+-- Complete current [S] bind step immediately when ConfirmBinder fires
+-- No location check needed: the guide directed the player to this inn
+function GossipTracker:CompleteBindStep()
+    if not GLV.CurrentDisplaySteps then return end
+
+    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
+    local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+    local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
+    local diToOrig = GLV.CurrentDisplayToOriginal or {}
+
+    if currentStep <= 0 then return end
+
+    local step = GLV.CurrentDisplaySteps[currentStep]
+    local origIdx = diToOrig[currentStep]
+
+    if not step or not origIdx or stepState[origIdx] then return end
+
+    for _, line in ipairs(step.lines or {}) do
+        if line.bindLocation then
+            stepState[origIdx] = true
+            GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
+
+            if GLV.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone bound (ConfirmBinder) - step completed!")
+            end
+
+            if GLV.QuestTracker then
+                GLV.QuestTracker:UpdateStepNavigation(true, false)
+            end
+            return
+        end
+    end
+end
+
 -- Check if hearthstone is bound to the required location and mark current step complete
+-- Used for zone-change and /reload checks (location-based matching)
 function GossipTracker:CheckHearthstoneBind()
     if not GLV.CurrentDisplaySteps then return end
 
@@ -152,9 +203,13 @@ function GossipTracker:CheckHearthstoneBind()
 
     if not step or not origIdx or stepState[origIdx] then return end
 
-    -- Also get current zone/subzone for matching (inn names often differ from zone names)
+    -- Get all available zone/subzone texts for matching
+    -- GetSubZoneText() can return inn name (e.g. "Stoutlager Inn") when inside a building
+    -- GetMinimapZoneText() often returns the broader subzone (e.g. "Thelsamar") even when inside
     local currentSubZone = GetSubZoneText() or ""
     local currentZone = GetZoneText() or ""
+    local currentMinimapZone = GetMinimapZoneText() or ""
+    local currentRealZone = GetRealZoneText() or ""
 
     for _, line in ipairs(step.lines or {}) do
         if line.bindLocation then
@@ -163,11 +218,19 @@ function GossipTracker:CheckHearthstoneBind()
             local actualBind = string.lower(currentBindLocation)
             local actualSubZone = string.lower(currentSubZone)
             local actualZone = string.lower(currentZone)
+            local actualMinimapZone = string.lower(currentMinimapZone)
+            local actualRealZone = string.lower(currentRealZone)
 
-            -- Match against: inn name, subzone, or zone
+            if GLV.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Bind check: required='" .. line.bindLocation .. "' bind='" .. currentBindLocation .. "' subzone='" .. currentSubZone .. "' minimap='" .. currentMinimapZone .. "' zone='" .. currentZone .. "'")
+            end
+
+            -- Match against: inn name, subzone, minimap zone, zone, or real zone
             local isMatch = string.find(actualBind, requiredLocation) or string.find(requiredLocation, actualBind)
                 or string.find(actualSubZone, requiredLocation) or string.find(requiredLocation, actualSubZone)
+                or string.find(actualMinimapZone, requiredLocation) or string.find(requiredLocation, actualMinimapZone)
                 or string.find(actualZone, requiredLocation) or string.find(requiredLocation, actualZone)
+                or string.find(actualRealZone, requiredLocation) or string.find(requiredLocation, actualRealZone)
 
             if isMatch then
                 stepState[origIdx] = true
