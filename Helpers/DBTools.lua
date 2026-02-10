@@ -116,24 +116,44 @@ function GLV:getSpellName(id)
     local numId = tonumber(id)
     if not numId then return "UNKNOWN_SPELL" end
 
-    -- Use GetSpellNameAndRankForId first (returns proper skill name for professions)
-    -- e.g. spell 2551 returns "Cooking", "Apprentice" instead of "Apprentice Cook"
+    -- Get raw spell name from available APIs
+    local rawName, rawRank
     if GetSpellNameAndRankForId then
-        local name, rank = GetSpellNameAndRankForId(numId)
-        if name then
-            return name
-        end
+        rawName, rawRank = GetSpellNameAndRankForId(numId)
     end
-
-    -- Fallback to GetSpellRec
-    if GetSpellRec then
+    if not rawName and GetSpellRec then
         local spellRec = GetSpellRec(numId)
         if spellRec and spellRec.name then
-            return spellRec.name
+            rawName = spellRec.name
+        end
+    end
+    if not rawName then return "UNKNOWN_SPELL" end
+
+    -- If API properly split name/rank (e.g., "Cooking" + "Apprentice"), use name directly
+    if rawRank and rawRank ~= "" then
+        return rawName
+    end
+
+    -- Otherwise try to strip tier prefix from the raw name
+    -- e.g., "Apprentice Cook" → strip "Apprentice " → "Cook" → match "Cooking" in skill lines
+    local tierPrefixes = {"Apprentice ", "Journeyman ", "Expert ", "Artisan ", "Master "}
+    for _, prefix in ipairs(tierPrefixes) do
+        local prefixLen = string.len(prefix)
+        if string.len(rawName) > prefixLen and
+           string.sub(rawName, 1, prefixLen) == prefix then
+            local strippedName = string.sub(rawName, prefixLen + 1)
+            -- Try to find the actual skill name via partial match in skill lines
+            for i = 1, GetNumSkillLines() do
+                local skillName = GetSkillLineInfo(i)
+                if skillName and string.find(skillName, strippedName, 1, true) then
+                    return skillName  -- e.g., "Cooking" instead of "Cook"
+                end
+            end
+            return strippedName  -- Best guess if skill not in visible lines yet
         end
     end
 
-    return "UNKNOWN_SPELL"
+    return rawName
 end
 
 -- Get full spell info by spell ID (uses Nampower API)

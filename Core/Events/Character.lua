@@ -115,52 +115,92 @@ function CharacterTracker:OnSpellLearned()
                         local spellName = learnSpell.spellName
                         local spellFound = false
 
-                        -- Try Nampower's API to check if spell is learned
+                        -- Resolve spell name and rank from available APIs
+                        local rawName, rawRank
                         if spellId and GetSpellNameAndRankForId then
-                            -- GetSpellNameAndRankForId returns: name="First Aid", rank="Apprentice"
-                            local actualName, actualRank = GetSpellNameAndRankForId(spellId)
+                            rawName, rawRank = GetSpellNameAndRankForId(spellId)
+                        end
+                        if not rawName and spellId and GetSpellRec then
+                            local spellRec = GetSpellRec(spellId)
+                            if spellRec and spellRec.name then
+                                rawName = spellRec.name
+                            end
+                        end
 
-                            if actualName then
-                                -- Determine required tier from rank string
-                                local requiredMaxSkill = nil
+                        if rawName then
+                            -- Extract tier from rank, or from name prefix
+                            local actualRank = rawRank
+                            local searchName = rawName
+                            local strippedName = nil
 
-                                if actualRank == "Apprentice" then
-                                    requiredMaxSkill = 75
-                                elseif actualRank == "Journeyman" then
-                                    requiredMaxSkill = 150
-                                elseif actualRank == "Expert" then
-                                    requiredMaxSkill = 225
-                                elseif actualRank == "Artisan" then
-                                    requiredMaxSkill = 300
-                                elseif actualRank == "Master" then
-                                    requiredMaxSkill = 375
+                            -- If rank is empty/nil, try to extract tier from name prefix
+                            -- e.g., "Apprentice Cook" → tier="Apprentice", stripped="Cook"
+                            if not actualRank or actualRank == "" then
+                                local tierPrefixes = {
+                                    ["Apprentice "] = "Apprentice",
+                                    ["Journeyman "] = "Journeyman",
+                                    ["Expert "] = "Expert",
+                                    ["Artisan "] = "Artisan",
+                                    ["Master "] = "Master"
+                                }
+                                for prefix, tier in pairs(tierPrefixes) do
+                                    if string.sub(rawName, 1, string.len(prefix)) == prefix then
+                                        strippedName = string.sub(rawName, string.len(prefix) + 1)
+                                        actualRank = tier
+                                        break
+                                    end
                                 end
+                            end
 
-                                if requiredMaxSkill then
-                                    -- actualName is already the skill name (e.g., "First Aid", "Cooking")
-                                    for i = 1, GetNumSkillLines() do
-                                        local name, header, isExpanded, skillRank, numTempPoints, skillModifier, skillMaxRank = GetSkillLineInfo(i)
-                                        if name == actualName then
+                            -- Determine required tier from rank
+                            local requiredMaxSkill = nil
+                            if actualRank == "Apprentice" then
+                                requiredMaxSkill = 75
+                            elseif actualRank == "Journeyman" then
+                                requiredMaxSkill = 150
+                            elseif actualRank == "Expert" then
+                                requiredMaxSkill = 225
+                            elseif actualRank == "Artisan" then
+                                requiredMaxSkill = 300
+                            elseif actualRank == "Master" then
+                                requiredMaxSkill = 375
+                            end
+
+                            if requiredMaxSkill then
+                                -- Search skill lines (exact or partial match)
+                                for i = 1, GetNumSkillLines() do
+                                    local name, header, isExpanded, skillRank, numTempPoints, skillModifier, skillMaxRank = GetSkillLineInfo(i)
+                                    if name and not header then
+                                        local matches = (name == searchName)
+                                        if not matches and strippedName then
+                                            matches = string.find(name, strippedName, 1, true) ~= nil
+                                        end
+                                        if matches then
                                             spellFound = (skillMaxRank >= requiredMaxSkill)
                                             break
                                         end
                                     end
-                                else
-                                    -- No known tier rank - could be a weapon skill or other skill
-                                    -- Check skill lines first (weapon skills like Two-Handed Swords)
-                                    for i = 1, GetNumSkillLines() do
-                                        local name = GetSkillLineInfo(i)
-                                        if name == actualName then
-                                            spellFound = true
-                                            break
-                                        end
+                                end
+                                -- Fallback: check spellbook
+                                if not spellFound and GetSpellIdForName then
+                                    local foundId = GetSpellIdForName(searchName)
+                                    if not foundId and strippedName then
+                                        foundId = GetSpellIdForName(strippedName)
                                     end
-
-                                    -- If not found in skills, check spellbook
-                                    if not spellFound and GetSpellIdForName then
-                                        local foundId = GetSpellIdForName(actualName)
-                                        spellFound = (foundId and foundId > 0)
+                                    spellFound = (foundId and foundId > 0)
+                                end
+                            else
+                                -- No tier — weapon skill or other skill
+                                for i = 1, GetNumSkillLines() do
+                                    local name = GetSkillLineInfo(i)
+                                    if name == searchName then
+                                        spellFound = true
+                                        break
                                     end
+                                end
+                                if not spellFound and GetSpellIdForName then
+                                    local foundId = GetSpellIdForName(searchName)
+                                    spellFound = (foundId and foundId > 0)
                                 end
                             end
                         end
