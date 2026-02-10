@@ -62,6 +62,7 @@ end
 
 -- Reusable FontString for text measurement (prevents memory leak)
 local measureFontString = nil
+local measureFontBaseSize = nil
 
 --[[ ONGOING STEPS MANAGER ]]--
 -- Manages pinned ongoing steps that remain visible at top while guide progresses
@@ -252,9 +253,6 @@ local function wrapText(inputText, maxWidth, font, textScale)
     inputText = inputText or ""
     textScale = textScale or getGuideTextScale()
 
-    -- Adjust maxWidth for scale (text will be scaled up, so we need to account for that)
-    local adjustedMaxWidth = maxWidth / textScale
-
     -- Convert \\ to newline
     inputText = string.gsub(inputText, "\\\\", "\n")
     for segment in string.gfind(inputText, "([^\n]*)\n?") do
@@ -268,6 +266,15 @@ local function wrapText(inputText, maxWidth, font, textScale)
     end
     local tempText = measureFontString
 
+    -- Apply same text scale as display FontStrings for pixel-accurate measurement
+    local fontFile, fontSize, fontFlags = tempText:GetFont()
+    if fontFile and fontSize then
+        if not measureFontBaseSize then
+            measureFontBaseSize = fontSize
+        end
+        tempText:SetFont(fontFile, measureFontBaseSize * textScale, fontFlags or "")
+    end
+
     for i, segment in ipairs(segments) do
         local currentLine = ""
         local words = {}
@@ -275,7 +282,7 @@ local function wrapText(inputText, maxWidth, font, textScale)
         for j, word in ipairs(words) do
             local testLine = currentLine == "" and word or currentLine.." "..word
             tempText:SetText(testLine)
-            if tempText:GetStringWidth() <= adjustedMaxWidth then
+            if tempText:GetStringWidth() <= maxWidth then
                 currentLine = testLine
             else
                 wrappedText = wrappedText..(wrappedText=="" and "" or "\n")..currentLine
