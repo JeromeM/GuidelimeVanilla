@@ -116,7 +116,16 @@ function GLV:getSpellName(id)
     local numId = tonumber(id)
     if not numId then return "UNKNOWN_SPELL" end
 
-    -- Use Nampower GetSpellRec API
+    -- Use GetSpellNameAndRankForId first (returns proper skill name for professions)
+    -- e.g. spell 2551 returns "Cooking", "Apprentice" instead of "Apprentice Cook"
+    if GetSpellNameAndRankForId then
+        local name, rank = GetSpellNameAndRankForId(numId)
+        if name then
+            return name
+        end
+    end
+
+    -- Fallback to GetSpellRec
     if GetSpellRec then
         local spellRec = GetSpellRec(numId)
         if spellRec and spellRec.name then

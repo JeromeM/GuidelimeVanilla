@@ -35,7 +35,7 @@ function CharacterTracker:Init()
     -- Check for already learned spells after guide loads
     GLV.Ace:ScheduleEvent("GLV_InitSpellCheck", function()
         self:OnSpellLearned()
-    end, 1)
+    end, 3)
 end
 
 
