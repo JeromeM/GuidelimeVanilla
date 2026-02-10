@@ -89,23 +89,33 @@ function GLV:getTargetName(id)
 end
 
 -- Get NPC coordinates by unit ID
+-- Prefers coordinates in the player's current zone when NPC has multiple spawn locations
 function GLV:GetNPCCoordinates(npcID)
     if not npcID then return nil end
-    
+
     local npcData = VGDB and VGDB["units"] and VGDB["units"]["data"] and VGDB["units"]["data"][tonumber(npcID)]
     if not npcData or not npcData.coords then return nil end
-    
+
+    -- Try to find coordinates in the player's current zone first
+    local playerZoneName = GetZoneText()
+    local firstValid = nil
+
     for _, coordSet in ipairs(npcData.coords) do
         if coordSet[1] and coordSet[2] and coordSet[3] then
-            return {
-                x = coordSet[1],
-                y = coordSet[2],
-                z = coordSet[3]
-            }
+            if not firstValid then
+                firstValid = {x = coordSet[1], y = coordSet[2], z = coordSet[3]}
+            end
+            -- Check if this coordinate is in the player's zone
+            if playerZoneName then
+                local zoneName = self:GetZoneNameByID(coordSet[3])
+                if zoneName and string.lower(zoneName) == string.lower(playerZoneName) then
+                    return {x = coordSet[1], y = coordSet[2], z = coordSet[3]}
+                end
+            end
         end
     end
-    
-    return nil
+
+    return firstValid
 end
 
 
