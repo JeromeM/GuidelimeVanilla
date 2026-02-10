@@ -104,6 +104,18 @@ function modulo(val, by)
     return val - math.floor(val/by)*by;
 end
 
+--[[ ACTION KEY UTILITY ]]--
+
+-- Build a unique action key from a quest tag for step state tracking
+-- Used by QuestTracker:HandleQuestAction, UpdateStepNavigation, and CheckAutoSkipTurnins
+function GLV.BuildActionKey(questTag)
+    local key = questTag.questId .. "_" .. questTag.tag
+    if questTag.objectiveIndex then
+        key = key .. "_" .. questTag.objectiveIndex
+    end
+    return key
+end
+
 --[[ FRAME UTILITY FUNCTIONS ]]--
 
 -- Get scroll child frame (standardized access)

@@ -816,11 +816,7 @@ function GuideNavigation:CheckAutoSkipTurnins(stepData)
         if questTag.tag == "TURNIN" then
             local inLog, isComplete = WaypointResolver:GetQuestStatus(questTag.questId)
             if not inLog then
-                local actionKey = questTag.questId .. "_" .. questTag.tag
-                if questTag.objectiveIndex then
-                    actionKey = actionKey .. "_" .. questTag.objectiveIndex
-                end
-                stepQuestState[origIdx][actionKey] = true
+                stepQuestState[origIdx][GLV.BuildActionKey(questTag)] = true
                 if GLV.Debug then
                     DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Auto-skip QT" .. tostring(questTag.questId) .. ": quest not in log")
                 end
@@ -833,11 +829,7 @@ function GuideNavigation:CheckAutoSkipTurnins(stepData)
     -- Check if ALL quest actions on this step are now fulfilled
     local allDone = true
     for _, questTag in ipairs(stepData.questTags) do
-        local actionKey = questTag.questId .. "_" .. questTag.tag
-        if questTag.objectiveIndex then
-            actionKey = actionKey .. "_" .. questTag.objectiveIndex
-        end
-        if not stepQuestState[origIdx][actionKey] then
+        if not stepQuestState[origIdx][GLV.BuildActionKey(questTag)] then
             allDone = false
             break
         end

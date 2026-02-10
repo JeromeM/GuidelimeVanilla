@@ -24,6 +24,37 @@ local CONFIG = {
 local lastQuestLogUpdate = 0
 local QUEST_LOG_UPDATE_THROTTLE = 0.5 -- Only process once per 0.5 seconds
 
+-- Check if a quest tag matches a given quest action (accept/complete/turnin)
+-- Returns true if the tag matches the action type, quest ID (or name for COMPLETE), and objective index
+local function DoesQuestActionMatch(questTag, questId, title, actionType, objectiveIndex)
+    if questTag.tag ~= actionType then return false end
+
+    local questIdMatches = tonumber(questTag.questId) == tonumber(questId)
+    local nameMatches = false
+    if actionType == "COMPLETE" and title then
+        local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
+        nameMatches = tagQuestName and tagQuestName == title
+    end
+    if not questIdMatches and not nameMatches then return false end
+
+    if questTag.objectiveIndex then
+        return objectiveIndex and questTag.objectiveIndex == objectiveIndex
+    else
+        return not objectiveIndex
+    end
+end
+
+-- Check if all quest actions for a step are marked as done in stepQuestState
+local function AreAllActionsDone(stepQuestState, origIdx, questTags)
+    if not stepQuestState[origIdx] then return false end
+    for _, questTag in ipairs(questTags) do
+        if not stepQuestState[origIdx][GLV.BuildActionKey(questTag)] then
+            return false
+        end
+    end
+    return true
+end
+
 -- Initialize quest tracking, hook original functions and register event handlers
 function QuestTracker:Init()
     local store = GLV.Settings:GetOption({"QuestTracker"}) or {}
@@ -264,87 +295,42 @@ function QuestTracker:HandleQuestAction(questId, title, actionType, objectiveInd
         local step = GLV.CurrentDisplaySteps[di]
         local origIdx = diToOrig[di]
 
-        if step and origIdx then
+        if step and origIdx and step.questTags and table.getn(step.questTags) > 0 then
+            if not stepQuestState[origIdx] then
+                stepQuestState[origIdx] = {}
+            end
 
-            if step.questTags and table.getn(step.questTags) > 0 then
-                if not stepQuestState[origIdx] then
-                    stepQuestState[origIdx] = {}
-                end
-
-                local hasMatchingAction = false
-                local allActionsDone = true
-
-                for _, questTag in ipairs(step.questTags) do
-                    -- Include objectiveIndex in actionKey for specific objectives
-                    local actionKey = questTag.questId .. "_" .. questTag.tag
-                    if questTag.objectiveIndex then
-                        actionKey = actionKey .. "_" .. questTag.objectiveIndex
-                    end
-
-                    -- Match by quest ID, with name fallback only for COMPLETE actions
-                    -- (ACCEPT has exact ID from event, but COMPLETE only has name from quest log)
-                    local isMatch = false
-                    if questTag.tag == actionType then
-                        local questIdMatches = tonumber(questTag.questId) == tonumber(questId)
-                        local nameMatches = false
-                        if actionType == "COMPLETE" and title then
-                            local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
-                            nameMatches = tagQuestName and tagQuestName == title
-                        end
-
-                        if questIdMatches or nameMatches then
-                            -- Check objective index matching:
-                            -- - If guide step has objectiveIndex, event must match it exactly
-                            -- - If guide step has no objectiveIndex (nil), match whole quest completion (objectiveIndex nil)
-                            if questTag.objectiveIndex then
-                                -- Step wants specific objective - match only if event has same objective
-                                if objectiveIndex and questTag.objectiveIndex == objectiveIndex then
-                                    isMatch = true
-                                end
-                            else
-                                -- Step wants whole quest - match only if event is for whole quest (no objectiveIndex)
-                                if not objectiveIndex then
-                                    isMatch = true
-                                end
-                            end
-                        end
-                    end
-
-                    if isMatch then
-                        stepQuestState[origIdx][actionKey] = true
-                        hasMatchingAction = true
-                        multiActionStepFound = true
-                        if GLV.Debug then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r MATCH: " .. actionKey .. " on step " .. tostring(di))
-                        end
-                    end
-
-                    if not stepQuestState[origIdx][actionKey] then
-                        allActionsDone = false
-                        if GLV.Debug then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[QuestTracker]|r Missing: " .. actionKey)
-                        end
-                    end
-                end
-
-                if hasMatchingAction then
-                    GLV.Settings:SetOption(stepQuestState, {"Guide","Guides", currentGuideId, "StepQuestState"})
-
+            local hasMatchingAction = false
+            for _, questTag in ipairs(step.questTags) do
+                if DoesQuestActionMatch(questTag, questId, title, actionType, objectiveIndex) then
+                    local actionKey = GLV.BuildActionKey(questTag)
+                    stepQuestState[origIdx][actionKey] = true
+                    hasMatchingAction = true
+                    multiActionStepFound = true
                     if GLV.Debug then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[QuestTracker]|r allActionsDone=" .. tostring(allActionsDone) .. " for step " .. tostring(di))
+                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r MATCH: " .. actionKey .. " on step " .. tostring(di))
                     end
-
-                    if allActionsDone then
-                        stepState[origIdx] = true
-                        stepMarked = true
-
-                        -- Deactivate ongoing step if it was active
-                        if GLV.OngoingStepsManager and GLV.OngoingStepsManager:IsActive(di) then
-                            GLV.OngoingStepsManager:Deactivate(di)
-                        end
-                    end
-                    -- Don't break - continue to mark ALL steps with the same quest action
                 end
+            end
+
+            if hasMatchingAction then
+                GLV.Settings:SetOption(stepQuestState, {"Guide","Guides", currentGuideId, "StepQuestState"})
+                local allDone = AreAllActionsDone(stepQuestState, origIdx, step.questTags)
+
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[QuestTracker]|r allActionsDone=" .. tostring(allDone) .. " for step " .. tostring(di))
+                end
+
+                if allDone then
+                    stepState[origIdx] = true
+                    stepMarked = true
+
+                    -- Deactivate ongoing step if it was active
+                    if GLV.OngoingStepsManager and GLV.OngoingStepsManager:IsActive(di) then
+                        GLV.OngoingStepsManager:Deactivate(di)
+                    end
+                end
+                -- Don't break - continue to mark ALL steps with the same quest action
             end
         end
     end
@@ -398,19 +384,8 @@ function QuestTracker:UpdateStepNavigation(stepMarked, multiActionStepFound, act
 
                 if not stepCompleted then
                     local step = GLV.CurrentDisplaySteps[di]
-                    if step and step.questTags and table.getn(step.questTags) > 1 and stepQuestState[origIdx] then
-                        local allDone = true
-                        for _, questTag in ipairs(step.questTags) do
-                            local actionKey = questTag.questId .. "_" .. questTag.tag
-                            if questTag.objectiveIndex then
-                                actionKey = actionKey .. "_" .. questTag.objectiveIndex
-                            end
-                            if not stepQuestState[origIdx][actionKey] then
-                                allDone = false
-                                break
-                            end
-                        end
-                        if allDone then
+                    if step and step.questTags and table.getn(step.questTags) > 1 then
+                        if AreAllActionsDone(stepQuestState, origIdx, step.questTags) then
                             stepCompleted = true
                         end
                     end
