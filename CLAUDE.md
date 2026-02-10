@@ -144,8 +144,8 @@ Quest/NPC/Item data from ShaguDB stored in `Assets/db/` folder:
 
 Spell data is retrieved via Nampower API instead of a local database:
 - `GetSpellRec(spellId)` - Returns full spell record with fields: `name`, `rank`, `spellIconID`, `manaCost`, `school`, `spellLevel`, etc.
-- `GetSpellNameAndRankForId(spellId)` - Returns spell name and rank as separate values (e.g., `"First Aid", "Apprentice"` — NOT `"Apprentice First Aid"`). Use `rank` field for profession tier detection.
-- `GLV:getSpellName(id)` - Wrapper that uses GetSpellRec to get spell name
+- `GetSpellNameAndRankForId(spellId)` - Returns spell name and rank as separate values. **Important**: For profession spells, may return the full name with tier prefix included (e.g., `"Apprentice Cook"`) with `nil` rank instead of splitting into base name + rank (e.g., `"Cooking"` + `"Apprentice"`). Use `rank` field for profession tier detection when available.
+- `GLV:getSpellName(id)` - Wrapper that uses `GetSpellNameAndRankForId()` first. If the API returns a profession spell with tier prefix in the name (e.g., "Apprentice Cook"), extracts the tier prefix, strips it from the name (e.g., "Cook"), and uses partial matching against skill lines to find the actual skill name (e.g., "Cooking"). Falls back to `GetSpellRec()` if name extraction fails.
 - `GLV:getSpellInfo(id)` - Returns table with name, rank, icon, manaCost, school, level
 
 ### Navigation System
@@ -767,25 +767,37 @@ The addon includes automatic tracking for spell/skill learning steps using the `
 - Supports profession tier detection (Apprentice, Journeyman, Expert, Artisan, Master ranks)
 - Checks `GetSkillLineInfo()` for weapon skills (e.g., "Two-Handed Swords") that appear in Skills panel
 - Falls back to spellbook lookup via `GetSpellIdForName()` if not found in skill lines
+- **Profession Name Extraction**: Handles cases where Nampower API returns profession spells with tier prefix in the name (e.g., "Apprentice Cook" instead of "Cooking" + "Apprentice"). Extracts the tier prefix, strips it from the raw name to get the base name (e.g., "Cook"), then uses partial matching against skill lines to find the actual skill (e.g., "Cooking").
 
 **Event Handling:**
 - Listens to `LEARNED_SPELL_IN_TAB` event for standard spell learning
 - Listens to `SKILL_LINES_CHANGED` event as fallback for weapon skill learning (0.5s delay)
-- Initial check scheduled 3s after addon load to ensure guide is fully loaded
+- Initial check scheduled 3s after addon load to ensure guide is fully loaded (increased from 1s to match other trackers)
 
 **Detection Strategy:**
-1. **Profession Tiers**: Match tier rank (Apprentice/Journeyman/Expert/Artisan/Master) and check if skill max rank meets requirement
+1. **Profession Tiers**: Match tier rank (Apprentice/Journeyman/Expert/Artisan/Master). For profession spells where API returns full name with tier prefix:
+   - Extract tier prefix from raw name (e.g., "Apprentice" from "Apprentice Cook")
+   - Strip tier prefix to get base name (e.g., "Cook")
+   - Use partial matching against skill lines to find actual skill (e.g., "Cook" matches "Cooking")
+   - Check if skill max rank meets the tier requirement
 2. **Weapon Skills**: Check skill lines first for skills like "Two-Handed Swords" that don't appear in spellbook
 3. **Regular Spells**: Fall back to spellbook lookup if not found in skill lines
 
 **Key Methods:**
 - `CharacterTracker:Init()` - Initialize character tracking, register LEARNED_SPELL_IN_TAB and SKILL_LINES_CHANGED events
-- `CharacterTracker:OnSpellLearned()` - Validate all uncompleted LEARN steps and auto-complete when requirements met
+- `CharacterTracker:OnSpellLearned()` - Validate all uncompleted LEARN steps and auto-complete when requirements met. Uses tier extraction and partial matching for profession spells.
+- `GLV:getSpellName(id)` - Helper function that extracts profession tier prefix and performs partial skill line matching to return the proper skill name
 
 **Step Completion:**
 - Checks all `learnSpells` entries in uncompleted steps
 - Only completes step when ALL learn spell requirements are met
 - Marks step complete in `StepState` and triggers `RefreshGuide()` to update UI
+
+**Profession Spell Edge Cases:**
+- Some profession spells return "Apprentice Cook" as name with `nil` rank instead of "Cooking" + "Apprentice"
+- Both display (via `getSpellName()`) and detection (via `OnSpellLearned()`) handle this by extracting the tier prefix and using partial matching
+- Example: "Apprentice Cook" → extract "Apprentice" → strip to get "Cook" → match against "Cooking" skill line
+- This ensures proper display ("Cooking" instead of "Apprentice Cook") and auto-completion for `[LE]` steps
 
 ## Flight Path Step Validation
 
