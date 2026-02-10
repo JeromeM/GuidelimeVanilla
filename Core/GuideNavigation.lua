@@ -18,9 +18,9 @@ local GLV = LibStub("GuidelimeVanilla")
 
 local GuideNavigation = {}
 
--- Module references (set after TOC loads NavigationModes.lua and WaypointResolver.lua)
-local NavigationModes  -- GLV.NavigationModes
-local WaypointResolver -- GLV.WaypointResolver
+-- Module references (loaded earlier in TOC, already available)
+local NavigationModes = GLV.NavigationModes
+local WaypointResolver = GLV.WaypointResolver
 
 --[[ CONSTANTS ]]--
 
@@ -769,12 +769,106 @@ function GuideNavigation:CompleteCurrentStep()
     end
 end
 
+--[[ AUTO-SKIP IMPOSSIBLE TURNINS ]]--
+
+-- Auto-skip steps where [QT] quest is not in the player's log
+-- Marks impossible QT actions as done. If all actions are fulfilled, completes the step.
+-- Returns true if the step was auto-completed (caller should return early).
+function GuideNavigation:CheckAutoSkipTurnins(stepData)
+    if not stepData or not stepData.questTags or table.getn(stepData.questTags) == 0 then
+        return false
+    end
+
+    -- Check if any QT tag has a quest not in the player's log
+    local hasImpossibleTurnin = false
+    for _, questTag in ipairs(stepData.questTags) do
+        if questTag.tag == "TURNIN" then
+            local inLog, isComplete = WaypointResolver:GetQuestStatus(questTag.questId)
+            if not inLog then
+                hasImpossibleTurnin = true
+                break
+            end
+        end
+    end
+
+    if not hasImpossibleTurnin then
+        return false
+    end
+
+    -- Get current step state
+    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
+    local currentStepIndex = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+    if currentStepIndex <= 0 then return false end
+
+    local origIdx = GLV.CurrentDisplayToOriginal and GLV.CurrentDisplayToOriginal[currentStepIndex]
+    if not origIdx then return false end
+
+    local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
+    if stepState[origIdx] then return false end  -- Already completed
+
+    local stepQuestState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepQuestState"}) or {}
+    if not stepQuestState[origIdx] then
+        stepQuestState[origIdx] = {}
+    end
+
+    -- Mark impossible QT actions as done
+    for _, questTag in ipairs(stepData.questTags) do
+        if questTag.tag == "TURNIN" then
+            local inLog, isComplete = WaypointResolver:GetQuestStatus(questTag.questId)
+            if not inLog then
+                local actionKey = questTag.questId .. "_" .. questTag.tag
+                if questTag.objectiveIndex then
+                    actionKey = actionKey .. "_" .. questTag.objectiveIndex
+                end
+                stepQuestState[origIdx][actionKey] = true
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Auto-skip QT" .. tostring(questTag.questId) .. ": quest not in log")
+                end
+            end
+        end
+    end
+
+    GLV.Settings:SetOption(stepQuestState, {"Guide", "Guides", currentGuideId, "StepQuestState"})
+
+    -- Check if ALL quest actions on this step are now fulfilled
+    local allDone = true
+    for _, questTag in ipairs(stepData.questTags) do
+        local actionKey = questTag.questId .. "_" .. questTag.tag
+        if questTag.objectiveIndex then
+            actionKey = actionKey .. "_" .. questTag.objectiveIndex
+        end
+        if not stepQuestState[origIdx][actionKey] then
+            allDone = false
+            break
+        end
+    end
+
+    if allDone then
+        stepState[origIdx] = true
+        GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
+
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF6B8BD4[GuideLime]|r Auto-skipped step " .. currentStepIndex .. ": turn-in quest not in log")
+
+        if GLV.RefreshGuide then
+            GLV:RefreshGuide()
+        end
+        return true
+    end
+
+    return false
+end
+
 --[[ WAYPOINT RESOLUTION AND STEP HANDLING ]]--
 
 -- Updates waypoint for a specific guide step (orchestrator)
 function GuideNavigation:UpdateWaypointForStep(stepData)
     -- Don't let guide step changes override corpse navigation while dead
     if NavigationModes:IsDeathNavigationActive() then return end
+
+    -- Auto-skip QT steps where quest is not in player's log
+    if self:CheckAutoSkipTurnins(stepData) then
+        return  -- Step was auto-completed, RefreshGuide will handle next step
+    end
 
     self:RemoveCurrentWaypoint()
     NavigationModes:HideNextGuide()
@@ -789,6 +883,11 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
 
     -- Resolve waypoints using WaypointResolver
     local result = WaypointResolver:ResolveWaypoints(stepData)
+
+    if GLV.Debug then
+        local wpCount = result.waypoints and table.getn(result.waypoints) or 0
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r ResolveWaypoints: mode=" .. tostring(result.specialMode) .. " waypoints=" .. wpCount .. " questId=" .. tostring(result.questId) .. " action=" .. tostring(result.actionType))
+    end
 
     -- Store quest tracking info
     self.currentQuestId = result.questId
@@ -876,10 +975,6 @@ end
 
 -- Initializes the navigation system
 function GuideNavigation:Init()
-    -- Resolve module references
-    NavigationModes = GLV.NavigationModes
-    WaypointResolver = GLV.WaypointResolver
-
     if not GLV.Settings:GetOption({"Navigation", "AutoShow"}) then
         GLV.Settings:SetOption(true, {"Navigation", "AutoShow"})
     end
