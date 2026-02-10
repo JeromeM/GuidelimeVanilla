@@ -1,10 +1,13 @@
 --[[
-Guidelime Vanilla - Navigation System
+Guidelime Vanilla - Navigation System (Orchestrator)
 
 Author: Grommey
 
 Description:
 Autonomous navigation system with custom arrow display.
+Orchestrates NavigationModes (display modes, death nav) and
+WaypointResolver (coordinate resolution) modules.
+
 No longer depends on TomTom addon.
 
 A lot of this code has been copied from TomTom, pfQuest !
@@ -14,6 +17,10 @@ Thanks to the authors of these addons !
 local GLV = LibStub("GuidelimeVanilla")
 
 local GuideNavigation = {}
+
+-- Module references (set after TOC loads NavigationModes.lua and WaypointResolver.lua)
+local NavigationModes  -- GLV.NavigationModes
+local WaypointResolver -- GLV.WaypointResolver
 
 --[[ CONSTANTS ]]--
 
@@ -36,38 +43,6 @@ local currentStepData = nil  -- Current step data for description generation
 local WAYPOINT_REACH_DISTANCE = 5  -- Distance in yards to consider waypoint reached
 local hasTriggeredTransition = false  -- Prevent multiple recalculations
 
--- Death/corpse navigation
-local savedWaypointState = nil
-local corpsePosition = nil
-local isDeathNavigation = false
-
--- Get visited NPCs from persistent storage
-local function getVisitedNPCs()
-    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"})
-    local currentStepIndex = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"})
-    if not currentGuideId or not currentStepIndex then return {} end
-
-    local visited = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "VisitedTARs", currentStepIndex})
-    return visited or {}
-end
-
--- Save visited NPC to persistent storage
-local function saveVisitedNPC(npcId)
-    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"})
-    local currentStepIndex = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"})
-    if not currentGuideId or not currentStepIndex or not npcId then return end
-
-    local visited = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "VisitedTARs", currentStepIndex}) or {}
-    visited[npcId] = true
-    GLV.Settings:SetOption(visited, {"Guide", "Guides", currentGuideId, "VisitedTARs", currentStepIndex})
-end
-
--- Clear visited NPCs for a step (called when step is completed)
-local function clearVisitedNPCs(guideId, stepIndex)
-    if not guideId or not stepIndex then return end
-    GLV.Settings:SetOption(nil, {"Guide", "Guides", guideId, "VisitedTARs", stepIndex})
-end
-
 
 --[[ FRAME CREATION AND MANAGEMENT ]]--
 
@@ -76,7 +51,7 @@ function GuideNavigation:CreateNavigationFrame()
     if navigationFrame then
         return
     end
-    
+
     -- Main frame (invisible)
     navigationFrame = CreateFrame("Frame", "GLV_NavigationFrame", UIParent)
     navigationFrame:SetWidth(48)
@@ -84,7 +59,7 @@ function GuideNavigation:CreateNavigationFrame()
     navigationFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
     navigationFrame:SetFrameStrata("HIGH")
     navigationFrame:Hide()
-    
+
     navigationFrame:SetMovable(true)
     navigationFrame:EnableMouse(true)
     navigationFrame:RegisterForDrag("LeftButton")
@@ -97,7 +72,7 @@ function GuideNavigation:CreateNavigationFrame()
         this:StopMovingOrSizing()
         GLV.Settings:SetOption({this:GetLeft(), this:GetTop()}, {"Navigation", "FramePosition"})
     end)
-    
+
     navigationFrame.arrow = navigationFrame:CreateTexture(nil, "ARTWORK")
     navigationFrame.arrow:SetAllPoints(navigationFrame)
     navigationFrame.arrow:SetTexture(ARROW_TEXTURE_PATH)
@@ -169,7 +144,7 @@ function GuideNavigation:CreateNavigationFrame()
     navigationFrame.questName:SetTextColor(1, 0.8, 0)
     navigationFrame.questName:SetText("")
     navigationFrame.questName:SetJustifyH("CENTER")
-    
+
     navigationFrame.objective = navigationFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     navigationFrame.objective:SetPoint("TOP", navigationFrame.questName, "BOTTOM", 0, -5)
     navigationFrame.objective:SetTextColor(1, 1, 1)
@@ -229,6 +204,9 @@ function GuideNavigation:CreateNavigationFrame()
     if savedScale ~= 1 then
         navigationFrame:SetScale(savedScale)
     end
+
+    -- Pass the frame reference to NavigationModes
+    NavigationModes:SetNavigationFrame(navigationFrame)
 end
 
 -- Apply scale to the navigation frame
@@ -263,7 +241,7 @@ end
 -- Formats distance text with proper units
 function GuideNavigation:FormatDistance(distance)
     local distanceInMeters = distance
-    
+
     if distanceInMeters < 1000 then
         return string.format("%.0fm", distanceInMeters)
     else
@@ -275,10 +253,10 @@ end
 function GuideNavigation:GetDistanceColor(distance)
     local closeDistance = 5
     local farDistance = 50
-    
+
     local ratio = distance / farDistance
     ratio = math.min(1, math.max(0, ratio))
-    
+
     local r, g, b
     if ratio <= 0.5 then
         local t = ratio * 2
@@ -291,7 +269,7 @@ function GuideNavigation:GetDistanceColor(distance)
         g = 1 - t
         b = 0
     end
-    
+
     return r, g, b
 end
 
@@ -309,7 +287,7 @@ function GuideNavigation:CalculateAngle(targetPos)
     end
 
     if degtemp < 0 then degtemp = degtemp + 360 end
-    
+
     local angle = math.rad(degtemp)
     angle = angle - playerFacing
 
@@ -325,15 +303,15 @@ end
 -- Gets texture coordinates for arrow index
 function GuideNavigation:GetArrowTexCoords(index)
     index = math.max(0, math.min(index, TOTAL_ARROWS - 1))
-    
+
     local column = modulo(index, 9)
     local row = math.floor(index / 9)
-    
+
     local xstart = (column * 56) / 512
     local ystart = (row * 42) / 512
     local xend = ((column + 1) * 56) / 512
     local yend = ((row + 1) * 42) / 512
-    
+
     return xstart, xend, ystart, yend
 end
 
@@ -346,7 +324,7 @@ function GuideNavigation:SetWaypoint(coords, description)
     end
 
     local zoneName = GLV:GetZoneNameByID(coords.z)
-    local cont, zone = self:GetZoneInfo(zoneName)
+    local cont, zone = WaypointResolver:GetZoneInfo(zoneName)
 
     currentWaypoint = {
         c = cont,
@@ -366,6 +344,11 @@ function GuideNavigation:SetWaypoint(coords, description)
     return true
 end
 
+-- Sets a waypoint directly (already in Astrolabe format, used by death navigation)
+function GuideNavigation:SetDeathWaypoint(waypointData)
+    currentWaypoint = waypointData
+end
+
 -- Clears the current waypoint
 function GuideNavigation:ClearWaypoint()
     currentWaypoint = nil
@@ -376,15 +359,20 @@ function GuideNavigation:IsArrowNavigationActive()
     return isNavigationActive
 end
 
--- Returns the current waypoint (for debugging)
+-- Returns the current waypoint (for debugging and MinimapPath)
 function GuideNavigation:GetCurrentWaypoint()
     return currentWaypoint
+end
+
+-- Sets isNavigationActive (used by NavigationModes)
+function GuideNavigation:SetNavigationActive(active)
+    isNavigationActive = active
 end
 
 -- Adds a waypoint (replaces TomTom function)
 function GuideNavigation:AddWaypoint(coords, description)
     self:ClearAllWaypoints()
-    
+
     if self:SetWaypoint(coords, description) then
         if GLV.Settings:GetOption({"Navigation", "AutoShow"}, true) then
             self:Show()
@@ -398,13 +386,13 @@ function GuideNavigation:ClearAllWaypoints()
     self:Hide()
 end
 
--- Alias for backward compatibility
+-- Removes current waypoint and hides all special modes
 function GuideNavigation:RemoveCurrentWaypoint()
     self:ClearAllWaypoints()
-    self:HideEquipItem()
-    self:HideUseItem()
-    self:HideHearthstone()
-    self:HideXPProgress()
+    NavigationModes:HideEquipItem()
+    NavigationModes:HideUseItem()
+    NavigationModes:HideHearthstone()
+    NavigationModes:HideXPProgress()
 end
 
 --[[ NAVIGATION VISIBILITY CONTROL ]]--
@@ -414,7 +402,7 @@ function GuideNavigation:Show()
     if not navigationFrame then
         self:CreateNavigationFrame()
     end
-    
+
     if currentWaypoint then
         navigationFrame:Show()
         isNavigationActive = true
@@ -446,6 +434,54 @@ function GuideNavigation:Toggle()
     end
 end
 
+--[[ NAVIGATION STATE SAVE/RESTORE (for death navigation) ]]--
+
+-- Saves the current navigation state for later restoration
+function GuideNavigation:SaveNavigationState()
+    return {
+        currentWaypoint = currentWaypoint,
+        isNavigationActive = isNavigationActive,
+        allWaypoints = allWaypoints,
+        currentWaypointIndex = currentWaypointIndex,
+        currentStepData = currentStepData,
+        currentQuestId = self.currentQuestId,
+        currentActionType = self.currentActionType,
+        currentObjectiveIndex = self.currentObjectiveIndex,
+        currentUseItemId = self.currentUseItemId,
+        currentXPRequirement = NavigationModes.currentXPRequirement
+    }
+end
+
+-- Restores a previously saved navigation state
+function GuideNavigation:RestoreNavigationState(state)
+    currentWaypoint = state.currentWaypoint
+    allWaypoints = state.allWaypoints or {}
+    currentWaypointIndex = state.currentWaypointIndex or 1
+    currentStepData = state.currentStepData
+    self.currentQuestId = state.currentQuestId
+    self.currentActionType = state.currentActionType
+    self.currentObjectiveIndex = state.currentObjectiveIndex
+    self.currentUseItemId = state.currentUseItemId
+
+    if state.isNavigationActive and currentWaypoint then
+        -- Navigation was active before death, restore it
+        navigationFrame:Show()
+        isNavigationActive = true
+    else
+        -- Navigation was hidden before death
+        self:Hide()
+    end
+end
+
+-- Recalculates navigation from the current step (fallback when no saved state)
+function GuideNavigation:RecalculateFromCurrentStep()
+    if currentStepData then
+        self:UpdateWaypointForStep(currentStepData)
+    else
+        self:Hide()
+    end
+end
+
 --[[ UPDATE AND DISPLAY FUNCTIONS ]]--
 
 -- Updates the navigation display
@@ -473,15 +509,15 @@ function GuideNavigation:UpdateNavigation()
         end
         return
     end
-    
+
     playerPos = self:GetPlayerPosition()
     if not playerPos then
         return
     end
-    
+
     -- If zone wasn't resolved earlier, try again now
     if not currentWaypoint.z and currentWaypoint.zoneName then
-        local cont, zone = self:GetZoneInfo(currentWaypoint.zoneName)
+        local cont, zone = WaypointResolver:GetZoneInfo(currentWaypoint.zoneName)
         if zone then
             currentWaypoint.c = cont
             currentWaypoint.z = zone
@@ -539,7 +575,7 @@ function GuideNavigation:UpdateNavigation()
             navigationFrame:Show()
         end
     end
-    
+
     if currentWaypoint.description then
         local description = currentWaypoint.description
         if string.find(description, " | ") then
@@ -642,7 +678,7 @@ function GuideNavigation:UpdateNavigation()
     navigationFrame.distance:SetText("Distance: " .. distanceText)
 
     local r, g, b = self:GetDistanceColor(distance)
-    if isDeathNavigation then
+    if NavigationModes:IsDeathNavigationActive() then
         navigationFrame.arrow:SetVertexColor(0.7, 0.7, 0.9, 0.8)
     else
         navigationFrame.arrow:SetVertexColor(r, g, b, 1)
@@ -656,7 +692,7 @@ function GuideNavigation:UpdateNavigation()
         if not hasTriggeredTransition then
             -- Mark current waypoint's NPC as visited (persistent)
             if currentWaypoint.npcId then
-                saveVisitedNPC(currentWaypoint.npcId)
+                WaypointResolver:SaveVisitedNPC(currentWaypoint.npcId)
             end
 
             -- Check if there's a next waypoint to advance to
@@ -665,7 +701,7 @@ function GuideNavigation:UpdateNavigation()
                 local nextCoords = allWaypoints[currentWaypointIndex]
                 if nextCoords then
                     -- Use pre-computed description from waypoint if available
-                    local description = nextCoords.description or self:GetStepDescription(currentStepData, nextCoords, nil)
+                    local description = nextCoords.description or WaypointResolver:GetStepDescription(currentStepData, nextCoords, nil)
                     self:SetWaypoint(nextCoords, description)
                     hasTriggeredTransition = false  -- Reset for next waypoint
                     if GLV.Debug then
@@ -702,7 +738,7 @@ function GuideNavigation:OnUpdate()
     if not isNavigationActive then
         return
     end
-    
+
     updateTimer = updateTimer + arg1
     if updateTimer >= UPDATE_FREQUENCY then
         updateTimer = 0
@@ -710,810 +746,7 @@ function GuideNavigation:OnUpdate()
     end
 end
 
---[[ COORDINATE FINDING FUNCTIONS ]]--
-
--- Extract TAR coordinates from step data (skips visited NPCs and TARs on quest lines)
-local function extractTARCoordinates(stepData)
-    local tarCoords = {}
-    if not stepData or not stepData.lines then
-        return tarCoords
-    end
-
-    -- Get visited NPCs from persistent storage
-    local visitedNPCs = getVisitedNPCs()
-
-    for _, line in ipairs(stepData.lines) do
-        -- Skip TARs on lines that have quest tags - the quest system handles navigation
-        local hasQuestTags = line.questTags and table.getn(line.questTags) > 0
-
-        if not hasQuestTags and line.targetIds then
-            for _, targetId in ipairs(line.targetIds) do
-                -- Skip visited NPCs
-                if not visitedNPCs[targetId] then
-                    local npcCoords = GLV:GetNPCCoordinates(targetId)
-                    if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
-                        table.insert(tarCoords, {
-                            x = npcCoords.x,
-                            y = npcCoords.y,
-                            z = npcCoords.z,
-                            type = "target",
-                            npcId = targetId
-                        })
-                    end
-                end
-            end
-        end
-    end
-
-    return tarCoords
-end
-
--- Collect all coordinates from step lines
-local function collectAllStepCoordinates(stepData)
-    local allCoords = {}
-    if stepData and stepData.lines then
-        for _, line in ipairs(stepData.lines) do
-            if line.coords and table.getn(line.coords) > 0 then
-                for _, coord in ipairs(line.coords) do
-                    table.insert(allCoords, coord)
-                end
-            end
-        end
-    end
-    return allCoords
-end
-
--- Collect all waypoints in order: TAR targets, then quest NPCs (QT/QA)
--- Returns a sequential list of waypoints to navigate through
-local function collectOrderedWaypoints(stepData)
-    local waypoints = {}
-    if not stepData or not stepData.lines then
-        return waypoints
-    end
-
-    -- Get visited NPCs from persistent storage
-    local visitedNPCs = getVisitedNPCs()
-
-    -- First, collect NPC IDs for completed quest actions (to skip their TARs)
-    local completedQuestNPCs = {}
-    for _, line in ipairs(stepData.lines) do
-        if line.questTags then
-            for _, questTag in ipairs(line.questTags) do
-                local questId = questTag.questId
-                local inLog, isComplete = GuideNavigation:GetQuestStatus(questId)
-
-                if questTag.tag == "TURNIN" and not inLog then
-                    -- Quest already turned in - mark the turn-in NPC as "done"
-                    local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
-                    if quest and quest["end"] and quest["end"].U then
-                        local npcId = quest["end"].U[1]
-                        if npcId then
-                            completedQuestNPCs[npcId] = true
-                        end
-                    end
-                elseif questTag.tag == "ACCEPT" and inLog then
-                    -- Quest already accepted - mark the accept NPC as "done"
-                    local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
-                    if quest and quest["start"] and quest["start"].U then
-                        local npcId = quest["start"].U[1]
-                        if npcId then
-                            completedQuestNPCs[npcId] = true
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- First pass: collect TAR targets in order
-    -- Skip if: NPC has completed quest action, OR TAR is on a line with quest tags (QA/QC/QT)
-    for _, line in ipairs(stepData.lines) do
-        if line.targetIds then
-            -- Skip TARs on lines that have quest tags - the quest action handles navigation
-            local hasQuestTags = line.questTags and table.getn(line.questTags) > 0
-
-            if not hasQuestTags then
-                for _, targetId in ipairs(line.targetIds) do
-                    -- Skip TAR if: NPC's quest action is done, OR already visited
-                    if not completedQuestNPCs[targetId] and not visitedNPCs[targetId] then
-                        local npcCoords = GLV:GetNPCCoordinates(targetId)
-                        if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
-                            local npcName = GLV:getTargetName(targetId) or ("NPC " .. targetId)
-                            table.insert(waypoints, {
-                                x = npcCoords.x,
-                                y = npcCoords.y,
-                                z = npcCoords.z,
-                                type = "target",
-                                npcId = targetId,
-                                description = "Go to " .. npcName
-                            })
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- Second pass: collect quest NPCs (QT then QA) from quest database
-    -- Only add waypoints for actions that still need to be done
-    for _, line in ipairs(stepData.lines) do
-        if line.questTags then
-            for _, questTag in ipairs(line.questTags) do
-                local questId = questTag.questId
-                local questName = GLV:GetQuestNameByID(questId) or ("Quest " .. questId)
-
-                -- Check quest status to skip already-done actions
-                local inLog, isComplete = GuideNavigation:GetQuestStatus(questId)
-
-                if questTag.tag == "TURNIN" then
-                    -- Only add QT waypoint if quest is still in log (not yet turned in)
-                    if inLog then
-                        -- Get turn-in NPC from quest database
-                        local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
-                        if quest and quest["end"] and quest["end"].U then
-                            local npcId = quest["end"].U[1]
-                            if npcId then
-                                local npcCoords = GLV:GetNPCCoordinates(npcId)
-                                if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
-                                    local npcName = GLV:getTargetName(npcId) or ("NPC " .. npcId)
-                                    -- Format: ? Quest Name | Turn in to NPC
-                                    local description = "|cFFFFFC01?|r " .. questName .. " | Turn in to " .. npcName
-                                    table.insert(waypoints, {
-                                        x = npcCoords.x,
-                                        y = npcCoords.y,
-                                        z = npcCoords.z,
-                                        type = "turnin",
-                                        npcId = npcId,
-                                        questId = questId,
-                                        actionType = "TURNIN",
-                                        description = description
-                                    })
-                                end
-                            end
-                        end
-                    end
-                elseif questTag.tag == "ACCEPT" then
-                    -- Only add QA waypoint if quest is NOT in log (not yet accepted)
-                    if not inLog then
-                        -- Get accept NPC from quest database
-                        local quest = VGDB and VGDB["quests"] and VGDB["quests"]["data"] and VGDB["quests"]["data"][tonumber(questId)]
-                        if quest and quest["start"] and quest["start"].U then
-                            local npcId = quest["start"].U[1]
-                            if npcId then
-                                local npcCoords = GLV:GetNPCCoordinates(npcId)
-                                if npcCoords and npcCoords.x and npcCoords.y and npcCoords.z then
-                                    local npcName = GLV:getTargetName(npcId) or ("NPC " .. npcId)
-                                    -- Format: ! Quest Name | Accept from NPC
-                                    local description = "|cFFFFFC01!|r " .. questName .. " | Accept from " .. npcName
-                                    table.insert(waypoints, {
-                                        x = npcCoords.x,
-                                        y = npcCoords.y,
-                                        z = npcCoords.z,
-                                        type = "accept",
-                                        npcId = npcId,
-                                        questId = questId,
-                                        actionType = "ACCEPT",
-                                        description = description
-                                    })
-                                end
-                            end
-                        end
-                    end
-                -- Note: QC (COMPLETE) is NOT added to ordered waypoints
-                -- QC uses the existing dynamic "closest objective" system
-                end
-            end
-        end
-    end
-
-    return waypoints
-end
-
--- Find quest coordinates for objectives
-local function findQuestObjectiveCoordinates(stepData, playerPos, objectiveIndex)
-    if not stepData or not stepData.lines then
-        return nil
-    end
-
-    for _, line in ipairs(stepData.lines) do
-        -- Get objectiveIndex from line's questTags if not provided
-        local lineObjectiveIndex = objectiveIndex
-        if not lineObjectiveIndex and line.questTags then
-            for _, questTag in ipairs(line.questTags) do
-                if questTag.objectiveIndex then
-                    lineObjectiveIndex = questTag.objectiveIndex
-                    break
-                end
-            end
-        end
-
-        if line.questId then
-            local questCoords = GLV:GetQuestAllCoords(line.questId, lineObjectiveIndex)
-            if questCoords and table.getn(questCoords) > 0 then
-                -- Find closest objective coordinate
-                local closestCoord = nil
-                local closestDistance = nil
-
-                for _, coord in ipairs(questCoords) do
-                    if coord.type == "objective" then
-                        local coordPos = {
-                            c = playerPos.c,
-                            x = coord.x / 100,
-                            y = coord.y / 100,
-                            z = coord.z
-                        }
-
-                        local distance = GuideNavigation:CalculateDistance(playerPos, coordPos)
-                        if not closestDistance or distance < closestDistance then
-                            closestDistance = distance
-                            closestCoord = coord
-                        end
-                    end
-                end
-
-                if closestCoord then
-                    return closestCoord
-                else
-                    return GuideNavigation:FindCoordinatesByType(questCoords, GuideNavigation:GetStepType(stepData))
-                end
-            end
-        end
-    end
-    return nil
-end
-
---[[ QUEST STATUS FUNCTIONS ]]--
-
--- Check if a quest is in the player's quest log and its completion status
--- Returns: inLog (boolean), isComplete (boolean)
-function GuideNavigation:GetQuestStatus(questId)
-    if not questId then return false, false end
-
-    local numId = tonumber(questId)
-
-    -- First check QuestTracker's data (reliable by exact ID)
-    if GLV.QuestTracker and GLV.QuestTracker.store then
-        local store = GLV.QuestTracker.store
-
-        -- Check if quest was already completed/turned in
-        if store.Completed and store.Completed[numId] then
-            return false, true  -- Not in log, but was completed
-        end
-
-        -- Check if quest is tracked as accepted
-        if store.Accepted and store.Accepted[numId] then
-            -- Quest was accepted, check if still in log and if complete
-            local expectedName = GLV:GetQuestNameByID(questId)
-            if expectedName then
-                local numEntries = GetNumQuestLogEntries()
-                for i = 1, numEntries do
-                    local title, level, tag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
-                    if title and not isHeader and title == expectedName then
-                        return true, (isComplete == 1 or isComplete == true)
-                    end
-                end
-            end
-            -- Quest was accepted but not in log anymore = turned in (remove from Accepted)
-            store.Accepted[numId] = nil
-            GLV.Settings:SetOption(store, {"QuestTracker"})
-            return false, false
-        end
-    end
-
-    -- Fallback: Check quest log directly by name (for quests accepted before tracking started)
-    local expectedName = GLV:GetQuestNameByID(questId)
-    if expectedName then
-        local numEntries = GetNumQuestLogEntries()
-        for i = 1, numEntries do
-            local title, level, tag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
-            if title and not isHeader and title == expectedName then
-                return true, (isComplete == 1 or isComplete == true)
-            end
-        end
-    end
-
-    return false, false
-end
-
--- Get the first uncompleted quest action from step (QT before QA)
--- Returns: questTag, questId, actionType, objectiveIndex
-function GuideNavigation:GetCurrentQuestAction(stepData)
-    if not stepData then
-        return nil, nil, nil, nil
-    end
-
-    -- Collect all quest tags in order from the step
-    local questActions = {}
-
-    -- First check step-level questTags (main source)
-    if stepData.questTags then
-        if GLV.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Found " .. table.getn(stepData.questTags) .. " step-level questTags")
-        end
-        for _, questTag in ipairs(stepData.questTags) do
-            if GLV.Debug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r  - Tag: " .. tostring(questTag.tag) .. " QuestId: " .. tostring(questTag.questId) .. " ObjIdx: " .. tostring(questTag.objectiveIndex))
-            end
-            table.insert(questActions, {
-                tag = questTag.tag,
-                questId = questTag.questId,
-                title = questTag.title,
-                objectiveIndex = questTag.objectiveIndex,
-                coords = stepData.coords
-            })
-        end
-    else
-        if GLV.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r No step-level questTags")
-        end
-    end
-
-    -- Also check line-level questTags (fallback)
-    if stepData.lines then
-        for lineIdx, line in ipairs(stepData.lines) do
-            if line.questTags then
-                if GLV.Debug then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Found " .. table.getn(line.questTags) .. " line-level questTags on line " .. lineIdx)
-                end
-                for _, questTag in ipairs(line.questTags) do
-                    if GLV.Debug then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r  - Tag: " .. tostring(questTag.tag) .. " QuestId: " .. tostring(questTag.questId) .. " ObjIdx: " .. tostring(questTag.objectiveIndex))
-                    end
-                    table.insert(questActions, {
-                        tag = questTag.tag,
-                        questId = questTag.questId,
-                        title = questTag.title,
-                        objectiveIndex = questTag.objectiveIndex,
-                        coords = line.coords
-                    })
-                end
-            end
-        end
-    end
-
-    if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Total questActions: " .. table.getn(questActions))
-    end
-
-    -- Find the first action that needs to be done
-    for _, action in ipairs(questActions) do
-        local inLog, isComplete = self:GetQuestStatus(action.questId)
-
-        if GLV.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Checking " .. tostring(action.tag) .. " q" .. tostring(action.questId) .. " inLog=" .. tostring(inLog) .. " isComplete=" .. tostring(isComplete))
-        end
-
-        if action.tag == "TURNIN" then
-            -- QT: Need to turn in if quest is in log
-            if inLog then
-                return action, action.questId, "TURNIN", action.objectiveIndex
-            end
-        elseif action.tag == "ACCEPT" then
-            -- QA: Need to accept if quest is NOT in log
-            if not inLog then
-                return action, action.questId, "ACCEPT", action.objectiveIndex
-            end
-        elseif action.tag == "COMPLETE" then
-            -- QC: Need to complete if quest is in log but not complete
-            if inLog and not isComplete then
-                if GLV.Debug then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Returning COMPLETE for q" .. tostring(action.questId) .. " objIdx=" .. tostring(action.objectiveIndex))
-                end
-                return action, action.questId, "COMPLETE", action.objectiveIndex
-            end
-        end
-    end
-
-    -- All actions done, return nil
-    return nil, nil, nil, nil
-end
-
---[[ GUIDE INTEGRATION FUNCTIONS ]]--
-
--- Gets the step type from step data
-function GuideNavigation:GetStepType(stepData)
-    if not stepData or not stepData.lines then
-        return nil
-    end
-    
-    for _, line in ipairs(stepData.lines) do
-        if line.stepType then
-            return line.stepType
-        end
-    end
-    
-    return ""
-end
-
--- Generates step description based on step data and target coordinates
-function GuideNavigation:GetStepDescription(stepData, targetCoords, currentAction)
-    local description = "Follow the guide"
-
-    -- Use currentAction's questId if available, otherwise find from step data
-    local questId = nil
-    if currentAction and currentAction.questId then
-        questId = currentAction.questId
-    elseif stepData and stepData.lines then
-        for _, line in ipairs(stepData.lines) do
-            if line.questId then
-                questId = line.questId
-                break
-            end
-        end
-    end
-
-    -- Store questId for progress display
-    self.currentQuestId = questId
-
-    if questId then
-        local questName = GLV:GetQuestNameByID(questId)
-        local questLevel = GLV:GetQuestLevelByID(questId)
-
-        if questName then
-            -- Determine action type from currentAction or targetCoords
-            local actionType = currentAction and currentAction.tag or nil
-
-            -- Add quest icon symbol based on action type (yellow color)
-            local questIcon = ""
-            if actionType == "TURNIN" then
-                questIcon = "|cFFFFFC01?|r "
-            elseif actionType == "ACCEPT" then
-                questIcon = "|cFFFFFC01!|r "
-            end
-
-            if actionType == "TURNIN" then
-                -- Turn in quest - prioritize quest database NPC over targetCoords
-                local npcName = GLV:GetQuestTurninNPCName(questId)
-                if not npcName and targetCoords and targetCoords.npcId then
-                    npcName = GLV:getTargetName(targetCoords.npcId)
-                end
-                if npcName then
-                    description = questName .. " | Turn in to " .. npcName
-                else
-                    description = questName .. " | Turn in"
-                end
-            elseif actionType == "ACCEPT" then
-                -- Accept quest - prioritize quest database NPC over targetCoords
-                local npcName = GLV:GetQuestAcceptNPCName(questId)
-                if not npcName and targetCoords and targetCoords.npcId then
-                    npcName = GLV:getTargetName(targetCoords.npcId)
-                end
-                if npcName then
-                    description = questName .. " | Accept from " .. npcName
-                else
-                    description = questName .. " | Accept"
-                end
-            elseif targetCoords and targetCoords.type == "target" then
-                if targetCoords.npcId then
-                    local npcName = GLV:getTargetName(targetCoords.npcId)
-                    if npcName then
-                        description = questName .. " | Talk to " .. npcName
-                    else
-                        description = questName .. " | Find NPC " .. targetCoords.npcId
-                    end
-                else
-                    description = questName .. " | Objective"
-                end
-            elseif targetCoords and targetCoords.type == "objective" then
-                if targetCoords.npcId then
-                    local npcName = GLV:getTargetName(targetCoords.npcId)
-                    if npcName then
-                        description = questName .. " | Kill " .. npcName
-                    else
-                        description = questName .. " | Kill NPC " .. targetCoords.npcId
-                    end
-                elseif targetCoords.itemId then
-                    local itemName = GLV:GetItemNameById(tonumber(targetCoords.itemId))
-                    if itemName then
-                        description = questName .. " | Collect " .. itemName
-                    else
-                        description = questName .. " | Collect Item " .. targetCoords.itemId
-                    end
-                elseif targetCoords.objectId then
-                    description = questName .. " | Interact with Object"
-                else
-                    description = questName .. " | Complete Objective"
-                end
-            else
-                description = questName
-            end
-
-            description = questIcon .. "[" .. questLevel .. "]" .. " | " .. description
-        else
-            description = "Quest " .. questId
-        end
-    end
-
-    return description
-end
-
--- Finds coordinates by type from a coordinate list
-function GuideNavigation:FindCoordinatesByType(coordsList, stepType)
-    local targetCoords = nil
-    
-    if stepType == "ACCEPT" then
-        for _, coord in ipairs(coordsList) do
-            if coord.type == "start" then
-                targetCoords = coord
-                break
-            end
-        end
-    elseif stepType == "COMPLETE" then
-        for _, coord in ipairs(coordsList) do
-            if coord.type == "objective" then
-                targetCoords = coord
-                break
-            end
-        end
-        if not targetCoords then
-            for _, coord in ipairs(coordsList) do
-                if coord.type == "end" then
-                    targetCoords = coord
-                    break
-                end
-            end
-        end
-    elseif stepType == "TURNIN" then
-        for _, coord in ipairs(coordsList) do
-            if coord.type == "end" then
-                targetCoords = coord
-                break
-            end
-        end
-        if not targetCoords then
-            for _, coord in ipairs(coordsList) do
-                if coord.type == "start" then
-                    targetCoords = coord
-                    break
-                end
-            end
-        end
-    elseif stepType == "OBJECTIVE" then
-        for _, coord in ipairs(coordsList) do
-            if coord.type == "objective" then
-                targetCoords = coord
-                break
-            end
-        end
-        if not targetCoords then
-            for _, coord in ipairs(coordsList) do
-                if coord.type == "start" then
-                    targetCoords = coord
-                    break
-                end
-            end
-        end
-    end
-    
-    if not targetCoords then
-        targetCoords = coordsList[1]
-    end
-    
-    return targetCoords
-end
-
--- Shows item icon for equip steps instead of the arrow
-function GuideNavigation:ShowEquipItem(itemId, itemName)
-    if not navigationFrame then
-        self:CreateNavigationFrame()
-    end
-    if not navigationFrame then return end
-
-    -- Get item texture
-    local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(itemId)
-    if not itemTexture then
-        itemTexture = "Interface\\Icons\\INV_Misc_QuestionMark"
-    end
-
-    -- Setup icon and click handler
-    navigationFrame.itemIcon:SetTexture(itemTexture)
-    navigationFrame.itemButton:SetScript("OnClick", function()
-        -- Find and equip the item from bags
-        for bag = 0, 4 do
-            for slot = 1, GetContainerNumSlots(bag) do
-                local link = GetContainerItemLink(bag, slot)
-                if link and string.find(link, itemId) then
-                    UseContainerItem(bag, slot)
-                    return
-                end
-            end
-        end
-    end)
-
-    -- Show item button, hide arrow
-    navigationFrame.arrow:Hide()
-    navigationFrame.itemButton:Show()
-    navigationFrame.questName:SetText(itemName or "Equip item")
-    navigationFrame.objective:SetText("")
-    navigationFrame.questProgress:SetText("")
-    navigationFrame.distance:SetText("Click to equip")
-    navigationFrame:Show()
-
-    isNavigationActive = false  -- Don't update arrow rotation
-end
-
--- Hides item icon and restores arrow mode
-function GuideNavigation:HideEquipItem()
-    if not navigationFrame then return end
-    navigationFrame.itemButton:Hide()
-    navigationFrame.arrow:Show()
-end
-
--- Shows use item icon when no navigation coordinates are available (e.g., tram/instance)
-function GuideNavigation:ShowUseItem(itemId, stepData)
-    if not navigationFrame then
-        self:CreateNavigationFrame()
-    end
-    if not navigationFrame then return end
-
-    -- Get item texture
-    local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(itemId)
-    if not itemTexture then
-        itemTexture = "Interface\\Icons\\INV_Misc_QuestionMark"
-    end
-
-    -- Setup icon and click handler
-    navigationFrame.itemIcon:SetTexture(itemTexture)
-    navigationFrame.itemButton:SetScript("OnClick", function()
-        for bag = 0, 4 do
-            local numSlots = GetContainerNumSlots(bag)
-            if numSlots then
-                for slot = 1, numSlots do
-                    local link = GetContainerItemLink(bag, slot)
-                    if link and string.find(link, "item:" .. itemId .. ":") then
-                        UseContainerItem(bag, slot)
-                        return
-                    end
-                end
-            end
-        end
-    end)
-
-    -- Show item button, hide arrow
-    navigationFrame.arrow:Hide()
-    navigationFrame.itemButton:Show()
-
-    -- Show quest info
-    local questId = self.currentQuestId
-    local questName = questId and GLV:GetQuestNameByID(questId) or ""
-    navigationFrame.questName:SetText(questName)
-    navigationFrame.questName:SetTextColor(1, 0.8, 0)
-    navigationFrame.objective:SetText("Use item")
-
-    -- Show quest progress
-    if questId and GLV.QuestTracker then
-        local objectives, allComplete = GLV.QuestTracker:GetQuestProgress(questId)
-        if objectives and table.getn(objectives) > 0 then
-            local progressLines = {}
-            for _, obj in ipairs(objectives) do
-                local color = obj.completed and "|cFF00FF00" or "|cFFFFFF00"
-                table.insert(progressLines, color .. obj.text .. "|r")
-            end
-            navigationFrame.questProgress:SetText(table.concat(progressLines, "\n"))
-        else
-            navigationFrame.questProgress:SetText("")
-        end
-    else
-        navigationFrame.questProgress:SetText("")
-    end
-
-    navigationFrame.distance:SetText("Click to use")
-    navigationFrame:Show()
-
-    isNavigationActive = true  -- Keep OnUpdate running for progress updates
-    self.useItemProgressTimer = 0
-end
-
--- Hides use item icon and restores arrow mode
-function GuideNavigation:HideUseItem()
-    if not navigationFrame then return end
-    navigationFrame.itemButton:Hide()
-    navigationFrame.arrow:Show()
-end
-
--- Shows the next guide button for the last step
-function GuideNavigation:ShowNextGuide(nextGuideName)
-    if not navigationFrame then
-        self:CreateNavigationFrame()
-    end
-
-    -- Store next guide content for the click handler
-    local nextGuideContent = nextGuideName
-
-    navigationFrame.nextGuideButton:SetScript("OnClick", function()
-        if not nextGuideContent then return end
-
-        -- Parse the next guide content: "XX-XX Name" format
-        local nextMinLevel, nextMaxLevel, guideName = string.match(nextGuideContent, "(%d+)-(%d+)%s+(.+)")
-        if not guideName then
-            guideName = nextGuideContent
-        end
-
-        -- Generate the expected guide ID
-        local expectedGuideId = string.gsub(guideName, "%s+", "_")
-        if nextMinLevel and nextMinLevel ~= "" then
-            expectedGuideId = expectedGuideId .. "_" .. nextMinLevel
-        end
-        if nextMaxLevel and nextMaxLevel ~= "" then
-            expectedGuideId = expectedGuideId .. "_" .. nextMaxLevel
-        end
-
-        -- Look for the guide and load it
-        for groupName, groupGuides in pairs(GLV.loadedGuides) do
-            if groupGuides then
-                for guideId, guideData in pairs(groupGuides) do
-                    if guideId == expectedGuideId then
-                        GLV:LoadGuide(groupName, guideId)
-                        return
-                    end
-                end
-            end
-        end
-    end)
-
-    -- Show next guide button, hide arrow
-    navigationFrame.arrow:Hide()
-    navigationFrame.nextGuideButton:Show()
-    navigationFrame.questName:SetText(nextGuideName or "Next Guide")
-    navigationFrame.objective:SetText("")
-    navigationFrame.questProgress:SetText("")
-    navigationFrame.distance:SetText("Click for next guide")
-    navigationFrame:Show()
-
-    isNavigationActive = false  -- Don't update arrow rotation
-end
-
--- Hides next guide button and restores arrow mode
-function GuideNavigation:HideNextGuide()
-    if not navigationFrame then return end
-    navigationFrame.nextGuideButton:Hide()
-    navigationFrame.arrow:Show()
-end
-
--- Shows hearthstone icon for [H] steps instead of the arrow
-function GuideNavigation:ShowHearthstone(destination)
-    if not navigationFrame then
-        self:CreateNavigationFrame()
-    end
-    if not navigationFrame then return end
-
-    -- Setup click handler to use hearthstone (item ID 6948)
-    navigationFrame.hearthButton:SetScript("OnClick", function()
-        -- Find and use hearthstone from bags
-        local hearthUsed = false
-        for bag = 0, 4 do
-            for slot = 1, GetContainerNumSlots(bag) do
-                local link = GetContainerItemLink(bag, slot)
-                if link and string.find(link, "item:6948:") then
-                    UseContainerItem(bag, slot)
-                    hearthUsed = true
-                    break
-                end
-            end
-            if hearthUsed then break end
-        end
-
-        -- Schedule step completion after hearthstone cast time (~10s + buffer)
-        if hearthUsed then
-            navigationFrame.questName:SetText("Hearthing...")
-            navigationFrame.distance:SetText("Please wait...")
-            GLV.Ace:ScheduleEvent("GLV_HearthstoneComplete", function()
-                GuideNavigation:CompleteCurrentStep()
-            end, 12)
-        end
-    end)
-
-    -- Show hearthstone button, hide arrow
-    navigationFrame.arrow:Hide()
-    navigationFrame.hearthButton:Show()
-    navigationFrame.questName:SetText("Hearth to " .. (destination or "Inn"))
-    navigationFrame.objective:SetText("")
-    navigationFrame.questProgress:SetText("")
-    navigationFrame.distance:SetText("Click to use Hearthstone")
-    navigationFrame:Show()
-
-    isNavigationActive = false  -- Don't update arrow rotation
-end
+--[[ STEP COMPLETION ]]--
 
 -- Complete the current step and advance to the next one
 function GuideNavigation:CompleteCurrentStep()
@@ -1536,284 +769,15 @@ function GuideNavigation:CompleteCurrentStep()
     end
 end
 
--- Hides hearthstone icon and restores arrow mode
-function GuideNavigation:HideHearthstone()
-    if not navigationFrame then return end
-    navigationFrame.hearthButton:Hide()
-    navigationFrame.arrow:Show()
-end
+--[[ WAYPOINT RESOLUTION AND STEP HANDLING ]]--
 
---[[ XP PROGRESS DISPLAY ]]--
-
--- Get XP progress values for the navigation progress bar
--- Returns: current, max, text, isDone
-function GuideNavigation:GetXPProgressValues(req)
-    if not req then return 0, 1, "", false end
-
-    local playerLevel = UnitLevel("player")
-    local playerXP = UnitXP("player")
-    local playerMaxXP = UnitXPMax("player")
-
-    if req.type == "level" then
-        if playerLevel >= req.targetLevel then
-            return 1, 1, "Done!", true
-        end
-        return playerXP, playerMaxXP, playerXP .. " / " .. playerMaxXP .. " XP", false
-
-    elseif req.type == "level_minus" then
-        if playerLevel >= req.targetLevel then
-            return 1, 1, "Done!", true
-        elseif playerLevel == (req.targetLevel - 1) then
-            local target = playerMaxXP - req.xpMinus
-            if playerXP >= target then
-                return 1, 1, "Done!", true
-            end
-            return playerXP, target, playerXP .. " / " .. target .. " XP", false
-        else
-            return playerXP, playerMaxXP, "Lvl " .. playerLevel .. " / " .. (req.targetLevel - 1), false
-        end
-
-    elseif req.type == "level_plus" then
-        if playerLevel > req.targetLevel then
-            return 1, 1, "Done!", true
-        elseif playerLevel == req.targetLevel then
-            if playerXP >= req.xpPlus then
-                return 1, 1, "Done!", true
-            end
-            return playerXP, req.xpPlus, playerXP .. " / " .. req.xpPlus .. " XP", false
-        else
-            return playerXP, playerMaxXP, "Lvl " .. playerLevel .. " / " .. req.targetLevel, false
-        end
-
-    elseif req.type == "level_percent" then
-        if playerLevel > req.targetLevel then
-            return 1, 1, "Done!", true
-        elseif playerLevel == req.targetLevel then
-            local targetXP = math.floor((req.targetPercent / 100) * playerMaxXP)
-            if playerXP >= targetXP then
-                return 1, 1, "Done!", true
-            end
-            local pct = math.floor((playerXP / targetXP) * 100)
-            return playerXP, targetXP, playerXP .. " / " .. targetXP .. " XP (" .. pct .. "%)", false
-        else
-            return playerXP, playerMaxXP, "Lvl " .. playerLevel .. " / " .. req.targetLevel, false
-        end
-    end
-
-    return 0, 1, "", false
-end
-
--- Shows XP progress in navigation frame instead of the arrow
-function GuideNavigation:ShowXPProgress(experienceRequirement)
-    if not navigationFrame then
-        self:CreateNavigationFrame()
-    end
-    if not navigationFrame then return end
-
-    -- Store requirement for periodic updates
-    self.currentXPRequirement = experienceRequirement
-
-    -- Hide arrow, show XP elements
-    navigationFrame.arrow:Hide()
-    navigationFrame.xpBar:Show()
-    navigationFrame.objective:SetText("")
-    navigationFrame.questProgress:SetText("")
-    navigationFrame.distance:SetText("")
-
-    -- Set the requirement text as quest name
-    navigationFrame.questName:SetText("|cFFBB99FF" .. (experienceRequirement.text or "XP Required") .. "|r")
-    navigationFrame.questName:SetTextColor(1, 1, 1)
-
-    -- Update bar values
-    self:UpdateXPDisplay()
-
-    navigationFrame:Show()
-    isNavigationActive = false  -- Don't update arrow rotation
-end
-
--- Update XP display values (called when XP changes)
-function GuideNavigation:UpdateXPDisplay()
-    if not navigationFrame or not self.currentXPRequirement then return end
-    if not navigationFrame.xpBar or not navigationFrame.xpBar:IsShown() then return end
-
-    local current, max, text, isDone = self:GetXPProgressValues(self.currentXPRequirement)
-
-    navigationFrame.xpBar:SetMinMaxValues(0, max)
-    navigationFrame.xpBar:SetValue(current)
-    navigationFrame.xpBarText:SetText(text)
-
-    if isDone then
-        navigationFrame.xpBar:SetStatusBarColor(0.0, 0.8, 0.0) -- Green when done
-        navigationFrame.questName:SetText("|cFF00FF00" .. (self.currentXPRequirement.text or "XP") .. " - Done!|r")
-    else
-        navigationFrame.xpBar:SetStatusBarColor(0.58, 0.0, 0.82) -- Purple XP color
-        navigationFrame.questName:SetText("|cFFBB99FF" .. (self.currentXPRequirement.text or "XP Required") .. "|r")
-    end
-end
-
--- Hides XP progress and restores arrow mode
-function GuideNavigation:HideXPProgress()
-    if not navigationFrame then return end
-    if navigationFrame.xpBar then
-        navigationFrame.xpBar:Hide()
-    end
-    navigationFrame.arrow:Show()
-    self.currentXPRequirement = nil
-end
-
---[[ DEATH / CORPSE NAVIGATION ]]--
-
--- Activates corpse navigation mode (common helper for OnPlayerDead and Init reconnect)
-function GuideNavigation:ActivateCorpseNavigation()
-    if not corpsePosition then return end
-
-    if not navigationFrame then
-        self:CreateNavigationFrame()
-    end
-
-    isDeathNavigation = true
-
-    -- Hide all special modes
-    self:HideEquipItem()
-    self:HideUseItem()
-    self:HideNextGuide()
-    self:HideHearthstone()
-    self:HideXPProgress()
-
-    -- Clear quest tracking so objectives don't display during death
-    self.currentQuestId = nil
-    self.currentActionType = nil
-    self.currentObjectiveIndex = nil
-
-    -- Set waypoint directly using saved corpse position (already in Astrolabe format)
-    currentWaypoint = {
-        c = corpsePosition[1],
-        z = corpsePosition[2],
-        x = corpsePosition[3],
-        y = corpsePosition[4],
-        description = "Your dead body"
-    }
-
-    -- Apply ghostly blue tint to arrow
-    navigationFrame.arrow:Show()
-    navigationFrame.arrow:SetVertexColor(0.7, 0.7, 0.9, 0.8)
-
-    -- Show navigation frame
-    navigationFrame.questName:SetText("")
-    navigationFrame.objective:SetText("Your dead body")
-    navigationFrame.objective:SetTextColor(0.7, 0.7, 0.9)
-    navigationFrame.questProgress:SetText("")
-    navigationFrame:Show()
-    isNavigationActive = true
-
-    if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Death navigation activated - guiding to corpse")
-    end
-end
-
--- Called when the player dies
-function GuideNavigation:OnPlayerDead()
-    -- Capture player position (this IS the corpse position at the moment of death)
-    local pos = self:GetPlayerPosition()
-    if not pos or not pos.c then return end
-
-    -- Save corpse position as array {c, z, x, y}
-    corpsePosition = {pos.c, pos.z, pos.x, pos.y}
-
-    -- Persist corpse position to settings (survives disconnect)
-    GLV.Settings:SetOption(corpsePosition, {"Navigation", "CorpsePosition"})
-
-    -- Save current navigation state for restoration after resurrection
-    savedWaypointState = {
-        currentWaypoint = currentWaypoint,
-        isNavigationActive = isNavigationActive,
-        allWaypoints = allWaypoints,
-        currentWaypointIndex = currentWaypointIndex,
-        currentStepData = currentStepData,
-        currentQuestId = self.currentQuestId,
-        currentActionType = self.currentActionType,
-        currentObjectiveIndex = self.currentObjectiveIndex,
-        currentUseItemId = self.currentUseItemId,
-        currentXPRequirement = self.currentXPRequirement
-    }
-
-    self:ActivateCorpseNavigation()
-end
-
--- Called when the player resurrects (PLAYER_ALIVE or PLAYER_UNGHOST)
-function GuideNavigation:OnPlayerAlive()
-    if not isDeathNavigation then return end
-
-    isDeathNavigation = false
-    corpsePosition = nil
-
-    -- Clear persisted corpse position
-    GLV.Settings:SetOption(nil, {"Navigation", "CorpsePosition"})
-
-    -- Restore arrow to normal color
-    if navigationFrame and navigationFrame.arrow then
-        navigationFrame.arrow:SetVertexColor(1, 1, 1, 1)
-    end
-    if navigationFrame and navigationFrame.objective then
-        navigationFrame.objective:SetTextColor(1, 1, 1)
-    end
-
-    if savedWaypointState then
-        -- Restore saved navigation state
-        currentWaypoint = savedWaypointState.currentWaypoint
-        allWaypoints = savedWaypointState.allWaypoints or {}
-        currentWaypointIndex = savedWaypointState.currentWaypointIndex or 1
-        currentStepData = savedWaypointState.currentStepData
-        self.currentQuestId = savedWaypointState.currentQuestId
-        self.currentActionType = savedWaypointState.currentActionType
-        self.currentObjectiveIndex = savedWaypointState.currentObjectiveIndex
-        self.currentUseItemId = savedWaypointState.currentUseItemId
-        self.currentXPRequirement = savedWaypointState.currentXPRequirement
-
-        if savedWaypointState.isNavigationActive and currentWaypoint then
-            -- Navigation was active before death, restore it
-            navigationFrame:Show()
-            isNavigationActive = true
-        else
-            -- Navigation was hidden before death
-            self:Hide()
-        end
-
-        -- If there was an XP requirement active, re-show it
-        if self.currentXPRequirement then
-            self:ShowXPProgress(self.currentXPRequirement)
-        end
-
-        savedWaypointState = nil
-    else
-        -- No saved state, try to recalculate from current step
-        if currentStepData then
-            self:UpdateWaypointForStep(currentStepData)
-        else
-            self:Hide()
-        end
-    end
-
-    if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Player resurrected - navigation restored")
-    end
-end
-
--- Returns whether death navigation is currently active (for external queries)
-function GuideNavigation:IsDeathNavigationActive()
-    return isDeathNavigation
-end
-
--- Updates waypoint for a specific guide step
+-- Updates waypoint for a specific guide step (orchestrator)
 function GuideNavigation:UpdateWaypointForStep(stepData)
     -- Don't let guide step changes override corpse navigation while dead
-    if isDeathNavigation then return end
+    if NavigationModes:IsDeathNavigationActive() then return end
 
     self:RemoveCurrentWaypoint()
-    self:HideEquipItem()
-    self:HideNextGuide()
-    self:HideHearthstone()
-    self:HideXPProgress()
+    NavigationModes:HideNextGuide()
 
     -- Reset transition flag to allow new transitions
     hasTriggeredTransition = false
@@ -1823,178 +787,45 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     currentWaypointIndex = 1
     currentStepData = stepData
 
-    -- Extract use item ID for fallback display when arrow not available
-    self.currentUseItemId = nil
-    if stepData and stepData.lines then
-        for _, line in ipairs(stepData.lines) do
-            if line.useItemId then
-                self.currentUseItemId = line.useItemId
-                break
-            end
-        end
-    end
+    -- Resolve waypoints using WaypointResolver
+    local result = WaypointResolver:ResolveWaypoints(stepData)
 
-    -- Check for XP step
-    if stepData and stepData.lines then
-        for _, line in ipairs(stepData.lines) do
-            if line.experienceRequirement then
-                self:ShowXPProgress(line.experienceRequirement)
-                return
-            end
-        end
-    end
+    -- Store quest tracking info
+    self.currentQuestId = result.questId
+    self.currentActionType = result.actionType
+    self.currentObjectiveIndex = result.objectiveIndex
+    self.currentUseItemId = result.useItemId
 
-    -- Check for EQUIP step
-    if stepData and stepData.lines then
-        for _, line in ipairs(stepData.lines) do
-            if line.stepType == "EQUIP" and line.equipItemId then
-                local itemName = GLV:GetItemNameById(line.equipItemId)
-                self:ShowEquipItem(line.equipItemId, itemName)
-                return
-            end
-        end
-    end
-
-    -- Check for HEARTHSTONE step
-    if stepData and stepData.lines then
-        for _, line in ipairs(stepData.lines) do
-            if line.stepType == "HEARTHSTONE" and line.hearthDestination then
-                self:ShowHearthstone(line.hearthDestination)
-                return
-            end
-        end
-    end
-
-    -- Check for NEXT_GUIDE step (last step with clickToNext flag)
-    if GLV.CurrentGuide and GLV.CurrentGuide.clickToNext and GLV.CurrentGuide.next then
-        local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
-        local currentStepIndex = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
-        local totalSteps = GLV.CurrentDisplayStepsCount or 0
-
-        if currentStepIndex == totalSteps then
-            self:ShowNextGuide(GLV.CurrentGuide.next)
-            return
-        end
-    end
-
-    -- Get current player position
-    playerPos = self:GetPlayerPosition()
-    if not playerPos then
+    -- Handle special modes
+    if result.specialMode == "XP" then
+        local navResult = NavigationModes:ShowXPProgress(result.specialModeData)
+        if navResult == false then isNavigationActive = false end
+        return
+    elseif result.specialMode == "EQUIP" then
+        local navResult = NavigationModes:ShowEquipItem(result.specialModeData.itemId, result.specialModeData.itemName)
+        if navResult == false then isNavigationActive = false end
+        return
+    elseif result.specialMode == "HEARTHSTONE" then
+        local navResult = NavigationModes:ShowHearthstone(result.specialModeData)
+        if navResult == false then isNavigationActive = false end
+        return
+    elseif result.specialMode == "NEXT_GUIDE" then
+        local navResult = NavigationModes:ShowNextGuide(result.specialModeData)
+        if navResult == false then isNavigationActive = false end
+        return
+    elseif result.specialMode == "USE_ITEM" then
+        local navResult = NavigationModes:ShowUseItem(result.specialModeData.itemId, stepData, self.currentQuestId)
+        if navResult ~= nil then isNavigationActive = navResult end
+        self.useItemProgressTimer = 0
         return
     end
 
-    -- Get the current quest action (first uncompleted: QT > QA > QC)
-    local currentAction, currentQuestId, actionType, currentObjectiveIndex = self:GetCurrentQuestAction(stepData)
-
-    -- Use the current action's type, or fallback to step's type
-    local stepType = actionType or self:GetStepType(stepData)
-
-    -- Store current quest and action type for progress display
-    self.currentQuestId = currentQuestId
-    self.currentActionType = actionType or stepType
-    self.currentObjectiveIndex = currentObjectiveIndex
-
-    if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Stored: currentQuestId=" .. tostring(self.currentQuestId) .. " currentActionType=" .. tostring(self.currentActionType) .. " objIdx=" .. tostring(currentObjectiveIndex))
-    end
-
-    local targetCoords = nil
-
-    -- Priority 1: Explicit GOTO coordinates from lines (highest priority)
-    -- These are manually specified [G x,y Zone] coordinates and should NEVER be overridden
-    local allCoords = collectAllStepCoordinates(stepData)
-    local gotoCoords = {}
-
-    for _, coord in ipairs(allCoords) do
-        if coord.type == "goto" then
-            table.insert(gotoCoords, coord)
-        end
-    end
-
-    -- If we have explicit GOTO coords, use them (supporting multiple waypoints)
-    if table.getn(gotoCoords) > 0 then
-        -- Store all GOTO coords for multi-waypoint navigation
-        allWaypoints = gotoCoords
+    -- Normal arrow navigation
+    if result.waypoints and table.getn(result.waypoints) > 0 then
+        allWaypoints = result.waypoints
         currentWaypointIndex = 1
-        targetCoords = gotoCoords[1]
-        local description = self:GetStepDescription(stepData, targetCoords, currentAction)
-        self:AddWaypoint(targetCoords, description)
-        if GLV.Debug and table.getn(gotoCoords) > 1 then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Multi-waypoint: " .. table.getn(gotoCoords) .. " waypoints loaded")
-        end
-        return
-    end
-
-    -- Priority 2: Ordered waypoints (TAR targets + quest NPCs in sequence)
-    local orderedWaypoints = collectOrderedWaypoints(stepData)
-    if table.getn(orderedWaypoints) > 0 then
-        allWaypoints = orderedWaypoints
-        currentWaypointIndex = 1
-        targetCoords = orderedWaypoints[1]
-        -- Use pre-computed description from waypoint if available
-        local description = targetCoords.description or self:GetStepDescription(stepData, targetCoords, currentAction)
-        self:AddWaypoint(targetCoords, description)
-        if GLV.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Ordered waypoints: " .. table.getn(orderedWaypoints) .. " waypoints loaded")
-            for i, wp in ipairs(orderedWaypoints) do
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r  " .. i .. ": " .. (wp.description or wp.type))
-            end
-        end
-        return
-    end
-
-    -- Priority 3: Legacy TAR coordinates (fallback if no ordered waypoints)
-    if not targetCoords then
-        local tarCoords = extractTARCoordinates(stepData)
-        if table.getn(tarCoords) > 0 then
-            allWaypoints = tarCoords
-            currentWaypointIndex = 1
-            targetCoords = tarCoords[1]
-            if GLV.Debug and table.getn(tarCoords) > 1 then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Multi-waypoint (TAR): " .. table.getn(tarCoords) .. " waypoints loaded")
-            end
-        end
-    end
-
-    -- Priority 3: Quest-specific coordinates for the current action (QT/QA/QC)
-    if not targetCoords and currentQuestId then
-        -- Pass objectiveIndex to get coordinates for specific quest objective
-        local questCoords = GLV:GetQuestAllCoords(currentQuestId, currentObjectiveIndex)
-        if questCoords and table.getn(questCoords) > 0 then
-            targetCoords = self:FindCoordinatesByType(questCoords, stepType)
-        end
-    end
-
-    -- Priority 4: Current action's line coordinates
-    if not targetCoords and currentAction and currentAction.coords and table.getn(currentAction.coords) > 0 then
-        targetCoords = self:FindCoordinatesByType(currentAction.coords, stepType)
-    end
-
-    -- Priority 5: Direct step coordinates
-    if not targetCoords and stepData and stepData.coords and table.getn(stepData.coords) > 0 then
-        targetCoords = self:FindCoordinatesByType(stepData.coords, stepType)
-    end
-
-    -- Priority 6: Other line coordinates (non-goto)
-    if not targetCoords and table.getn(allCoords) > 0 then
-        targetCoords = self:FindCoordinatesByType(allCoords, stepType)
-    end
-
-    -- Priority 7: Quest objective coordinates (for COMPLETE steps or fallback)
-    if not targetCoords or stepType == "COMPLETE" then
-        local questCoords = findQuestObjectiveCoordinates(stepData, playerPos, currentObjectiveIndex)
-        if questCoords then
-            targetCoords = questCoords
-        end
-    end
-
-    -- Set waypoint if coordinates found
-    if targetCoords then
-        local description = self:GetStepDescription(stepData, targetCoords, currentAction)
-        self:AddWaypoint(targetCoords, description)
-    elseif self.currentUseItemId then
-        -- No coordinates found but step has a use item - show item icon as fallback
-        self:ShowUseItem(self.currentUseItemId, stepData)
+        local description = result.description or WaypointResolver:GetStepDescription(stepData, result.waypoints[1], nil)
+        self:AddWaypoint(result.waypoints[1], description)
     end
 end
 
@@ -2003,50 +834,64 @@ function GuideNavigation:OnStepChanged(stepData)
     self:UpdateWaypointForStep(stepData)
 end
 
---[[ ZONE UTILITY FUNCTIONS ]]--
+--[[ DELEGATE METHODS (external API compatibility) ]]--
 
--- Gets zone information from zone name
-function GuideNavigation:GetZoneInfo(zone, cont)
-    if zone == nil then
-        return
-    end
-    zone = type(zone) == "string" and string.lower(zone) or zone
-    for continent, zones in pairs(Astrolabe.ContinentList) do
-        for index, zData in pairs(zones) do
-            local nameLower = string.lower(zData.mapFile)
-            local nameLower2 = string.lower(zData.mapName)
-            if (cont ~= nil and cont == continent and zone == index) or zone == nameLower or zone == nameLower2 then
-                return continent, index, zData.mapName
-            end
-        end
-    end
-    return nil, nil, nil
+-- These methods delegate to sub-modules but keep the external API stable
+-- so callers like Character.lua, Frames.lua, etc. don't need to change.
+
+function GuideNavigation:GetQuestStatus(questId)
+    return WaypointResolver:GetQuestStatus(questId)
 end
 
--- FindClosestUnit moved to DBTools.lua where it belongs
+function GuideNavigation:GetStepDescription(stepData, targetCoords, currentAction)
+    return WaypointResolver:GetStepDescription(stepData, targetCoords, currentAction)
+end
 
+function GuideNavigation:GetZoneInfo(zone, cont)
+    return WaypointResolver:GetZoneInfo(zone, cont)
+end
+
+function GuideNavigation:IsDeathNavigationActive()
+    return NavigationModes:IsDeathNavigationActive()
+end
+
+function GuideNavigation:HideNextGuide()
+    NavigationModes:HideNextGuide()
+end
+
+function GuideNavigation:UpdateXPDisplay()
+    NavigationModes:UpdateXPDisplay()
+end
+
+function GuideNavigation:ShowXPProgress(req)
+    local navResult = NavigationModes:ShowXPProgress(req)
+    if navResult == false then isNavigationActive = false end
+end
+
+function GuideNavigation:HideXPProgress()
+    NavigationModes:HideXPProgress()
+end
 
 --[[ INITIALIZATION ]]--
 
 -- Initializes the navigation system
 function GuideNavigation:Init()
+    -- Resolve module references
+    NavigationModes = GLV.NavigationModes
+    WaypointResolver = GLV.WaypointResolver
+
     if not GLV.Settings:GetOption({"Navigation", "AutoShow"}) then
         GLV.Settings:SetOption(true, {"Navigation", "AutoShow"})
     end
 
     playerPos = self:GetPlayerPosition()
 
+    -- Create the navigation frame early so NavigationModes can use it
+    self:CreateNavigationFrame()
+
     -- Check if player is a ghost at login (disconnected while dead)
-    if UnitIsGhost("player") then
-        local savedCorpse = GLV.Settings:GetOption({"Navigation", "CorpsePosition"})
-        if savedCorpse then
-            corpsePosition = savedCorpse
-            self:CreateNavigationFrame()
-            self:ActivateCorpseNavigation()
-            -- Register death events before returning
-            self:RegisterDeathEvents()
-            return  -- Skip normal guide nav init
-        end
+    if NavigationModes:CheckGhostState() then
+        return  -- Skip normal guide nav init
     end
 
     if GLV.CurrentGuide then
@@ -2065,19 +910,7 @@ function GuideNavigation:Init()
     end
 
     -- Register death/resurrection events
-    self:RegisterDeathEvents()
-end
-
--- Register PLAYER_DEAD and PLAYER_UNGHOST events
--- Note: PLAYER_ALIVE fires when releasing spirit (dead -> ghost), NOT on resurrection
--- Only PLAYER_UNGHOST fires on actual resurrection (ghost -> alive)
-function GuideNavigation:RegisterDeathEvents()
-    GLV.Ace:RegisterEvent("PLAYER_DEAD", function()
-        GuideNavigation:OnPlayerDead()
-    end)
-    GLV.Ace:RegisterEvent("PLAYER_UNGHOST", function()
-        GuideNavigation:OnPlayerAlive()
-    end)
+    NavigationModes:RegisterDeathEvents()
 end
 
 -- Expose to GLV
