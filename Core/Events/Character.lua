@@ -23,6 +23,7 @@ function CharacterTracker:Init()
             -- Delayed check to catch weapon skill learning (not fired by LEARNED_SPELL_IN_TAB)
             GLV.Ace:ScheduleEvent("GLV_SkillLineCheck", function()
                 self:OnSpellLearned()
+                self:CheckSkillRequirements()
             end, 0.5)
         end)
     end
@@ -36,6 +37,11 @@ function CharacterTracker:Init()
     GLV.Ace:ScheduleEvent("GLV_InitSpellCheck", function()
         self:OnSpellLearned()
     end, 3)
+
+    -- Check for already met skill requirements after guide loads
+    GLV.Ace:ScheduleEvent("GLV_InitSkillReqCheck", function()
+        self:CheckSkillRequirements()
+    end, 3.5)
 end
 
 
@@ -203,6 +209,13 @@ function CharacterTracker:OnSpellLearned()
                                     spellFound = (foundId and foundId > 0)
                                 end
                             end
+                        end
+
+                        -- Fallback: check spellbook directly by parsed spell name
+                        -- Catches profession recipes (First Aid, Cooking, etc.) that
+                        -- appear in spellbook tabs but aren't found by API lookups
+                        if not spellFound and spellName and currentSpells[spellName] then
+                            spellFound = true
                         end
 
                         if not spellFound then
@@ -501,8 +514,68 @@ end
 -- Check XP requirements immediately when loading guide or changing steps
 function CharacterTracker:CheckCurrentStepXPRequirements()
     local hasXPReqs, stepCompleted = self:CheckExperienceRequirements()
-    
+
     self:ManageXPTimer(hasXPReqs)
-    
+
     return hasXPReqs, stepCompleted
+end
+
+
+--[[ SKILL REQUIREMENT FUNCTIONS ]]--
+
+-- Get the current skill level for a named skill (e.g., "First Aid", "Cooking")
+function CharacterTracker:GetSkillLevel(skillName)
+    for i = 1, GetNumSkillLines() do
+        local name, header, isExpanded, skillRank = GetSkillLineInfo(i)
+        if name and not header and name == skillName then
+            return skillRank or 0
+        end
+    end
+    return 0
+end
+
+-- Check if player meets skill requirements for current guide steps and mark completed ones
+function CharacterTracker:CheckSkillRequirements()
+    if not GLV.CurrentDisplaySteps then
+        return false
+    end
+
+    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
+    local stepState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepState"}) or {}
+    local diCount = GLV.CurrentDisplayStepsCount or 0
+    local diToOrig = GLV.CurrentDisplayToOriginal or {}
+    local stepsCompleted = false
+
+    for di = 1, diCount do
+        local step = GLV.CurrentDisplaySteps[di]
+        local origIdx = diToOrig[di]
+
+        if step and origIdx and not stepState[origIdx] and step.lines then
+            for _, line in ipairs(step.lines) do
+                if line.skillRequirement then
+                    local req = line.skillRequirement
+                    local currentLevel = self:GetSkillLevel(req.skillName)
+
+                    if currentLevel >= req.requiredLevel then
+                        stepState[origIdx] = true
+                        GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
+                        stepsCompleted = true
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    -- Update navigation skill display (even if no step completed, bar may need refresh)
+    if GLV.GuideNavigation and GLV.GuideNavigation.UpdateSkillDisplay then
+        GLV.GuideNavigation:UpdateSkillDisplay()
+    end
+
+    if stepsCompleted then
+        self:UpdateActiveStep()
+        GLV:RefreshGuide()
+    end
+
+    return stepsCompleted
 end

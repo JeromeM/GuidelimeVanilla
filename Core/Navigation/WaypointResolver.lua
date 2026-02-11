@@ -681,6 +681,17 @@ function WaypointResolver:ResolveWaypoints(stepData)
         end
     end
 
+    -- Check for SKILL step
+    if stepData.lines then
+        for _, line in ipairs(stepData.lines) do
+            if line.skillRequirement then
+                result.specialMode = "SKILL"
+                result.specialModeData = line.skillRequirement
+                return result
+            end
+        end
+    end
+
     -- Check for XP step
     if stepData.lines then
         for _, line in ipairs(stepData.lines) do

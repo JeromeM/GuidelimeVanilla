@@ -178,7 +178,7 @@ function GuideNavigation:CreateNavigationFrame()
     })
     navigationFrame.xpBar:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
     navigationFrame.xpBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    navigationFrame.xpBar:SetStatusBarColor(0.58, 0.0, 0.82)
+    navigationFrame.xpBar:SetStatusBarColor(0.2, 0.4, 0.9)
     navigationFrame.xpBar:SetMinMaxValues(0, 100)
     navigationFrame.xpBar:SetValue(0)
     navigationFrame.xpBar:Hide()
@@ -393,6 +393,7 @@ function GuideNavigation:RemoveCurrentWaypoint()
     NavigationModes:HideUseItem()
     NavigationModes:HideHearthstone()
     NavigationModes:HideXPProgress()
+    NavigationModes:HideSkillProgress()
 end
 
 --[[ NAVIGATION VISIBILITY CONTROL ]]--
@@ -448,7 +449,8 @@ function GuideNavigation:SaveNavigationState()
         currentActionType = self.currentActionType,
         currentObjectiveIndex = self.currentObjectiveIndex,
         currentUseItemId = self.currentUseItemId,
-        currentXPRequirement = NavigationModes.currentXPRequirement
+        currentXPRequirement = NavigationModes.currentXPRequirement,
+        currentSkillRequirement = NavigationModes.currentSkillRequirement
     }
 end
 
@@ -942,7 +944,11 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     self.currentUseItemId = result.useItemId
 
     -- Handle special modes
-    if result.specialMode == "XP" then
+    if result.specialMode == "SKILL" then
+        local navResult = NavigationModes:ShowSkillProgress(result.specialModeData)
+        if navResult == false then isNavigationActive = false end
+        return
+    elseif result.specialMode == "XP" then
         local navResult = NavigationModes:ShowXPProgress(result.specialModeData)
         if navResult == false then isNavigationActive = false end
         return
@@ -1030,6 +1036,14 @@ end
 
 function GuideNavigation:HideXPProgress()
     NavigationModes:HideXPProgress()
+end
+
+function GuideNavigation:UpdateSkillDisplay()
+    NavigationModes:UpdateSkillDisplay()
+end
+
+function GuideNavigation:HideSkillProgress()
+    NavigationModes:HideSkillProgress()
 end
 
 --[[ INITIALIZATION ]]--

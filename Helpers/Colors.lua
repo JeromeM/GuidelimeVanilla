@@ -23,4 +23,5 @@ GLV.Colors = {
     EXPERIENCE  = "FFFFFF00",
     GET_FLIGHT_PATH = "FFE6CC80",
     FLY_TO = "FFE6CC80",
+    SKILL = "FF56c453",
 }

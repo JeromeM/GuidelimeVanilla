@@ -38,6 +38,7 @@ local codes = {
     P   = "GET_FLIGHT_PATH",
     F   = "FLY_TO",
     T   = "TRAIN",
+    SK  = "SKILL",
 }
 local reverseCodes = {}
 for k, v in pairs(codes) do reverseCodes[v] = k end
@@ -254,6 +255,25 @@ function Parser:parseGuide(guide, group)
                             })
 
                             return "|c" .. GLV.Colors[tag] .. spellName .. "|r"
+
+                        elseif tag == "SKILL" then
+                            parsedLine.icon = "Interface\\GossipFrame\\TrainerGossipIcon"
+                            parsedLine.hasCheckbox = true
+                            parsedLine.stepType = "SKILL"
+                            local trimmed = string.gsub(tagContent, "^%s+", "")
+                            -- Match: "First Aid 40" -> skillName="First Aid", skillLevel=40
+                            local skillName, skillLevel
+                            skillName, skillLevel = string.match(trimmed, "^(.+)%s+(%d+)%s*$")
+                            if skillName and skillLevel then
+                                skillName = string.gsub(skillName, "%s+$", "")
+                                skillLevel = tonumber(skillLevel)
+                                parsedLine.skillRequirement = {
+                                    skillName = skillName,
+                                    requiredLevel = skillLevel
+                                }
+                            end
+                            local displayName = skillName or tagContent
+                            return "|c" .. GLV.Colors["SKILL"] .. displayName .. "|r"
 
                         elseif tag == "COLLECT_ITEM" then
                             local itemId, itemCount, itemName = self:CollectItem(tagContent)

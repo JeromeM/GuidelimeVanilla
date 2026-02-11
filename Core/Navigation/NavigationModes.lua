@@ -362,7 +362,7 @@ function NavigationModes:UpdateXPDisplay()
         navFrame.xpBar:SetStatusBarColor(0.0, 0.8, 0.0) -- Green when done
         navFrame.questName:SetText("|cFF00FF00" .. (self.currentXPRequirement.text or "XP") .. " - Done!|r")
     else
-        navFrame.xpBar:SetStatusBarColor(0.58, 0.0, 0.82) -- Purple XP color
+        navFrame.xpBar:SetStatusBarColor(0.2, 0.4, 0.9) -- Blue XP color
         navFrame.questName:SetText("|cFFBB99FF" .. (self.currentXPRequirement.text or "XP Required") .. "|r")
     end
 end
@@ -375,6 +375,68 @@ function NavigationModes:HideXPProgress()
     end
     navFrame.arrow:Show()
     self.currentXPRequirement = nil
+end
+
+--[[ SKILL PROGRESS MODE ]]--
+
+-- Shows skill progress in navigation frame instead of the arrow
+function NavigationModes:ShowSkillProgress(skillReq)
+    if not navFrame then return end
+
+    -- Store requirement for updates
+    self.currentSkillRequirement = skillReq
+
+    -- Hide arrow, show XP bar (reused for skill progress)
+    navFrame.arrow:Hide()
+    navFrame.xpBar:Show()
+    navFrame.objective:SetText("")
+    navFrame.questProgress:SetText("")
+    navFrame.distance:SetText("")
+
+    -- Set the skill name as quest name
+    navFrame.questName:SetText("|c" .. (GLV.Colors["SKILL"] or "FF56c453") .. (skillReq.skillName or "Skill") .. "|r")
+    navFrame.questName:SetTextColor(1, 1, 1)
+
+    -- Update bar values
+    self:UpdateSkillDisplay()
+
+    navFrame:Show()
+    return false  -- isNavigationActive = false (don't update arrow rotation)
+end
+
+-- Update skill display values (called when SKILL_LINES_CHANGED fires)
+function NavigationModes:UpdateSkillDisplay()
+    if not navFrame or not self.currentSkillRequirement then return end
+    if not navFrame.xpBar or not navFrame.xpBar:IsShown() then return end
+
+    local skillReq = self.currentSkillRequirement
+    local currentLevel = 0
+    if GLV.CharacterTracker and GLV.CharacterTracker.GetSkillLevel then
+        currentLevel = GLV.CharacterTracker:GetSkillLevel(skillReq.skillName)
+    end
+
+    local target = skillReq.requiredLevel or 1
+    navFrame.xpBar:SetMinMaxValues(0, target)
+    navFrame.xpBar:SetValue(math.min(currentLevel, target))
+
+    if currentLevel >= target then
+        navFrame.xpBar:SetStatusBarColor(0.0, 0.8, 0.0)  -- Green when done
+        navFrame.xpBarText:SetText("Done!")
+        navFrame.questName:SetText("|cFF00FF00" .. (skillReq.skillName or "Skill") .. " - Done!|r")
+    else
+        navFrame.xpBar:SetStatusBarColor(0.33, 0.77, 0.33)  -- Skill green color
+        navFrame.xpBarText:SetText(currentLevel .. " / " .. target)
+    end
+end
+
+-- Hides skill progress and restores arrow mode
+function NavigationModes:HideSkillProgress()
+    if not navFrame then return end
+    if navFrame.xpBar then
+        navFrame.xpBar:Hide()
+    end
+    navFrame.arrow:Show()
+    self.currentSkillRequirement = nil
 end
 
 --[[ DEATH / CORPSE NAVIGATION ]]--
@@ -404,6 +466,7 @@ function NavigationModes:ActivateCorpseNavigation()
     self:HideNextGuide()
     self:HideHearthstone()
     self:HideXPProgress()
+    self:HideSkillProgress()
 
     -- Clear quest tracking so objectives don't display during death
     GuideNavigation.currentQuestId = nil
@@ -486,6 +549,11 @@ function NavigationModes:OnPlayerAlive()
         -- If there was an XP requirement active, re-show it
         if savedWaypointState.currentXPRequirement then
             self:ShowXPProgress(savedWaypointState.currentXPRequirement)
+        end
+
+        -- If there was a skill requirement active, re-show it
+        if savedWaypointState.currentSkillRequirement then
+            self:ShowSkillProgress(savedWaypointState.currentSkillRequirement)
         end
 
         savedWaypointState = nil
