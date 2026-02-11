@@ -751,13 +751,21 @@ function WaypointResolver:ResolveWaypoints(stepData)
 
     local targetCoords = nil
 
-    -- Priority 1: Explicit GOTO coordinates from lines (highest priority)
+    -- Priority 1: Explicit GOTO coordinates from main (non-OC) lines
+    -- OC lines are preparatory navigation hints; their GOTO coords must not
+    -- override quest NPC waypoints resolved in Priority 2.
     local allCoords = collectAllStepCoordinates(stepData)
     local gotoCoords = {}
 
-    for _, coord in ipairs(allCoords) do
-        if coord.type == "goto" then
-            table.insert(gotoCoords, coord)
+    if stepData and stepData.lines then
+        for _, line in ipairs(stepData.lines) do
+            if not line.isOC and line.coords then
+                for _, coord in ipairs(line.coords) do
+                    if coord.type == "goto" then
+                        table.insert(gotoCoords, coord)
+                    end
+                end
+            end
         end
     end
 
