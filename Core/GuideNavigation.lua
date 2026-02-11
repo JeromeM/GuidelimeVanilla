@@ -645,8 +645,8 @@ function GuideNavigation:UpdateNavigation()
 
     -- Display quest progress objectives (only for COMPLETE actions, not for TAR/QT/QA)
     local showProgress = self.currentQuestId and self.currentActionType == "COMPLETE"
-    -- Don't show progress when navigating to a standalone TAR (type == "target" without quest)
-    if currentWaypoint.type == "target" and not currentWaypoint.questId then
+    -- Don't show progress when navigating to a standalone TAR (type == "target" without quest context)
+    if currentWaypoint.type == "target" and not self.currentQuestId then
         showProgress = false
     end
     if showProgress and GLV.QuestTracker then
