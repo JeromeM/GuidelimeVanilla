@@ -751,38 +751,37 @@ function WaypointResolver:ResolveWaypoints(stepData)
 
     local targetCoords = nil
 
-    -- Priority 1: Explicit GOTO coordinates from main (non-OC) lines
-    -- OC lines are preparatory navigation hints; their GOTO coords must not
-    -- override quest NPC waypoints resolved in Priority 2.
+    -- Priority 1: Explicit GOTO coordinates from all lines
     local allCoords = collectAllStepCoordinates(stepData)
     local gotoCoords = {}
 
-    if stepData and stepData.lines then
-        for _, line in ipairs(stepData.lines) do
-            if not line.isOC and line.coords then
-                for _, coord in ipairs(line.coords) do
-                    if coord.type == "goto" then
-                        table.insert(gotoCoords, coord)
-                    end
-                end
-            end
+    for _, coord in ipairs(allCoords) do
+        if coord.type == "goto" then
+            table.insert(gotoCoords, coord)
         end
     end
 
-    -- If we have explicit GOTO coords, use them (supporting multiple waypoints)
+    -- Priority 2: Ordered waypoints (TAR targets + quest NPCs in sequence)
+    local orderedWaypoints = collectOrderedWaypoints(stepData)
+
+    -- Combine GOTO coords + ordered waypoints into a multi-waypoint sequence.
+    -- GOTO coords (from [OC] lines) guide the player to the area first,
+    -- then quest NPC waypoints handle the actual action.
     if table.getn(gotoCoords) > 0 then
+        -- Append ordered waypoints after GOTO coords (if any)
+        for _, wp in ipairs(orderedWaypoints) do
+            table.insert(gotoCoords, wp)
+        end
         local description, descQuestId = self:GetStepDescription(stepData, gotoCoords[1], currentAction)
         result.questId = result.questId or descQuestId
         result.waypoints = gotoCoords
         result.description = description
         if GLV.Debug and table.getn(gotoCoords) > 1 then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Multi-waypoint: " .. table.getn(gotoCoords) .. " waypoints loaded")
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Multi-waypoint: " .. table.getn(gotoCoords) .. " GOTO + ordered waypoints")
         end
         return result
     end
 
-    -- Priority 2: Ordered waypoints (TAR targets + quest NPCs in sequence)
-    local orderedWaypoints = collectOrderedWaypoints(stepData)
     if table.getn(orderedWaypoints) > 0 then
         result.waypoints = orderedWaypoints
         -- Use pre-computed description from first waypoint if available
