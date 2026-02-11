@@ -629,10 +629,14 @@ function QuestTracker:GetExpectedQuestIdFromCurrentStep(questTitle)
                         -- Check if name matches (flexible comparison)
                         local questName = GLV:GetQuestNameByID(questTag.questId)
                         if questName and self:QuestNamesMatch(questTitle, questName) then
-                            -- For same-name quest chains: skip IDs already accepted
+                            local tagQuestId = tonumber(questTag.questId)
+                            -- For same-name quest chains: skip IDs already processed
                             if questTag.tag == "ACCEPT" and self.store and self.store.Accepted
-                               and self.store.Accepted[tonumber(questTag.questId)] then
+                               and self.store.Accepted[tagQuestId] then
                                 -- Quest already in log, likely a chain — check next match
+                            elseif questTag.tag == "TURNIN" and self.store and self.store.Completed
+                               and self.store.Completed[tagQuestId] then
+                                -- Quest already turned in, likely a chain — check next match
                             else
                                 return questTag.questId
                             end
@@ -774,10 +778,14 @@ function QuestTracker:GetQuestIdInCurrentStep(questTitle, actionType)
             -- Get quest name from database
             local questName = GLV:GetQuestNameByID(questTag.questId)
             if questName and self:QuestNamesMatch(questTitle, questName) then
-                -- For same-name quest chains: skip IDs already accepted
+                local tagQuestId = tonumber(questTag.questId)
+                -- For same-name quest chains: skip IDs already processed
                 if actionType == "ACCEPT" and self.store and self.store.Accepted
-                   and self.store.Accepted[tonumber(questTag.questId)] then
+                   and self.store.Accepted[tagQuestId] then
                     -- Quest already in log, likely a chain — check next match
+                elseif actionType == "TURNIN" and self.store and self.store.Completed
+                   and self.store.Completed[tagQuestId] then
+                    -- Quest already turned in, likely a chain — check next match
                 else
                     return questTag.questId
                 end
@@ -856,7 +864,11 @@ end
 function HookQuestAbandon()
     local title = GetAbandonQuestName()
     if title then
-        local id = GLV:GetQuestIDByName(title)
+        -- Use store.Accepted first for same-name quest chains
+        local id = GLV.QuestTracker:FindAcceptedIdByTitle(title)
+        if not id then
+            id = GLV:GetQuestIDByName(title)
+        end
         local numId = tonumber(id)
         if numId and GLV.QuestTracker then
             local store = GLV.QuestTracker.store or GLV.Settings:GetOption({"QuestTracker"}) or {}
