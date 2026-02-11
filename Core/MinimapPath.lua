@@ -134,17 +134,21 @@ end
 
 function MinimapPath:CreateMinimapDots()
     for i = 1, NUM_DOTS do
-        local dot = CreateFrame("Frame", "GLV_MinimapDot" .. i, Minimap)
+        local name = "GLV_MinimapDot" .. i
+        -- Reuse existing frame on /reload to avoid orphaning the old one
+        local dot = getglobal(name) or CreateFrame("Frame", name, Minimap)
         dot:SetWidth(DOT_SIZE)
         dot:SetHeight(DOT_SIZE)
         dot:SetFrameStrata("TOOLTIP")
         dot:SetFrameLevel(10)
 
-        local tex = dot:CreateTexture(nil, "OVERLAY")
-        tex:SetAllPoints(dot)
-        tex:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        tex:SetVertexColor(DOT_COLOR.r, DOT_COLOR.g, DOT_COLOR.b, DOT_COLOR.a)
-        dot.tex = tex
+        if not dot.tex then
+            local tex = dot:CreateTexture(nil, "OVERLAY")
+            tex:SetAllPoints(dot)
+            dot.tex = tex
+        end
+        dot.tex:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+        dot.tex:SetVertexColor(DOT_COLOR.r, DOT_COLOR.g, DOT_COLOR.b, DOT_COLOR.a)
 
         dot:Hide()
         dots[i] = dot
@@ -157,17 +161,21 @@ end
 
 function MinimapPath:CreateWorldMapDots()
     for i = 1, NUM_MAP_DOTS do
-        local dot = CreateFrame("Frame", "GLV_WorldMapDot" .. i, WorldMapButton)
+        local name = "GLV_WorldMapDot" .. i
+        -- Reuse existing frame on /reload to avoid orphaning the old one
+        local dot = getglobal(name) or CreateFrame("Frame", name, WorldMapButton)
         dot:SetWidth(MAP_DOT_SIZE)
         dot:SetHeight(MAP_DOT_SIZE)
         dot:SetFrameStrata("FULLSCREEN")
         dot:SetFrameLevel(10)
 
-        local tex = dot:CreateTexture(nil, "OVERLAY")
-        tex:SetAllPoints(dot)
-        tex:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        tex:SetVertexColor(MAP_DOT_COLOR.r, MAP_DOT_COLOR.g, MAP_DOT_COLOR.b, MAP_DOT_COLOR.a)
-        dot.tex = tex
+        if not dot.tex then
+            local tex = dot:CreateTexture(nil, "OVERLAY")
+            tex:SetAllPoints(dot)
+            dot.tex = tex
+        end
+        dot.tex:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+        dot.tex:SetVertexColor(MAP_DOT_COLOR.r, MAP_DOT_COLOR.g, MAP_DOT_COLOR.b, MAP_DOT_COLOR.a)
 
         dot:Hide()
         mapDots[i] = dot
@@ -463,8 +471,8 @@ function MinimapPath:Init()
     self:CreateMinimapDots()
     self:CreateWorldMapDots()
 
-    -- Single OnUpdate frame drives both minimap and world map
-    updateFrame = CreateFrame("Frame", "GLV_MinimapPathUpdateFrame", UIParent)
+    -- Single OnUpdate frame drives both minimap and world map (reuse on /reload)
+    updateFrame = getglobal("GLV_MinimapPathUpdateFrame") or CreateFrame("Frame", "GLV_MinimapPathUpdateFrame", UIParent)
     updateFrame:SetScript("OnUpdate", function()
         updateTimer = updateTimer + arg1
         if updateTimer >= UPDATE_INTERVAL then
