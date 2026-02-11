@@ -50,6 +50,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Ongoing steps** stay pinned at top for long objectives like "grind to level X"
 - **Item collection tracking**: works on both current and ongoing steps automatically
 - **XP progress bar** with real-time tracking for grind steps
+- **Skill/profession tracking**: progress bars for skill levels (First Aid, Cooking, weapon skills, etc.) with auto-completion
 - **Clickable URLs**: URLs in guide text appear as blue [Link] placeholders — click to open a popup with the full URL for easy copying
 - **Guide packs** as separate addons — install what you need, or create your own
 - **TurtleWoW database support**: built-in override system for TurtleWoW-specific quests, NPCs, and items

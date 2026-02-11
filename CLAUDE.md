@@ -36,12 +36,12 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `Parser` - Guide text parser
 - `QuestTracker` - Quest accept/complete/turnin tracking, auto-accept/turnin automation, quest sync via SyncQuestAcceptSteps
 - `ItemTracker` - `[CI]` item collection tracking (BAG_UPDATE), checks ongoing steps via OngoingStepsManager
-- `CharacterTracker` - XP/level tracking, spell/skill learning detection (`[LE]`)
+- `CharacterTracker` - XP/level tracking, spell/skill learning detection (`[LE]`), profession skill level tracking (`[SK]`)
 - `TaxiTracker` - Flight path tracking and automation (`[F]`/`[P]`)
 - `GossipTracker` - Gossip dialog, hearthstone bind/use detection (`[H]`/`[S]`)
 - `TalentTracker` - Talent suggestions, level-up toasts, talent frame highlighting. Centralized TALENT_FRAMES table for multi-frame support (TalentFrame, TWTalentFrame, PlayerTalentFrame).
 - `GuideNavigation` - **Orchestrator**: frame creation, arrow rendering, update loop, delegates to NavigationModes and WaypointResolver
-- `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar) + death/corpse navigation
+- `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar, skill progress) + death/corpse navigation
 - `WaypointResolver` - Coordinate resolution (7-priority system), quest status, step descriptions
 - `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration. Uses `getglobal()` to reclaim existing named frames on `/reload` instead of creating orphans.
 
@@ -84,13 +84,16 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - Delegate methods maintain external API compatibility
 
 **NavigationModes.lua** (display modes):
-- Show/Hide methods for: EquipItem, UseItem, Hearthstone, NextGuide, XPProgress
-- Death navigation: captures corpse position on death, blue-tinted arrow to body, restores state on resurrection
+- Show/Hide methods for: EquipItem, UseItem, Hearthstone, NextGuide, XPProgress, SkillProgress
+- Skill progress: reuses XP bar for skill level tracking (green color, current/target display), updates on SKILL_LINES_CHANGED
+- XP progress: blue progress bar for level requirements
+- Death navigation: captures corpse position on death, blue-tinted arrow to body, restores state on resurrection (preserves XP/skill requirements)
 - Receives nav frame via `SetNavigationFrame(frame)`
 
 **WaypointResolver.lua** (pure logic, no UI):
 - `ResolveWaypoints(stepData)` returns `{waypoints, description, specialMode, specialModeData, questId, actionType, objectiveIndex, useItemId}`
 - 7-priority resolution: explicit [G] coords > ordered TAR+quest NPCs > legacy TAR > quest DB coords > line coords > step coords > quest objectives
+- Special modes: "SKILL" for `[SK]` profession requirements, "XP" for level requirements, "HEARTHSTONE", "NEXT_GUIDE", "USE_ITEM", "EQUIP_ITEM"
 - **Priority 1 (GOTO coords)**: Only collects `[G]` coordinates from main (non-OC) lines. OC line coords are preparatory hints and must not override quest NPC waypoints from Priority 2. OC coords remain available as fallback in Priority 6 (line coords).
 - **TAR extraction**: Skips `[TAR]` targets only on lines with `[QA]`/`[QT]` tags (where quest DB provides NPC coords). Keeps TARs on `[QC]` lines since QC has no quest NPC — the TAR IS the navigation target.
 - `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching. Conservative return: when name scan fails but quest is tracked as accepted, returns true (assumes still in log) to prevent false auto-skip of turnin steps. Turnin/abandon hooks handle actual store cleanup.
@@ -148,6 +151,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 | `[XP level]` | XP requirement (formats: `[XP3]`, `[XP3-100]`, `[XP3.5]`) | `[XP4-290]` |
 | `[T]` | Train at trainer | `[T] Learn skills` |
 | `[LE id,Name]` | Learn spell/skill (auto-completes) | `[LE 1180,Two-Handed Swords]` |
+| `[SK skill level]` | Skill/profession requirement (auto-completes when reached) | `[SK First Aid 40]` |
 | `[CI id,count]` | Collect item (auto-completes on BAG_UPDATE) | `[CI1179,10]` |
 | `[UI id]` | Use item (fallback icon when no coords) | `[UI2746]` |
 | `[OC]` | Optional, completes with next. GOTO coords on OC lines are excluded from Priority 1 resolution (used only as fallback in Priority 6). | `[OC][G 50,60 Zone]Grind north` |
@@ -186,6 +190,17 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 - **Objective tracking**: `[QC id,objectiveIndex]` tracks individual objectives (1-based)
 - **Multi-action steps**: Each action tracked independently in `StepQuestState`, step completes when all done
 
+## Skill Tracking
+
+- **Syntax**: `[SK SkillName Level]` - e.g., `[SK First Aid 40]`, `[SK Cooking 150]`
+- **Auto-completion**: Steps auto-complete when player's skill reaches the required level
+- **Real-time updates**: Tracked via SKILL_LINES_CHANGED event (fires when skills are trained/used)
+- **Navigation display**: Shows green progress bar in nav frame with current/target level (e.g., "20 / 40")
+- **Icon**: Trainer gossip icon (same as `[T]` train steps)
+- **Data source**: `GetSkillLineInfo()` API scans all skill lines to find matching profession name
+- **Death integration**: Skill progress bar is hidden during corpse navigation, restored on resurrection
+- **Scheduled check**: `CheckSkillRequirements()` runs 3.5s after guide load to sync already-met requirements
+
 ## Key Files
 
 | File | Purpose |
@@ -196,15 +211,15 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
-| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation) |
+| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, auto-skip QT |
-| `Core/Navigation/NavigationModes.lua` | Display modes + death navigation |
-| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skip only on QA/QT lines), conservative GetQuestStatus |
+| `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
+| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skip only on QA/QT lines), conservative GetQuestStatus. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
 | `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load) |
-| `Core/Events/Character.lua` | XP tracking, spell learning detection |
+| `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
 | `Core/Events/Taxi.lua` | Flight path tracking |

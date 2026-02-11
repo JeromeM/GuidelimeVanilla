@@ -160,6 +160,7 @@ Tags for tracking progress requirements.
 | `[XP level.percent]` | **Reach level with XP percentage** | `[XP 9.5] Get halfway to 10` |
 | `[XP level-xp]` | **Reach level minus XP needed** | `[XP 10-200] Almost level 10` |
 | `[XP level+xp]` | **Reach level plus extra XP** | `[XP 10+500] Buffer XP` |
+| `[SK skillName level]` | **Reach skill level** - Shows progress bar, auto-completes | `[SK First Aid 40] Level First Aid to 40` |
 | `[CI itemId]` | **Collect item** | `[CI 2589] Collect Linen Cloth` |
 | `[CI itemId,count]` | **Collect specific amount** | `[CI 2589,20] Collect 20 Linen Cloth` |
 | `[LE SP spellId]` | **Learn spell** - Auto-completes when learned | `[LE SP 133] Learn Fireball` |
@@ -174,6 +175,23 @@ Tags for tracking progress requirements.
 | `[XP 5.75]` | Level 5 + 75% XP | `[XP 5.75] Almost 6` |
 | `[XP 5-100]` | 100 XP away from level 5 | `[XP 5-100] Nearly there` |
 | `[XP 5+200]` | Level 5 + 200 extra XP | `[XP 5+200] Buffer` |
+
+### Skill Tracking
+
+The `[SK]` tag tracks any skill visible in your skill window and displays a green progress bar in the navigation frame:
+
+```
+[SK First Aid 40] Level First Aid to 40
+[SK Cooking 150] Max out Cooking
+[SK Two-Handed Swords 50] Train 2H swords to 50
+```
+
+The step auto-completes when you reach the required skill level. Works with:
+- **Professions**: First Aid, Cooking, Fishing, Alchemy, Blacksmithing, etc.
+- **Weapon Skills**: Swords, Maces, Axes, Daggers, Staves, etc.
+- **Class Skills**: Defense, any trainable skill in your skill window
+
+The skill name must exactly match what appears in your WoW skill window.
 
 ---
 
@@ -234,4 +252,4 @@ GLV:RegisterGuide([[
 | **Navigation** | `[G]` `[TAR]` `[P]` `[F]` |
 | **Modifiers** | `[O]` `[OC]` `[A]` |
 | **Actions** | `[H]` `[S]` `[T]` `[UI]` `[R]` `[V]` |
-| **Progress** | `[XP]` `[CI]` `[LE SP]` `[SP]` |
+| **Progress** | `[XP]` `[SK]` `[CI]` `[LE SP]` `[SP]` |
