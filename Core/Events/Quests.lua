@@ -117,7 +117,12 @@ function QuestTracker:OnQuestLogUpdate(forceCheck)
         local questLogTitleText, level, questTag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(questIndex)
 
         if questLogTitleText and not isHeader then
-            local questId = GLV:GetQuestIDByName(questLogTitleText)
+            -- Use store.Accepted first: correct for same-name quest chains
+            -- (e.g., "The Tome of Divinity" has 10+ quests with the same name)
+            local questId = self:FindAcceptedIdByTitle(questLogTitleText)
+            if not questId then
+                questId = GLV:GetQuestIDByName(questLogTitleText)
+            end
             local numId = tonumber(questId)
 
             if numId then
@@ -220,12 +225,16 @@ function QuestTracker:SyncQuestAcceptSteps()
     if not next(needsCheck) then return end
 
     -- Build set of quest IDs currently in the log
+    -- Use store.Accepted first for same-name quest chains
     local inLogIds = {}
     local numEntries = GetNumQuestLogEntries()
     for i = 1, numEntries do
         local title, level, tag, isHeader = GetQuestLogTitle(i)
         if title and not isHeader then
-            local qid = tonumber(GLV:GetQuestIDByName(title))
+            local qid = tonumber(self:FindAcceptedIdByTitle(title))
+            if not qid then
+                qid = tonumber(GLV:GetQuestIDByName(title))
+            end
             if qid then
                 inLogIds[qid] = title
             end
@@ -325,6 +334,21 @@ function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isCo
     end
 end
 
+
+-- Find quest ID from store.Accepted by title match.
+-- Handles same-name quest chains (e.g., "The Tome of Divinity") where
+-- GetQuestIDByName would return the wrong (first/cached) ID.
+function QuestTracker:FindAcceptedIdByTitle(questTitle)
+    if not questTitle or not self.store or not self.store.Accepted then
+        return nil
+    end
+    for numId, data in pairs(self.store.Accepted) do
+        if data and data.title and self:QuestNamesMatch(data.title, questTitle) then
+            return numId
+        end
+    end
+    return nil
+end
 
 -- Track when a quest is accepted and handle related actions
 function QuestTracker:TrackAccepted(id, title)
