@@ -71,7 +71,7 @@ function WaypointResolver:GetQuestStatus(questId)
                 local numEntries = GetNumQuestLogEntries()
                 for i = 1, numEntries do
                     local title, level, tag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
-                    if title and not isHeader and title == expectedName then
+                    if title and not isHeader and GLV.QuestTracker:QuestNamesMatch(title, expectedName) then
                         return true, (isComplete == 1 or isComplete == true)
                     end
                 end
@@ -89,7 +89,7 @@ function WaypointResolver:GetQuestStatus(questId)
         local numEntries = GetNumQuestLogEntries()
         for i = 1, numEntries do
             local title, level, tag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
-            if title and not isHeader and title == expectedName then
+            if title and not isHeader and GLV.QuestTracker:QuestNamesMatch(title, expectedName) then
                 return true, (isComplete == 1 or isComplete == true)
             end
         end

@@ -33,7 +33,7 @@ local function DoesQuestActionMatch(questTag, questId, title, actionType, object
     local nameMatches = false
     if actionType == "COMPLETE" and title then
         local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
-        nameMatches = tagQuestName and tagQuestName == title
+        nameMatches = tagQuestName and GLV.QuestTracker:QuestNamesMatch(tagQuestName, title)
     end
     if not questIdMatches and not nameMatches then return false end
 
@@ -513,14 +513,20 @@ function QuestTracker:GetExpectedQuestIdFromCurrentStep(questTitle)
                         -- Check if name matches (flexible comparison)
                         local questName = GLV:GetQuestNameByID(questTag.questId)
                         if questName and self:QuestNamesMatch(questTitle, questName) then
-                            return questTag.questId
+                            -- For same-name quest chains: skip IDs already accepted
+                            if questTag.tag == "ACCEPT" and self.store and self.store.Accepted
+                               and self.store.Accepted[tonumber(questTag.questId)] then
+                                -- Quest already in log, likely a chain — check next match
+                            else
+                                return questTag.questId
+                            end
                         end
                     end
                 end
             end
         end
     end
-    
+
     return nil
 end
 
@@ -533,10 +539,17 @@ function QuestTracker:QuestNamesMatch(title1, title2)
     -- Case-insensitive comparison
     if string.lower(title1) == string.lower(title2) then return true end
 
-    -- Comparison removing punctuation and extra spaces
-    local clean1 = string.gsub(string.lower(title1), "[%p%s]+", "")
-    local clean2 = string.gsub(string.lower(title2), "[%p%s]+", "")
-    if clean1 == clean2 then return true end
+    -- Normalized comparison: trim trailing dots (WoW ellipsis) and whitespace
+    -- This handles "Quest Name..." vs "Quest Name" without false positives
+    -- from stripping all punctuation (which would match "A: Gold" with "A - Gold")
+    local function normalize(s)
+        s = string.lower(s)
+        s = string.gsub(s, "%.+$", "")   -- Remove trailing dots (ellipsis)
+        s = string.gsub(s, "%s+$", "")    -- Trim trailing whitespace
+        s = string.gsub(s, "^%s+", "")    -- Trim leading whitespace
+        return s
+    end
+    if normalize(title1) == normalize(title2) then return true end
 
     return false
 end
@@ -549,7 +562,7 @@ function QuestTracker:VerifyQuestAfterAccept(expectedTitle, expectedId)
         for i = 1, numEntries do
             local questLogTitleText, level, questTag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
 
-            if questLogTitleText and not isHeader and questLogTitleText == expectedTitle then
+            if questLogTitleText and not isHeader and self:QuestNamesMatch(questLogTitleText, expectedTitle) then
                 -- Quest is in the journal
                 return true
             end
@@ -645,7 +658,13 @@ function QuestTracker:GetQuestIdInCurrentStep(questTitle, actionType)
             -- Get quest name from database
             local questName = GLV:GetQuestNameByID(questTag.questId)
             if questName and self:QuestNamesMatch(questTitle, questName) then
-                return questTag.questId
+                -- For same-name quest chains: skip IDs already accepted
+                if actionType == "ACCEPT" and self.store and self.store.Accepted
+                   and self.store.Accepted[tonumber(questTag.questId)] then
+                    -- Quest already in log, likely a chain — check next match
+                else
+                    return questTag.questId
+                end
             end
         end
     end
