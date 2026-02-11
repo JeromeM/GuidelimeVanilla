@@ -11,4 +11,20 @@
     <Include file="quests.lua"/>
     <Include file="units.lua"/>
 
+    <!-- TurtleWoW overrides (pfDB -> VGDB merge) -->
+    <Script file="initpfdb.lua"/>
+
+    <Include file="enUS\quests-turtle.lua"/>
+    <Include file="enUS\units-turtle.lua"/>
+    <Include file="enUS\zones-turtle.lua"/>
+    <Include file="enUS\items-turtle.lua"/>
+
+    <Include file="areatrigger-turtle.lua"/>
+    <Include file="items-turtle.lua"/>
+    <Include file="objects-turtle.lua"/>
+    <Include file="quests-turtle.lua"/>
+    <Include file="units-turtle.lua"/>
+
+    <Script file="mergedb.lua"/>
+
 </Ui>
