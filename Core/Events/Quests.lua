@@ -126,6 +126,9 @@ function QuestTracker:OnQuestLogUpdate(forceCheck)
         end
     end
 
+    -- Auto-complete [QA] steps for quests already in the log
+    self:SyncQuestAcceptSteps()
+
     -- Update ongoing objectives display in pinned section
     if GLV.UpdateOngoingObjectivesDisplay then
         GLV:UpdateOngoingObjectivesDisplay()
@@ -180,6 +183,75 @@ function QuestTracker:GetQuestProgress(questId)
     end
 
     return nil, false, 0
+end
+
+-- Auto-complete [QA] steps for quests already in the player's log.
+-- Handles quests accepted before the addon/guide was loaded.
+function QuestTracker:SyncQuestAcceptSteps()
+    if not GLV.CurrentDisplaySteps then return end
+
+    local diCount = GLV.CurrentDisplayStepsCount or 0
+    local diToOrig = GLV.CurrentDisplayToOriginal or {}
+    local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
+    local stepQuestState = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "StepQuestState"}) or {}
+
+    -- Collect QA quest IDs that aren't already marked
+    local needsCheck = {}  -- {questId = {actionKey, di, origIdx, questTag}}
+    for di = 1, diCount do
+        local step = GLV.CurrentDisplaySteps[di]
+        local origIdx = diToOrig[di]
+        if step and origIdx and step.questTags then
+            for _, questTag in ipairs(step.questTags) do
+                if questTag.tag == "ACCEPT" then
+                    local actionKey = GLV.BuildActionKey(questTag)
+                    local alreadyDone = stepQuestState[origIdx] and stepQuestState[origIdx][actionKey]
+                    if not alreadyDone then
+                        local numId = tonumber(questTag.questId)
+                        if numId then
+                            needsCheck[numId] = { actionKey = actionKey, di = di, origIdx = origIdx, questTag = questTag }
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Nothing to sync
+    if not next(needsCheck) then return end
+
+    -- Build set of quest IDs currently in the log
+    local inLogIds = {}
+    local numEntries = GetNumQuestLogEntries()
+    for i = 1, numEntries do
+        local title, level, tag, isHeader = GetQuestLogTitle(i)
+        if title and not isHeader then
+            local qid = tonumber(GLV:GetQuestIDByName(title))
+            if qid then
+                inLogIds[qid] = title
+            end
+        end
+    end
+
+    -- Mark QA steps for quests already in log
+    local anyStepMarked = false
+    local anyMultiAction = false
+    for numId, info in pairs(needsCheck) do
+        if inLogIds[numId] then
+            local marked, multi = self:MarkQuestAction(numId, inLogIds[numId], "ACCEPT")
+            anyStepMarked = anyStepMarked or marked
+            anyMultiAction = anyMultiAction or multi
+            if GLV.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Sync: QA" .. numId .. " already in log, marked")
+            end
+        end
+    end
+
+    if anyStepMarked or anyMultiAction then
+        self:UpdateStepNavigation(anyStepMarked, anyMultiAction, "ACCEPT")
+        if GLV.CharacterTracker then
+            GLV.CharacterTracker:CheckCurrentStepXPRequirements()
+        end
+    end
 end
 
 -- Check objectives for a specific quest and handle completion
