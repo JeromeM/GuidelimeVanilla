@@ -34,16 +34,16 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 **Core modules** (on GLV namespace):
 - `Settings` - Nested key access: `GetOption({"Guide", "CurrentGuide"})` / `SetOption(value, {...})`
 - `Parser` - Guide text parser
-- `QuestTracker` - Quest accept/complete/turnin tracking, auto-accept/turnin automation
-- `ItemTracker` - `[CI]` item collection tracking (BAG_UPDATE)
+- `QuestTracker` - Quest accept/complete/turnin tracking, auto-accept/turnin automation, quest sync via SyncQuestAcceptSteps
+- `ItemTracker` - `[CI]` item collection tracking (BAG_UPDATE), checks ongoing steps via OngoingStepsManager
 - `CharacterTracker` - XP/level tracking, spell/skill learning detection (`[LE]`)
 - `TaxiTracker` - Flight path tracking and automation (`[F]`/`[P]`)
 - `GossipTracker` - Gossip dialog, hearthstone bind/use detection (`[H]`/`[S]`)
-- `TalentTracker` - Talent suggestions, level-up toasts, talent frame highlighting
+- `TalentTracker` - Talent suggestions, level-up toasts, talent frame highlighting. Centralized TALENT_FRAMES table for multi-frame support (TalentFrame, TWTalentFrame, PlayerTalentFrame).
 - `GuideNavigation` - **Orchestrator**: frame creation, arrow rendering, update loop, delegates to NavigationModes and WaypointResolver
 - `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar) + death/corpse navigation
 - `WaypointResolver` - Coordinate resolution (7-priority system), quest status, step descriptions
-- `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration with state persistence
+- `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration. Uses `getglobal()` to reclaim existing named frames on `/reload` instead of creating orphans.
 
 **Data objects**:
 - `GLV.CurrentGuide` - Loaded guide (`.next` for chaining, `.clickToNext`)
@@ -69,6 +69,9 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `CheckQuestObjectives()` batches multiple objective completions: loops through all objectives, calls `MarkQuestAction()` for each completed one, then calls `UpdateStepNavigation()` once with aggregated `anyStepMarked` and `anyMultiAction` flags.
 - Quest accept/complete/turnin events call `HandleQuestAction()` directly (normal single-action flow).
 
+**Quest sync on guide load**:
+- `SyncQuestAcceptSteps()` auto-completes `[QA]` steps for quests already in the player's log (handles quests accepted before addon/guide was loaded). Called during `OnQuestLogUpdate` with early-out when no unmarked QA steps exist.
+
 ### Navigation System (3-file split)
 
 **GuideNavigation.lua** (orchestrator):
@@ -86,7 +89,8 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 **WaypointResolver.lua** (pure logic, no UI):
 - `ResolveWaypoints(stepData)` returns `{waypoints, description, specialMode, specialModeData, questId, actionType, objectiveIndex, useItemId}`
 - 7-priority resolution: explicit [G] coords > ordered TAR+quest NPCs > legacy TAR > quest DB coords > line coords > step coords > quest objectives
-- `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching
+- **TAR extraction**: Skips `[TAR]` targets only on lines with `[QA]`/`[QT]` tags (where quest DB provides NPC coords). Keeps TARs on `[QC]` lines since QC has no quest NPC — the TAR IS the navigation target.
+- `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching. Conservative return: when name scan fails but quest is tracked as accepted, returns true (assumes still in log) to prevent false auto-skip of turnin steps. Turnin/abandon hooks handle actual store cleanup.
 - `GetCurrentQuestAction(stepData)` - Returns first uncompleted action (QT > QA > QC priority)
 
 ### Database (VGDB)
@@ -168,14 +172,14 @@ Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, auto-skip QT |
 | `Core/Navigation/NavigationModes.lua` | Display modes + death navigation |
-| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution |
-| `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration with validated state persistence |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions |
+| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skip only on QA/QT lines), conservative GetQuestStatus |
+| `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load) |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection |
-| `Core/Events/Items.lua` | [CI] item collection tracking |
+| `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
 | `Core/Events/Taxi.lua` | Flight path tracking |
-| `Core/Events/Talents.lua` | Talent suggestions, toast notifications |
+| `Core/Events/Talents.lua` | Talent suggestions, toast notifications, TALENT_FRAMES centralized table |
 | `Frames/Frames.lua` | UI functions, settings handlers, minimap button |
 | `Frames/*.xml` | Frame definitions (MainFrame, Settings, TalentPopup) |
 | `TalentTemplates/*.lua` | Class talent builds (9 classes) |

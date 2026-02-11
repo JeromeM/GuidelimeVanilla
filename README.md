@@ -45,12 +45,14 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 
 ### 📚 Smart Guide Engine
 - **Hands-free tracking**: quests, items, spells, gear — everything auto-detects and checks off
+- **Quest sync on guide load**: automatically completes accept steps for quests already in your log
 - **Ongoing steps** stay pinned at top for long objectives like "grind to level X"
 - **XP progress bar** with real-time tracking for grind steps
 - **Guide packs** as separate addons — install what you need, or create your own
 
-### ⚡ Automation
+### ⚡ Automation & Smart Skip
 - Auto-accept / auto-turnin quests and auto-take flights on matching steps
+- **Auto-skip impossible turnins**: steps with quest turnins for quests not in your log are automatically completed
 - All optional, all toggleable in Settings
 
 ### 🌟 Talent Suggestions
