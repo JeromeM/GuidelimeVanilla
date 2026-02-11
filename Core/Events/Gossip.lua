@@ -203,34 +203,19 @@ function GossipTracker:CheckHearthstoneBind()
 
     if not step or not origIdx or stepState[origIdx] then return end
 
-    -- Get all available zone/subzone texts for matching
-    -- GetSubZoneText() can return inn name (e.g. "Stoutlager Inn") when inside a building
-    -- GetMinimapZoneText() often returns the broader subzone (e.g. "Thelsamar") even when inside
-    local currentSubZone = GetSubZoneText() or ""
-    local currentZone = GetZoneText() or ""
-    local currentMinimapZone = GetMinimapZoneText() or ""
-    local currentRealZone = GetRealZoneText() or ""
-
     for _, line in ipairs(step.lines or {}) do
         if line.bindLocation then
             -- Check if bind location matches (case insensitive, partial match)
+            -- Only compare against GetBindLocation(), NOT zone/subzone texts
+            -- (zone matching would false-positive when merely entering the area)
             local requiredLocation = string.lower(line.bindLocation)
             local actualBind = string.lower(currentBindLocation)
-            local actualSubZone = string.lower(currentSubZone)
-            local actualZone = string.lower(currentZone)
-            local actualMinimapZone = string.lower(currentMinimapZone)
-            local actualRealZone = string.lower(currentRealZone)
 
             if GLV.Debug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Bind check: required='" .. line.bindLocation .. "' bind='" .. currentBindLocation .. "' subzone='" .. currentSubZone .. "' minimap='" .. currentMinimapZone .. "' zone='" .. currentZone .. "'")
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Bind check: required='" .. line.bindLocation .. "' bind='" .. currentBindLocation .. "'")
             end
 
-            -- Match against: inn name, subzone, minimap zone, zone, or real zone
             local isMatch = string.find(actualBind, requiredLocation) or string.find(requiredLocation, actualBind)
-                or string.find(actualSubZone, requiredLocation) or string.find(requiredLocation, actualSubZone)
-                or string.find(actualMinimapZone, requiredLocation) or string.find(requiredLocation, actualMinimapZone)
-                or string.find(actualZone, requiredLocation) or string.find(requiredLocation, actualZone)
-                or string.find(actualRealZone, requiredLocation) or string.find(requiredLocation, actualRealZone)
 
             if isMatch then
                 stepState[origIdx] = true
