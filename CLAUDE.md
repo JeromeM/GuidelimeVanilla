@@ -132,7 +132,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 | `[QT id]` | Turn in quest (auto-skipped if quest not in log) | `[QT783]` |
 | `[TAR id]` | NPC/target reference | `[TAR823]` |
 | `[G x,y Zone]` | Go to coordinates | `[G 44,57 Dun Morogh]` |
-| `[A class]` | Class-specific step | `[A Mage] [QA3104]` |
+| `[A class/race]` | Class/race-specific step (see filtering logic below) | `[A Mage]` or `[A Dwarf, Human, Priest]` |
 | `[XP level]` | XP requirement (formats: `[XP3]`, `[XP3-100]`, `[XP3.5]`) | `[XP4-290]` |
 | `[T]` | Train at trainer | `[T] Learn skills` |
 | `[LE id,Name]` | Learn spell/skill (auto-completes) | `[LE 1180,Two-Handed Swords]` |
@@ -146,6 +146,18 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 | `[F]` | Take flight | `[F] Fly to Ironforge` |
 
 Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences.
+
+## Class/Race Filtering ([A] Tag)
+
+The `[A]` tag supports mixed race and class filtering with AND logic:
+
+- **Single tag with mixed types**: `[A Dwarf, Human, Priest]` = (Dwarf OR Human) AND Priest
+  - Matches: Dwarf Priest, Human Priest
+  - Rejects: Dwarf Warrior, Human Mage, Night Elf Priest
+- **Multiple tags are AND'd**: `[A Dwarf, Human] [A Priest]` = (Dwarf OR Human) AND Priest (equivalent to above)
+- **Single-type tags**: `[A Hunter]` matches any Hunter, `[A Dwarf, Gnome]` matches any Dwarf or Gnome
+
+**Implementation**: Uses KNOWN_CLASSES lookup table (9 classes: warrior, paladin, hunter, rogue, priest, shaman, mage, warlock, druid) to separate entries within a tag. Races and classes are identified via lowercase matching, then AND'd together.
 
 ## Quest Matching
 
@@ -167,7 +179,7 @@ Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences
 | `Core.lua` | Init, slash commands (`/glv`, `/glvminimap`), minimap button |
 | `Settings.lua` | Settings manager with nested key access |
 | `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution |
-| `Core/GuideParser.lua` | Tag parsing, step extraction |
+| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation) |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, auto-skip QT |

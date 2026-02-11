@@ -37,8 +37,9 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 
 ### 🗺️ Autonomous Navigation
 - **Built-in arrow** pointing to your next objective — no TomTom needed
-- **Multi-waypoint sequences** that auto-advance as you reach each destination
-- **Dotted path** on minimap and world map showing the way (pfQuest-compatible)
+- **Multi-waypoint sequences** that auto-advance as you reach each destination (5 yard threshold)
+- **Dotted path** on minimap and world map showing the way
+- **pfQuest integration**: automatically hides pfQuest nodes when paths are enabled to avoid clutter
 - **Live quest progress** (kill/collect counters) displayed on the navigation frame
 - **Clickable action icons**: hearthstone, equip item, use item, next guide — one click does it all
 - **Corpse navigation**: die and the arrow guides you back with a ghostly blue tint
@@ -47,6 +48,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Hands-free tracking**: quests, items, spells, gear — everything auto-detects and checks off
 - **Quest sync on guide load**: automatically completes accept steps for quests already in your log
 - **Ongoing steps** stay pinned at top for long objectives like "grind to level X"
+- **Item collection tracking**: works on both current and ongoing steps automatically
 - **XP progress bar** with real-time tracking for grind steps
 - **Guide packs** as separate addons — install what you need, or create your own
 
@@ -163,6 +165,10 @@ Turn in quest step
 - **Line Breaks**: Use `\\` (double backslash) to create line breaks in step text and descriptions
 - **Special Tags**: The guide format uses bracketed tags to indicate actions (quest accept, turnin, navigation targets, etc.)
 - **Multiple Actions**: A single step can contain multiple quest actions that all need completion
+- **Class/Race Filtering**: Use `[A]` tags to show steps only for specific classes or races
+  - Single tag with mixed types uses AND logic: `[A Dwarf, Human, Priest]` means "(Dwarf OR Human) AND Priest"
+  - Multiple tags are AND'd together: `[A Dwarf, Human] [A Priest]` has the same effect
+  - Supports: Warrior, Paladin, Hunter, Rogue, Priest, Shaman, Mage, Warlock, Druid, Human, Dwarf, Night Elf, Gnome, Orc, Undead, Tauren, Troll
 - **TOC Notes**: Add a `## Notes:` line in your .toc file - it will be displayed in the guide pack selection dropdown
 
 For detailed guide syntax documentation, see the [TAGS.md](TAGS.md) file.
