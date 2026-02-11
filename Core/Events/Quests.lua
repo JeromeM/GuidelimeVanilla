@@ -203,46 +203,53 @@ function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isCo
 
     -- Get previous state for comparison
     local previousState = self.previousQuestStates[questId]
+    local anyStepMarked = false
+    local anyMultiAction = false
 
-    -- Check for individual objective completion (for [QC questId,objectiveIndex] steps)
+    -- Batch mark individual objective completions (for [QC questId,objectiveIndex] steps)
     for i = 1, numObjectives do
         local prevObj = previousState and previousState.objectivesState and previousState.objectivesState[i]
         local currObj = currentObjectivesState[i]
 
         if currObj and currObj.isCompleted then
-            -- Objective is now complete - check if it just became complete
             local wasCompleted = prevObj and prevObj.isCompleted
             if not wasCompleted then
                 if GLV.Debug then
                     DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Objective " .. i .. " complete: " .. questTitle .. " (ID: " .. tostring(questId) .. ")")
                 end
-                self:HandleQuestAction(questId, questTitle, "COMPLETE", i)
+                local marked, multi = self:MarkQuestAction(questId, questTitle, "COMPLETE", i)
+                anyStepMarked = anyStepMarked or marked
+                anyMultiAction = anyMultiAction or multi
             end
         end
     end
 
-    -- isComplete can be 1, true, or any truthy value depending on WoW version
+    -- Whole quest completion (no objectiveIndex)
     if isComplete and (isComplete == 1 or isComplete == true) then
         local wasComplete = previousState and previousState.wasComplete
         if not wasComplete then
             if GLV.Debug then
                 DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Quest complete detected: " .. questTitle .. " (ID: " .. tostring(questId) .. ")")
             end
-            -- Fire for whole quest completion (no objectiveIndex)
-            self:HandleQuestAction(questId, questTitle, "COMPLETE", nil)
-
-            self.previousQuestStates[questId] = {
-                wasComplete = true,
-                lastObjectives = questObjectives,
-                objectivesState = currentObjectivesState
-            }
+            local marked, multi = self:MarkQuestAction(questId, questTitle, "COMPLETE", nil)
+            anyStepMarked = anyStepMarked or marked
+            anyMultiAction = anyMultiAction or multi
         end
-    else
-        self.previousQuestStates[questId] = {
-            wasComplete = false,
-            lastObjectives = questObjectives,
-            objectivesState = currentObjectivesState
-        }
+    end
+
+    -- Always update previousQuestStates for next comparison
+    self.previousQuestStates[questId] = {
+        wasComplete = isComplete and (isComplete == 1 or isComplete == true) or false,
+        lastObjectives = questObjectives,
+        objectivesState = currentObjectivesState
+    }
+
+    -- Single navigation update for all batched objective changes
+    if anyStepMarked or anyMultiAction then
+        self:UpdateStepNavigation(anyStepMarked, anyMultiAction, "COMPLETE")
+        if GLV.CharacterTracker then
+            GLV.CharacterTracker:CheckCurrentStepXPRequirements()
+        end
     end
 end
 
@@ -267,11 +274,12 @@ function QuestTracker:TrackAccepted(id, title)
     end
 end
 
--- Centralized function to handle quest actions (accept, complete, turnin)
--- objectiveIndex is optional: nil = whole quest, 1/2/3 = specific objective
-function QuestTracker:HandleQuestAction(questId, title, actionType, objectiveIndex)
+-- Pure marking: iterate display steps and mark matching quest actions in stepQuestState.
+-- Does NOT trigger navigation updates or UI refresh — caller is responsible for that.
+-- Returns: stepMarked (bool), multiActionStepFound (bool)
+function QuestTracker:MarkQuestAction(questId, title, actionType, objectiveIndex)
     if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r HandleQuestAction: " .. tostring(actionType) .. " q" .. tostring(questId) .. " objIdx=" .. tostring(objectiveIndex))
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r MarkQuestAction: " .. tostring(actionType) .. " q" .. tostring(questId) .. " objIdx=" .. tostring(objectiveIndex))
     end
 
     local currentGuideId = GLV.Settings:GetOption({"Guide","CurrentGuide"}) or "Unknown"
@@ -285,7 +293,7 @@ function QuestTracker:HandleQuestAction(questId, title, actionType, objectiveInd
         if GLV.Debug then
             DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000[QuestTracker]|r CurrentDisplaySteps is nil!")
         end
-        return
+        return false, false
     end
 
     local diCount = GLV.CurrentDisplayStepsCount or 0
@@ -339,6 +347,14 @@ function QuestTracker:HandleQuestAction(questId, title, actionType, objectiveInd
         GLV.Settings:SetOption(stepState, {"Guide","Guides", currentGuideId, "StepState"})
     end
 
+    return stepMarked, multiActionStepFound
+end
+
+-- Centralized function to handle quest actions (accept, complete, turnin)
+-- objectiveIndex is optional: nil = whole quest, 1/2/3 = specific objective
+-- Marks the action and triggers navigation update + UI refresh.
+function QuestTracker:HandleQuestAction(questId, title, actionType, objectiveIndex)
+    local stepMarked, multiActionStepFound = self:MarkQuestAction(questId, title, actionType, objectiveIndex)
     self:UpdateStepNavigation(stepMarked, multiActionStepFound, actionType)
 
     if GLV.CharacterTracker then
