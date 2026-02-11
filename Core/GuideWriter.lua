@@ -245,6 +245,18 @@ local function createTitle(guide)
     GLV_MainLoadedGuideTitle:SetText(guide.name .. " (" .. guide.minLevel .. "-" .. guide.maxLevel .. ")")
 end
 
+-- Detect URLs in text, replace with colored [Link] placeholder, return URLs list
+local function processURLs(text)
+    local urls = {}
+    local processed = string.gsub(text, "(https?://[%S]+)", function(url)
+        -- Strip trailing punctuation that's likely not part of the URL
+        url = string.gsub(url, "[,%.%)%]]+$", "")
+        table.insert(urls, url)
+        return "|cFF3399FF[Link]|r"
+    end)
+    return processed, urls
+end
+
 -- Wrap text to fit within specified width and return wrapped text with line count and height
 local function wrapText(inputText, maxWidth, font, textScale)
     local wrappedText = ""
@@ -793,13 +805,20 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
 
                             local textFrame = frame:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
                             applyTextScale(textFrame)
-                            local wrappedText, lineCount, textHeight = wrapText(line.text or "", availableWidth)
+                            local displayText, lineUrls = processURLs(line.text or "")
+                            local wrappedText, lineCount, textHeight = wrapText(displayText, availableWidth)
                             textFrame:SetText(wrappedText)
                             textFrame:SetJustifyH("LEFT")
                             textFrame:SetJustifyV("TOP")
                             textFrame:SetWidth(availableWidth)
                             local scaledLineHeight = getScaledFontLineHeight()
                             local usedHeight = (lineCount * scaledLineHeight)
+
+                            -- Store URLs on frame for click handling
+                            if table.getn(lineUrls) > 0 then
+                                if not frame.urls then frame.urls = {} end
+                                for _, u in ipairs(lineUrls) do table.insert(frame.urls, u) end
+                            end
 
                             -- Reserve extra height for XP progress (empty line + progress bar)
                             if line.experienceRequirement then
@@ -919,6 +938,16 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
                             end)
                         end
 
+                        -- URL click handler for pinned steps
+                        if frame.urls and table.getn(frame.urls) > 0 then
+                            frame:EnableMouse(true)
+                            frame:SetScript("OnMouseUp", function()
+                                if this.urls and this.urls[1] then
+                                    GLV:ShowURLPopup(this.urls[1])
+                                end
+                            end)
+                        end
+
                         frame:SetHeight(frameHeight - CONFIG.lineSpacing + 4)
                         frame:SetPoint("TOPLEFT", pinnedLastLine or pinnedChild, pinnedLastLine and "BOTTOMLEFT" or "TOPLEFT", 0, pinnedLastLine and CONFIG.spacing or 0)
                         pinnedLastLine = frame
@@ -995,9 +1024,16 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
             local textFrame = frame:CreateFontString(nil,"OVERLAY","GameFontNormalSmall")
             applyTextScale(textFrame)
 
-            local wrappedText, lineCount, textHeight = wrapText(line.text or "", availableWidth)
+            local displayText, lineUrls = processURLs(line.text or "")
+            local wrappedText, lineCount, textHeight = wrapText(displayText, availableWidth)
             textFrame:SetText(wrappedText)
             textFrame:SetJustifyH("LEFT")
+
+            -- Store URLs on frame for click handling
+            if table.getn(lineUrls) > 0 then
+                if not frame.urls then frame.urls = {} end
+                for _, u in ipairs(lineUrls) do table.insert(frame.urls, u) end
+            end
             textFrame:SetJustifyV("TOP")
             textFrame:SetWidth(availableWidth)
             local scaledLineHeight = getScaledFontLineHeight()
@@ -1129,6 +1165,16 @@ function GLV:CreateGuideSteps(scrollChild, guide, guideId, callback)
 
                 -- Rebuild UI to update highlight and scroll (RefreshGuide handles everything)
                 GLV:RefreshGuide()
+            end)
+        end
+
+        -- URL click handler: clicking the step frame opens URL copy popup
+        if frame.urls and table.getn(frame.urls) > 0 then
+            frame:EnableMouse(true)
+            frame:SetScript("OnMouseUp", function()
+                if this.urls and this.urls[1] then
+                    GLV:ShowURLPopup(this.urls[1])
+                end
             end)
         end
 

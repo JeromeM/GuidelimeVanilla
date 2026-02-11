@@ -61,6 +61,62 @@ StaticPopupDialogs["GLV_RELOAD_UI"] = {
 }
 
 
+-- URL copy popup (created on first use)
+local urlPopupFrame = nil
+
+function GLV:ShowURLPopup(url)
+    if not url then return end
+
+    if not urlPopupFrame then
+        urlPopupFrame = CreateFrame("Frame", "GLV_URLPopup", UIParent)
+        urlPopupFrame:SetWidth(420)
+        urlPopupFrame:SetHeight(90)
+        urlPopupFrame:SetPoint("CENTER", 0, 100)
+        urlPopupFrame:SetFrameStrata("DIALOG")
+        urlPopupFrame:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true, tileSize = 32, edgeSize = 16,
+            insets = { left = 5, right = 5, top = 5, bottom = 5 }
+        })
+        urlPopupFrame:EnableMouse(true)
+        urlPopupFrame:SetMovable(true)
+        urlPopupFrame:RegisterForDrag("LeftButton")
+        urlPopupFrame:SetScript("OnDragStart", function() this:StartMoving() end)
+        urlPopupFrame:SetScript("OnDragStop", function() this:StopMovingOrSizing() end)
+
+        -- Title
+        local title = urlPopupFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOP", 0, -10)
+        title:SetText("Press Ctrl+C to copy")
+
+        -- EditBox for URL
+        local editBox = CreateFrame("EditBox", "GLV_URLPopupEditBox", urlPopupFrame, "InputBoxTemplate")
+        editBox:SetWidth(390)
+        editBox:SetHeight(20)
+        editBox:SetPoint("TOP", 0, -30)
+        editBox:SetAutoFocus(true)
+        editBox:SetScript("OnEscapePressed", function() urlPopupFrame:Hide() end)
+        editBox:SetScript("OnEnterPressed", function() urlPopupFrame:Hide() end)
+        urlPopupFrame.editBox = editBox
+
+        -- Close button
+        local closeBtn = CreateFrame("Button", nil, urlPopupFrame, "UIPanelCloseButton")
+        closeBtn:SetPoint("TOPRIGHT", -2, -2)
+        closeBtn:SetScript("OnClick", function() urlPopupFrame:Hide() end)
+
+        -- Close on Escape
+        table.insert(UISpecialFrames, "GLV_URLPopup")
+
+        urlPopupFrame:Hide()
+    end
+
+    urlPopupFrame.editBox:SetText(url)
+    urlPopupFrame:Show()
+    urlPopupFrame.editBox:HighlightText()
+    urlPopupFrame.editBox:SetFocus()
+end
+
 -- Toggle settings frame visibility
 function GLV_ToggleSettings()
     if GLV_Settings:IsVisible() then
