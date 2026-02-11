@@ -338,16 +338,20 @@ end
 -- Find quest ID from store.Accepted by title match.
 -- Handles same-name quest chains (e.g., "The Tome of Divinity") where
 -- GetQuestIDByName would return the wrong (first/cached) ID.
+-- Returns the smallest matching ID (first in the chain).
 function QuestTracker:FindAcceptedIdByTitle(questTitle)
     if not questTitle or not self.store or not self.store.Accepted then
         return nil
     end
+    local smallestId = nil
     for numId, data in pairs(self.store.Accepted) do
         if data and data.title and self:QuestNamesMatch(data.title, questTitle) then
-            return numId
+            if not smallestId or numId < smallestId then
+                smallestId = numId
+            end
         end
     end
-    return nil
+    return smallestId
 end
 
 -- Track when a quest is accepted and handle related actions

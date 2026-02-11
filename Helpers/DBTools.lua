@@ -339,11 +339,22 @@ function GLV:GetQuestIDByName(name)
         return nil
     end
 
+    -- Collect all matching IDs, return the smallest.
+    -- Same-name quest chains (e.g., "The Tome of Divinity") have multiple
+    -- quests with the same name — the lowest ID is the first in the chain.
+    local smallestId = nil
     for id, data in pairs(VGDB.quests[Localized]) do
         if data and data.T and data.T == name then
-            questNameCache[name] = id
-            return id
+            local numId = tonumber(id)
+            if numId and (not smallestId or numId < smallestId) then
+                smallestId = numId
+            end
         end
+    end
+
+    if smallestId then
+        questNameCache[name] = smallestId
+        return smallestId
     end
 
     return nil
