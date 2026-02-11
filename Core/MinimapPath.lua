@@ -52,59 +52,71 @@ local pfQuestSaved = nil
 -- PFQUEST INTEGRATION
 -- ============================================================================
 
+-- Config keys we manage (pfQuest_config is a SavedVariablesPerCharacter)
+local PFQUEST_KEYS = {
+    "minimapnodes", "showspawn", "showcluster",
+    "showspawnmini", "showclustermini", "routes"
+}
+
+local function refreshPfMap()
+    if not pfMap then return end
+    if pfMap.UpdateMinimap then pfMap:UpdateMinimap() end
+    if pfMap.UpdateNodes then pfMap:UpdateNodes() end
+end
+
 local function disablePfQuestNodes()
     if not pfQuest_config then return end
     if pfQuestSaved then return end  -- already disabled by us
 
-    pfQuestSaved = {
-        minimapnodes = pfQuest_config["minimapnodes"],
-        showspawn = pfQuest_config["showspawn"],
-        showcluster = pfQuest_config["showcluster"],
-        showspawnmini = pfQuest_config["showspawnmini"],
-        showclustermini = pfQuest_config["showclustermini"],
-        routes = pfQuest_config["routes"],
-    }
-
-    local wasEnabled = (pfQuestSaved.minimapnodes == "1")
-        or (pfQuestSaved.showspawn == "1")
-        or (pfQuestSaved.showcluster == "1")
-        or (pfQuestSaved.routes == "1")
-
-    if not wasEnabled then
-        pfQuestSaved = nil
-        return
+    -- Validate keys and snapshot current values
+    local snapshot = {}
+    local wasEnabled = false
+    for _, key in ipairs(PFQUEST_KEYS) do
+        local val = pfQuest_config[key]
+        if val == nil then
+            if GLV.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF8800[MinimapPath]|r pfQuest key missing: " .. key .. ", aborting integration")
+            end
+            return  -- unknown pfQuest version, abort safely
+        end
+        snapshot[key] = val
+        if val == "1" then wasEnabled = true end
     end
 
-    pfQuest_config["minimapnodes"] = "0"
-    pfQuest_config["showspawn"] = "0"
-    pfQuest_config["showcluster"] = "0"
-    pfQuest_config["showspawnmini"] = "0"
-    pfQuest_config["showclustermini"] = "0"
-    pfQuest_config["routes"] = "0"
+    if not wasEnabled then return end
 
-    if pfMap then
-        if pfMap.UpdateMinimap then pfMap:UpdateMinimap() end
-        if pfMap.UpdateNodes then pfMap:UpdateNodes() end
+    -- Save snapshot to memory + persist to Settings (survives /reload)
+    pfQuestSaved = snapshot
+    GLV.Settings:SetOption(snapshot, {"Integration", "pfQuestSaved"})
+
+    for _, key in ipairs(PFQUEST_KEYS) do
+        pfQuest_config[key] = "0"
     end
 
+    refreshPfMap()
+
+    if GLV.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[MinimapPath]|r pfQuest nodes disabled (state saved)")
+    end
 end
 
 local function restorePfQuestNodes()
     if not pfQuest_config or not pfQuestSaved then return end
 
-    pfQuest_config["minimapnodes"] = pfQuestSaved.minimapnodes
-    pfQuest_config["showspawn"] = pfQuestSaved.showspawn
-    pfQuest_config["showcluster"] = pfQuestSaved.showcluster
-    pfQuest_config["showspawnmini"] = pfQuestSaved.showspawnmini
-    pfQuest_config["showclustermini"] = pfQuestSaved.showclustermini
-    pfQuest_config["routes"] = pfQuestSaved.routes
+    for _, key in ipairs(PFQUEST_KEYS) do
+        if pfQuestSaved[key] ~= nil then
+            pfQuest_config[key] = pfQuestSaved[key]
+        end
+    end
 
-    if pfMap then
-        if pfMap.UpdateMinimap then pfMap:UpdateMinimap() end
-        if pfMap.UpdateNodes then pfMap:UpdateNodes() end
+    refreshPfMap()
+
+    if GLV.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[MinimapPath]|r pfQuest nodes restored")
     end
 
     pfQuestSaved = nil
+    GLV.Settings:SetOption(nil, {"Integration", "pfQuestSaved"})
 end
 
 -- Refresh pfQuest state based on current toggles
@@ -416,7 +428,11 @@ function MinimapPath:DebugDump()
     DEFAULT_CHAT_FRAME:AddMessage("  lastReason: " .. tostring(debugLastReason))
     DEFAULT_CHAT_FRAME:AddMessage("  pfQuestSaved: " .. tostring(pfQuestSaved ~= nil))
     if pfQuest_config then
-        DEFAULT_CHAT_FRAME:AddMessage("  pf minimapnodes=" .. tostring(pfQuest_config["minimapnodes"]) .. " showspawn=" .. tostring(pfQuest_config["showspawn"]) .. " routes=" .. tostring(pfQuest_config["routes"]))
+        local parts = {}
+        for _, key in ipairs(PFQUEST_KEYS) do
+            table.insert(parts, key .. "=" .. tostring(pfQuest_config[key]))
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("  pfQuest: " .. table.concat(parts, " "))
     end
 end
 
@@ -467,6 +483,15 @@ function MinimapPath:Init()
     end
     if worldmapSetting then
         isWorldMapEnabled = true
+    end
+
+    -- Recover pfQuest snapshot from previous session (survives /reload)
+    local persistedSnapshot = GLV.Settings:GetOption({"Integration", "pfQuestSaved"})
+    if persistedSnapshot and pfQuest_config then
+        pfQuestSaved = persistedSnapshot
+        if GLV.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[MinimapPath]|r Recovered pfQuest snapshot from Settings")
+        end
     end
 
     -- Single pfQuest update after both flags are set
