@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-GuideLime Vanilla is a World of Warcraft Classic (1.12) addon providing an enhanced guide system with automatic quest tracking, autonomous navigation, and smart UI management. Port of Guidelime for Vanilla WoW (TurtleWoW private server).
+GuideLime Vanilla is a World of Warcraft Classic (1.12) addon providing an enhanced guide system with automatic quest tracking, autonomous navigation, and smart UI management. Port of Guidelime for Vanilla WoW (TurtleWoW private server). Supports embedded URLs in guide text with click-to-copy popup (workaround for WoW 1.12's lack of clickable hyperlinks).
 
 ## Development Environment
 
@@ -159,6 +159,8 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 
 Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences.
 
+**URL embedding**: HTTP/HTTPS URLs in guide text are automatically detected and replaced with blue `[Link]` placeholders. Clicking a step containing a URL opens a popup with the full URL pre-selected for Ctrl+C copying (WoW 1.12 workaround).
+
 ## Class/Race Filtering ([A] Tag)
 
 The `[A]` tag supports mixed race and class filtering with AND logic:
@@ -196,7 +198,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
 | `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation) |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown |
-| `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display |
+| `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, auto-skip QT |
 | `Core/Navigation/NavigationModes.lua` | Display modes + death navigation |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skip only on QA/QT lines), conservative GetQuestStatus |
@@ -207,7 +209,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
 | `Core/Events/Taxi.lua` | Flight path tracking |
 | `Core/Events/Talents.lua` | Talent suggestions, toast notifications, TALENT_FRAMES centralized table |
-| `Frames/Frames.lua` | UI functions, settings handlers, minimap button |
+| `Frames/Frames.lua` | UI functions, settings handlers, minimap button, URL copy popup (GLV:ShowURLPopup) |
 | `Frames/*.xml` | Frame definitions (MainFrame, Settings, TalentPopup) |
 | `TalentTemplates/*.lua` | Class talent builds (9 classes) |
 
