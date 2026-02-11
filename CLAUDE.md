@@ -184,7 +184,10 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
   1. Case-insensitive exact match
   2. Normalized match: strips trailing dots (WoW ellipsis "...") and whitespace only
   3. Does NOT strip all punctuation (prevents false positives like "Find It: Gold" vs "Find It - Gold")
-- **Quest chain handling**: Same-name quests (repeatable/chain) skip IDs already in `store.Accepted` to match correct quest
+- **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity") are resolved deterministically:
+  - `GetQuestIDByName()` returns the smallest matching ID (first quest in chain)
+  - `FindAcceptedIdByTitle()` returns the smallest accepted ID matching the name
+  - Ensures consistent behavior across quest accept/turnin/sync operations
 - **`GetQuestStatus()`**: Checks QuestTracker.store first, falls back to quest log with `QuestNamesMatch()`
 - **Auto-skip**: Steps with `[QT]` where quest is not in log are automatically completed
 - **Objective tracking**: `[QC id,objectiveIndex]` tracks individual objectives (1-based)
@@ -207,7 +210,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 |------|---------|
 | `Core.lua` | Init, slash commands (`/glv`, `/glvminimap`), minimap button |
 | `Settings.lua` | Settings manager with nested key access |
-| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution |
+| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. |
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
@@ -218,7 +221,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skip only on QA/QT lines), conservative GetQuestStatus. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load) |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load). FindAcceptedIdByTitle() returns smallest matching ID for deterministic quest chain handling. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
