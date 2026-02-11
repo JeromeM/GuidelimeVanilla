@@ -43,7 +43,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `GuideNavigation` - **Orchestrator**: frame creation, arrow rendering, update loop, delegates to NavigationModes and WaypointResolver
 - `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar) + death/corpse navigation
 - `WaypointResolver` - Coordinate resolution (7-priority system), quest status, step descriptions
-- `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration
+- `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration with state persistence
 
 **Data objects**:
 - `GLV.CurrentGuide` - Loaded guide (`.next` for chaining, `.clickToNext`)
@@ -103,6 +103,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 {"UI", "MinimapPath"} / {"UI", "WorldMapPath"}  -- Path rendering toggles
 {"UI", "GuideHidden"}                            -- Window visibility state
 {"Navigation", "CorpsePosition"}                 -- Persisted corpse pos {c,z,x,y}
+{"Integration", "pfQuestSaved"}                  -- pfQuest config snapshot (survives /reload)
 {"Talents", "ActiveTemplate", class}             -- Active talent template
 ```
 
@@ -154,7 +155,7 @@ Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, auto-skip QT |
 | `Core/Navigation/NavigationModes.lua` | Display modes + death navigation |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution |
-| `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration |
+| `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration with validated state persistence |
 | `Core/Events/Quests.lua` | Quest hooks, HandleQuestAction, auto-accept/turnin |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection |
 | `Core/Events/Items.lua` | [CI] item collection tracking |

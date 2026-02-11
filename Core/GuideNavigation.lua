@@ -521,6 +521,19 @@ function GuideNavigation:UpdateNavigation()
         if zone then
             currentWaypoint.c = cont
             currentWaypoint.z = zone
+        else
+            -- Fallback: if player is currently in the waypoint's zone, inherit their Astrolabe IDs
+            local currentZoneName = GetZoneText()
+            if currentZoneName and string.lower(currentZoneName) == string.lower(currentWaypoint.zoneName) then
+                currentWaypoint.c = playerPos.c
+                currentWaypoint.z = playerPos.z
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[Navigation]|r Zone resolved via player position: " .. currentWaypoint.zoneName)
+                end
+            elseif GLV.Debug and not currentWaypoint._debugZoneWarned then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF8800[Navigation]|r Cannot resolve zone: " .. tostring(currentWaypoint.zoneName) .. " (will retry when player enters zone)")
+                currentWaypoint._debugZoneWarned = true
+            end
         end
     end
 
