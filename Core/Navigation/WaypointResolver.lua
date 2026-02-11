@@ -76,10 +76,13 @@ function WaypointResolver:GetQuestStatus(questId)
                     end
                 end
             end
-            -- Quest was accepted but not in log anymore = turned in (remove from Accepted)
-            store.Accepted[numId] = nil
-            GLV.Settings:SetOption(store, {"QuestTracker"})
-            return false, false
+            -- Name scan failed but quest was tracked as accepted.
+            -- Don't assume turned in — name mismatch or quest log timing can
+            -- cause false negatives. Turnin/abandon hooks handle store cleanup.
+            if GLV.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF8800[WaypointResolver]|r Quest " .. tostring(numId) .. " tracked as accepted but not found by name — assuming still in log")
+            end
+            return true, false
         end
     end
 
