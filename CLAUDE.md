@@ -187,7 +187,10 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 - **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity") are resolved deterministically:
   - `GetQuestIDByName()` returns the smallest matching ID (first quest in chain)
   - `FindAcceptedIdByTitle()` returns the smallest accepted ID matching the name
-  - Ensures consistent behavior across quest accept/turnin/sync operations
+  - `GetExpectedQuestIdFromCurrentStep()` skips already-accepted IDs for ACCEPT actions, skips already-completed IDs for TURNIN actions
+  - `GetQuestIdInCurrentStep()` skips already-accepted IDs for ACCEPT actions, skips already-completed IDs for TURNIN actions
+  - `HookQuestAbandon()` checks store.Accepted first for consistent chain quest handling
+  - Ensures correct quest is matched when accepting/turning in same-name chain quests
 - **`GetQuestStatus()`**: Checks QuestTracker.store first, falls back to quest log with `QuestNamesMatch()`
 - **Auto-skip**: Steps with `[QT]` where quest is not in log are automatically completed
 - **Objective tracking**: `[QC id,objectiveIndex]` tracks individual objectives (1-based)
@@ -221,7 +224,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skip only on QA/QT lines), conservative GetQuestStatus. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load). FindAcceptedIdByTitle() returns smallest matching ID for deterministic quest chain handling. |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load). FindAcceptedIdByTitle() returns smallest matching ID. GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
