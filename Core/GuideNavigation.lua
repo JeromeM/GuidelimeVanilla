@@ -540,7 +540,11 @@ function GuideNavigation:UpdateNavigation()
     local isZoneMismatch = not currentWaypoint.z or playerPos.z ~= currentWaypoint.z
 
     if isZoneMismatch then
-        if self.currentUseItemId then
+        if currentWaypoint.type == "goto" then
+            -- GOTO waypoints: don't fallback to use-item, just hide until player enters the zone
+            navigationFrame:Hide()
+            return
+        elseif self.currentUseItemId then
             -- Show use item icon as fallback when arrow not available (e.g., in tram/instance)
             local _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(self.currentUseItemId)
             navigationFrame.itemIcon:SetTexture(itemTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -710,15 +714,48 @@ function GuideNavigation:UpdateNavigation()
 
             -- Check if there's a next waypoint to advance to
             if table.getn(allWaypoints) > currentWaypointIndex then
-                currentWaypointIndex = currentWaypointIndex + 1
-                local nextCoords = allWaypoints[currentWaypointIndex]
-                if nextCoords then
-                    -- Use pre-computed description from waypoint if available
-                    local description = nextCoords.description or WaypointResolver:GetStepDescription(currentStepData, nextCoords, nil)
-                    self:SetWaypoint(nextCoords, description)
-                    hasTriggeredTransition = false  -- Reset for next waypoint
+                -- After reaching GOTO, show use-item if step has one
+                if currentWaypoint.type == "goto" and self.currentUseItemId and not self.useItemShownAfterGoto then
+                    self.useItemShownAfterGoto = true
+                    hasTriggeredTransition = true
+                    self:ClearWaypoint()
+                    local navResult = NavigationModes:ShowUseItem(self.currentUseItemId, currentStepData, self.currentQuestId)
+                    if navResult ~= nil then isNavigationActive = navResult end
+                    self.useItemProgressTimer = 0
+                    -- Override click handler: use item then advance to next waypoints
+                    local useItemId = self.currentUseItemId
+                    local nav = self
+                    navigationFrame.itemButton:SetScript("OnClick", function()
+                        -- Use the item
+                        for bag = 0, 4 do
+                            local numSlots = GetContainerNumSlots(bag)
+                            if numSlots then
+                                for slot = 1, numSlots do
+                                    local link = GetContainerItemLink(bag, slot)
+                                    if link and string.find(link, "item:" .. useItemId .. ":") then
+                                        UseContainerItem(bag, slot)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        -- Advance to next waypoints (skip GOTO coords)
+                        nav:UpdateWaypointForStep(currentStepData)
+                    end)
                     if GLV.Debug then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Advanced to waypoint " .. currentWaypointIndex .. "/" .. table.getn(allWaypoints) .. ": " .. (description or "no desc"))
+                        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r GOTO reached, showing USE_ITEM " .. tostring(self.currentUseItemId) .. " before next waypoint")
+                    end
+                else
+                    currentWaypointIndex = currentWaypointIndex + 1
+                    local nextCoords = allWaypoints[currentWaypointIndex]
+                    if nextCoords then
+                        -- Use pre-computed description from waypoint if available
+                        local description = nextCoords.description or WaypointResolver:GetStepDescription(currentStepData, nextCoords, nil)
+                        self:SetWaypoint(nextCoords, description)
+                        hasTriggeredTransition = false  -- Reset for next waypoint
+                        if GLV.Debug then
+                            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Advanced to waypoint " .. currentWaypointIndex .. "/" .. table.getn(allWaypoints) .. ": " .. (description or "no desc"))
+                        end
                     end
                 end
             elseif currentWaypoint.type == "target" then
@@ -881,10 +918,14 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     -- Reset transition flag to allow new transitions
     hasTriggeredTransition = false
 
+    -- If use-item was shown after GOTO, skip to remaining waypoints on recalculation
+    local skipToOrderedWaypoints = self.useItemShownAfterGoto
+
     -- Reset multi-waypoint tracking
     allWaypoints = {}
     currentWaypointIndex = 1
     currentStepData = stepData
+    self.useItemShownAfterGoto = nil
 
     -- Resolve waypoints using WaypointResolver
     local result = WaypointResolver:ResolveWaypoints(stepData)
@@ -928,8 +969,23 @@ function GuideNavigation:UpdateWaypointForStep(stepData)
     if result.waypoints and table.getn(result.waypoints) > 0 then
         allWaypoints = result.waypoints
         currentWaypointIndex = 1
-        local description = result.description or WaypointResolver:GetStepDescription(stepData, result.waypoints[1], nil)
-        self:AddWaypoint(result.waypoints[1], description)
+
+        -- After use-item was shown, skip past GOTO coords to ordered waypoints
+        if skipToOrderedWaypoints then
+            for i, wp in ipairs(result.waypoints) do
+                if wp.type ~= "goto" then
+                    currentWaypointIndex = i
+                    break
+                end
+            end
+            if GLV.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Post-useItem: skipping to waypoint " .. currentWaypointIndex .. "/" .. table.getn(allWaypoints))
+            end
+        end
+
+        local wp = result.waypoints[currentWaypointIndex]
+        local description = (currentWaypointIndex == 1 and result.description) or WaypointResolver:GetStepDescription(stepData, wp, nil)
+        self:AddWaypoint(wp, description)
     end
 end
 
