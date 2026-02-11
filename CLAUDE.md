@@ -81,6 +81,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - Multi-waypoint tracking: auto-advances when player reaches waypoint (5 yard threshold)
 - GOTO-to-UseItem transition: After reaching GOTO waypoint, shows use-item button if step has `[UI]` tag. Custom click handler uses item then advances to remaining waypoints (skipping GOTO coords). State tracked via `useItemShownAfterGoto` flag.
 - Zone mismatch handling: GOTO waypoints hide navigation when player in wrong zone (no use-item fallback), other waypoint types show use-item icon if available
+- Quest objective display: Uses `self.currentQuestId` (step-level quest context from WaypointResolver) to show progress for QC steps. Waypoint-level `currentWaypoint.questId` only exists for quest DB coordinates, not TAR waypoints.
 - Delegate methods maintain external API compatibility
 
 **NavigationModes.lua** (display modes):
