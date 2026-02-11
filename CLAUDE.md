@@ -59,6 +59,16 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 4. Event trackers (quest/item/gossip/taxi) fire `HandleQuestAction()` on events
 5. `GLV:RefreshGuide()` rebuilds UI (debounced 0.1s), calls `OnStepChanged()`
 
+### Quest Tracking Architecture (Core/Events/Quests.lua)
+
+**Two-method pattern** (separation of concerns):
+- `MarkQuestAction(questId, title, actionType, objectiveIndex)` - Pure marking logic: iterates display steps, updates `stepQuestState` completion tracking. Returns `(stepMarked, multiActionStepFound)`. Does NOT trigger UI updates.
+- `HandleQuestAction(questId, title, actionType, objectiveIndex)` - Calls `MarkQuestAction()`, then triggers `UpdateStepNavigation()` and UI refresh via `GLV:RefreshGuide()`.
+
+**Objective batching** (prevents redundant UI updates):
+- `CheckQuestObjectives()` batches multiple objective completions: loops through all objectives, calls `MarkQuestAction()` for each completed one, then calls `UpdateStepNavigation()` once with aggregated `anyStepMarked` and `anyMultiAction` flags.
+- Quest accept/complete/turnin events call `HandleQuestAction()` directly (normal single-action flow).
+
 ### Navigation System (3-file split)
 
 **GuideNavigation.lua** (orchestrator):
@@ -136,8 +146,12 @@ Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences
 ## Quest Matching
 
 - **ACCEPT**: Matches by exact quest ID from QUEST_DETAIL event
-- **COMPLETE/TURNIN**: ID first, name fallback for COMPLETE only
-- **`GetQuestStatus()`**: Uses QuestTracker.store exclusively (no name fallback) to prevent same-name quest confusion
+- **Name matching**: All functions use `QuestNamesMatch()` for consistent fuzzy matching:
+  1. Case-insensitive exact match
+  2. Normalized match: strips trailing dots (WoW ellipsis "...") and whitespace only
+  3. Does NOT strip all punctuation (prevents false positives like "Find It: Gold" vs "Find It - Gold")
+- **Quest chain handling**: Same-name quests (repeatable/chain) skip IDs already in `store.Accepted` to match correct quest
+- **`GetQuestStatus()`**: Checks QuestTracker.store first, falls back to quest log with `QuestNamesMatch()`
 - **Auto-skip**: Steps with `[QT]` where quest is not in log are automatically completed
 - **Objective tracking**: `[QC id,objectiveIndex]` tracks individual objectives (1-based)
 - **Multi-action steps**: Each action tracked independently in `StepQuestState`, step completes when all done
@@ -156,7 +170,7 @@ Multiple `[G]` or `[TAR]` tags per step create auto-advancing waypoint sequences
 | `Core/Navigation/NavigationModes.lua` | Display modes + death navigation |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration with validated state persistence |
-| `Core/Events/Quests.lua` | Quest hooks, HandleQuestAction, auto-accept/turnin |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection |
 | `Core/Events/Items.lua` | [CI] item collection tracking |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
@@ -178,6 +192,7 @@ this                    -- Inside XML handlers, NOT self
 
 - No inline textures (`|T...|t`) in FontStrings - only `|cAARRGGBB` and `|r` work
 - `IsShown()` may fail in scheduled events - use frame existence checks instead
+- **Named frames persist through `/reload`**: The Lua state resets but `CreateFrame("...", "FrameName", ...)` frames remain visible. Always use `getglobal("FrameName") or CreateFrame(...)` pattern to reuse existing frames instead of creating orphans.
 - New TOC entries require full game restart (not just `/reload`)
 
 ## Guide Pack API
