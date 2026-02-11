@@ -15,6 +15,13 @@ GLV.TalentTracker = TalentTracker
 -- Storage for registered talent templates
 GLV.TalentTemplates = {}  -- {class = {templateName = {type, talents}}}
 
+-- Known talent frame variants (add new custom frames here)
+local TALENT_FRAMES = {
+    { frame = "TalentFrame",       tab = "TalentFrameTab",       button = "TalentFrameTalent" },
+    { frame = "TWTalentFrame",     tab = "TWTalentFrameTab",     button = "TWTalentFrameTalent" },
+    { frame = "PlayerTalentFrame", tab = "PlayerTalentFrameTab", button = "PlayerTalentFrameTalent" },
+}
+
 -- Default recommended templates per class
 -- TODO: Fill when TurtleWoW templates are ready
 GLV.DefaultTalentTemplates = {
@@ -452,14 +459,10 @@ end
 function TalentTracker:HookTalentFrame()
     local hooked = false
 
-    -- Hook TalentFrame (vanilla/standard)
-    if _G["TalentFrame"] then
-        hooked = self:HookSingleTalentFrame(_G["TalentFrame"], "TalentFrame", "TalentFrameTab") or hooked
-    end
-
-    -- Hook TWTalentFrame (TurtleWoW alternate)
-    if _G["TWTalentFrame"] then
-        hooked = self:HookSingleTalentFrame(_G["TWTalentFrame"], "TWTalentFrame", "TWTalentFrameTab") or hooked
+    for _, info in ipairs(TALENT_FRAMES) do
+        if _G[info.frame] then
+            hooked = self:HookSingleTalentFrame(_G[info.frame], info.frame, info.tab) or hooked
+        end
     end
 
     if not hooked then
@@ -529,13 +532,11 @@ end
 
 -- Get the visible talent frame and button prefix
 function TalentTracker:GetVisibleTalentFrame()
-    -- Check which talent frame is actually visible
-    if _G["TalentFrame"] and _G["TalentFrame"]:IsVisible() then
-        return _G["TalentFrame"], "TalentFrameTalent"
-    elseif _G["TWTalentFrame"] and _G["TWTalentFrame"]:IsVisible() then
-        return _G["TWTalentFrame"], "TWTalentFrameTalent"
-    elseif _G["PlayerTalentFrame"] and _G["PlayerTalentFrame"]:IsVisible() then
-        return _G["PlayerTalentFrame"], "PlayerTalentFrameTalent"
+    for _, info in ipairs(TALENT_FRAMES) do
+        local f = _G[info.frame]
+        if f and f:IsVisible() then
+            return f, info.button
+        end
     end
     return nil, nil
 end
@@ -595,8 +596,10 @@ function TalentTracker:GetCurrentTalentTab()
     -- Get the visible talent frame
     local talentFrame = self:GetVisibleTalentFrame()
     if not talentFrame then
-        -- Fallback: check existence
-        talentFrame = _G["TalentFrame"] or _G["TWTalentFrame"]
+        -- Fallback: first existing frame
+        for _, info in ipairs(TALENT_FRAMES) do
+            if _G[info.frame] then talentFrame = _G[info.frame]; break end
+        end
     end
 
     if talentFrame then
@@ -796,10 +799,9 @@ SlashCmdList["GLVTALENT"] = function(msg)
 
     if msg == "hook" then
         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime Talents]|r Re-hooking talent frame...")
-        local frameName = _G["TWTalentFrame"] and "TWTalentFrame" or "TalentFrame"
-        local talentFrame = _G[frameName]
-        if talentFrame then
-            talentFrame.glvHooked = nil
+        for _, info in ipairs(TALENT_FRAMES) do
+            local f = _G[info.frame]
+            if f then f.glvHooked = nil end
         end
         TalentTracker:HookTalentFrame()
         return
@@ -808,22 +810,23 @@ SlashCmdList["GLVTALENT"] = function(msg)
     if msg == "buttons" then
         -- List all talent-related frames/buttons
         DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Talents]|r Scanning for talent buttons...")
-        local prefixes = {"TWTalentFrameTalent", "TalentFrameTalent", "PlayerTalentFrameTalent", "SpellBookTalentButton"}
-        for _, prefix in ipairs(prefixes) do
+        for _, info in ipairs(TALENT_FRAMES) do
+            local f = _G[info.frame]
+            if f then
+                DEFAULT_CHAT_FRAME:AddMessage("  Frame: " .. info.frame .. " (" .. (f:IsVisible() and "visible" or "hidden") .. ")")
+            end
             for i = 1, 30 do
-                local btn = _G[prefix .. i]
+                local btn = _G[info.button .. i]
                 if btn then
-                    local visible = btn:IsVisible() and "visible" or "hidden"
-                    DEFAULT_CHAT_FRAME:AddMessage("  " .. prefix .. i .. " (" .. visible .. ")")
+                    DEFAULT_CHAT_FRAME:AddMessage("  " .. info.button .. i .. " (" .. (btn:IsVisible() and "visible" or "hidden") .. ")")
                 end
             end
         end
-        -- Also check the talent frame itself
-        for _, fname in ipairs({"TWTalentFrame", "TalentFrame", "PlayerTalentFrame"}) do
-            local f = _G[fname]
-            if f then
-                local visible = f:IsVisible() and "visible" or "hidden"
-                DEFAULT_CHAT_FRAME:AddMessage("  Frame: " .. fname .. " (" .. visible .. ")")
+        -- Also check SpellBook talent buttons (non-standard)
+        for i = 1, 30 do
+            local btn = _G["SpellBookTalentButton" .. i]
+            if btn then
+                DEFAULT_CHAT_FRAME:AddMessage("  SpellBookTalentButton" .. i .. " (" .. (btn:IsVisible() and "visible" or "hidden") .. ")")
             end
         end
         return
@@ -876,9 +879,12 @@ SlashCmdList["GLVTALENT"] = function(msg)
             end
         end
 
-        local frameName = _G["TWTalentFrame"] and "TWTalentFrame" or "TalentFrame"
-        local talentFrame = _G[frameName]
-        DEFAULT_CHAT_FRAME:AddMessage("  Talent frame: " .. frameName .. " (hooked: " .. tostring(talentFrame and talentFrame.glvHooked or false) .. ")")
+        for _, info in ipairs(TALENT_FRAMES) do
+            local f = _G[info.frame]
+            if f then
+                DEFAULT_CHAT_FRAME:AddMessage("  " .. info.frame .. ": hooked=" .. tostring(f.glvHooked or false) .. " visible=" .. tostring(f:IsVisible()))
+            end
+        end
         return
     end
 
