@@ -548,32 +548,66 @@ end
 
 --[[ FILTERING AND REPLACEMENT FUNCTIONS ]]--
 
+-- Known WoW classes (lowercase) for separating races from classes in [A] tags
+local KNOWN_CLASSES = {
+    warrior = true, paladin = true, hunter = true, rogue = true,
+    priest = true, shaman = true, mage = true, warlock = true, druid = true,
+}
+
 -- Filter lines based on player class and race to show only applicable content
+-- Within a single [A] tag, races and classes are AND'd:
+--   [A Dwarf, Human, Priest] = (Dwarf OR Human) AND Priest
+-- Multiple [A] tags are AND'd with each other:
+--   [A Dwarf, Human] [A Priest] = (Dwarf OR Human) AND Priest
 function Parser:filterClassRace(line)
     local playerClass = GLV.Settings:GetOption({"CharInfo", "Class"}) or ""
     local playerRace = GLV.Settings:GetOption({"CharInfo", "Race"}) or ""
-    
+    local normalizedClass = string.lower(playerClass)
+    local normalizedRace = string.lower(playerRace)
+
     local classRaceTags = {}
     for tag in string.gfind(line, "%[A ([^%]]+)%]") do
         table.insert(classRaceTags, tag)
     end
 
     if next(classRaceTags) then
-        for tagIndex, tag in pairs(classRaceTags) do
-            local isMatch = false
+        for _, tag in pairs(classRaceTags) do
+            -- Separate entries into races and classes
+            local races = {}
+            local classes = {}
             for entry in string.gfind(tag, "[^,]+") do
                 entry = string.gsub(entry, "^%s*(.-)%s*$", "%1")
-                local normalizedEntry = string.lower(entry)
-                local normalizedClass = string.lower(playerClass)
-                local normalizedRace = string.lower(playerRace)
-
-                if normalizedEntry == normalizedClass or normalizedEntry == normalizedRace then
-                    isMatch = true
-                    break
+                if entry ~= "" then
+                    if KNOWN_CLASSES[string.lower(entry)] then
+                        table.insert(classes, string.lower(entry))
+                    else
+                        table.insert(races, string.lower(entry))
+                    end
                 end
             end
-            if not isMatch then
-                return false
+
+            -- If races listed, player race must match one
+            if table.getn(races) > 0 then
+                local raceMatch = false
+                for _, r in ipairs(races) do
+                    if r == normalizedRace then
+                        raceMatch = true
+                        break
+                    end
+                end
+                if not raceMatch then return false end
+            end
+
+            -- If classes listed, player class must match one
+            if table.getn(classes) > 0 then
+                local classMatch = false
+                for _, c in ipairs(classes) do
+                    if c == normalizedClass then
+                        classMatch = true
+                        break
+                    end
+                end
+                if not classMatch then return false end
             end
         end
         return true
