@@ -6,7 +6,7 @@
 
 </div>
 
-A World of Warcraft Classic (1.12) addon providing an enhanced guide system with automatic quest tracking and autonomous navigation.
+A World of Warcraft Classic (1.12) addon providing an enhanced guide system with automatic quest tracking and autonomous navigation. Optimized for Turtle WoW with custom quest and NPC database support.
 
 ## Requirements
 
@@ -51,6 +51,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Item collection tracking**: works on both current and ongoing steps automatically
 - **XP progress bar** with real-time tracking for grind steps
 - **Guide packs** as separate addons — install what you need, or create your own
+- **TurtleWoW database support**: built-in override system for TurtleWoW-specific quests, NPCs, and items
 
 ### ⚡ Automation & Smart Skip
 - Auto-accept / auto-turnin quests and auto-take flights on matching steps

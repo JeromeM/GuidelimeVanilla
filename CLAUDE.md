@@ -89,6 +89,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 **WaypointResolver.lua** (pure logic, no UI):
 - `ResolveWaypoints(stepData)` returns `{waypoints, description, specialMode, specialModeData, questId, actionType, objectiveIndex, useItemId}`
 - 7-priority resolution: explicit [G] coords > ordered TAR+quest NPCs > legacy TAR > quest DB coords > line coords > step coords > quest objectives
+- **Priority 1 (GOTO coords)**: Only collects `[G]` coordinates from main (non-OC) lines. OC line coords are preparatory hints and must not override quest NPC waypoints from Priority 2. OC coords remain available as fallback in Priority 6 (line coords).
 - **TAR extraction**: Skips `[TAR]` targets only on lines with `[QA]`/`[QT]` tags (where quest DB provides NPC coords). Keeps TARs on `[QC]` lines since QC has no quest NPC — the TAR IS the navigation target.
 - `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching. Conservative return: when name scan fails but quest is tracked as accepted, returns true (assumes still in log) to prevent false auto-skip of turnin steps. Turnin/abandon hooks handle actual store cleanup.
 - `GetCurrentQuestAction(stepData)` - Returns first uncompleted action (QT > QA > QC priority)
@@ -101,6 +102,15 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 - `VGDB.items.data[id]` - Item drop sources
 - `VGDB.zones[locale][id]` - Zone name translations
 - `GetNPCCoordinates(npcId)` prefers coordinates in player's current zone (multi-spawn NPCs)
+
+**TurtleWoW Overrides**:
+- Base ShaguDB data is loaded first, then `*-turtle.lua` files override/extend with TurtleWoW-specific data
+- Turtle files use `pfDB` global (pfQuest TurtleDB format) with "-turtle" suffixed keys: `pfDB[category]["data-turtle"]`, `pfDB[category]["enUS-turtle"]`
+- `mergedb.lua` script copies pfDB entries into VGDB, replacing existing records. Entries with value "_" are deleted (removal marker).
+- Covers: quests, units, items, objects, areatrigger (both data and enUS locale tables)
+- `pfDB` is freed after merge to save memory
+- **Loading order**: ShaguDB files → `initpfdb.lua` (creates pfDB) → Turtle override files → `mergedb.lua` (merges pfDB into VGDB, frees pfDB)
+- **Requires full game restart** when Turtle override files are added/modified (new TOC entries)
 
 ### Settings Keys (commonly used)
 
@@ -138,7 +148,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 | `[LE id,Name]` | Learn spell/skill (auto-completes) | `[LE 1180,Two-Handed Swords]` |
 | `[CI id,count]` | Collect item (auto-completes on BAG_UPDATE) | `[CI1179,10]` |
 | `[UI id]` | Use item (fallback icon when no coords) | `[UI2746]` |
-| `[OC]` | Optional, completes with next | `[OC]Grind north` |
+| `[OC]` | Optional, completes with next. GOTO coords on OC lines are excluded from Priority 1 resolution (used only as fallback in Priority 6). | `[OC][G 50,60 Zone]Grind north` |
 | `[NX x-y Name]` | Next guide link | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
 | `[H]` | Use hearthstone (auto-completes on arrival) | `[H] to Stormwind` |
@@ -179,6 +189,9 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core.lua` | Init, slash commands (`/glv`, `/glvminimap`), minimap button |
 | `Settings.lua` | Settings manager with nested key access |
 | `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution |
+| `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
+| `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
+| `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
 | `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation) |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display |
