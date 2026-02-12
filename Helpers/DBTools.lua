@@ -231,8 +231,9 @@ function GLV:GetNPCCoordinates(npcID)
     local npcData = VGDB and VGDB["units"] and VGDB["units"]["data"] and VGDB["units"]["data"][tonumber(npcID)]
     if not npcData or not npcData.coords then return nil end
 
-    -- Try to find coordinates in the player's current zone first
+    -- Collect all coordinates in the player's current zone
     local playerZoneName = GetZoneText()
+    local zoneMatches = {}
     local firstValid = nil
 
     for _, coordSet in ipairs(npcData.coords) do
@@ -240,17 +241,39 @@ function GLV:GetNPCCoordinates(npcID)
             if not firstValid then
                 firstValid = {x = coordSet[1], y = coordSet[2], z = coordSet[3]}
             end
-            -- Check if this coordinate is in the player's zone
             if playerZoneName then
                 local zoneName = self:GetZoneNameByID(coordSet[3])
                 if zoneName and string.lower(zoneName) == string.lower(playerZoneName) then
-                    return {x = coordSet[1], y = coordSet[2], z = coordSet[3]}
+                    table.insert(zoneMatches, {x = coordSet[1], y = coordSet[2], z = coordSet[3]})
                 end
             end
         end
     end
 
-    return firstValid
+    -- If only one match (or none) in zone, return it directly
+    if table.getn(zoneMatches) <= 1 then
+        return zoneMatches[1] or firstValid
+    end
+
+    -- Multiple spawns in same zone: return closest to player
+    local C, Z, pX, pY = Astrolabe:GetCurrentPlayerPosition()
+    if not pX or not pY then
+        return zoneMatches[1]
+    end
+
+    local closest = nil
+    local closestDist = nil
+    for _, coords in ipairs(zoneMatches) do
+        local dx = coords.x / 100 - pX
+        local dy = coords.y / 100 - pY
+        local dist = dx * dx + dy * dy
+        if not closestDist or dist < closestDist then
+            closestDist = dist
+            closest = coords
+        end
+    end
+
+    return closest
 end
 
 
