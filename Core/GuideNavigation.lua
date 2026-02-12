@@ -1048,6 +1048,28 @@ end
 
 --[[ INITIALIZATION ]]--
 
+-- Event handler for ZONE_CHANGED_NEW_AREA
+function GuideNavigation:OnZoneChanged()
+    GLV.Ace:ScheduleEvent("GLV_ZoneChangedNav", function()
+        -- Force map to update to current zone before getting position
+        if not WorldMapFrame:IsVisible() then
+            SetMapToCurrentZone()
+        end
+        -- Refresh navigation for current step
+        if GLV.CurrentDisplaySteps then
+            local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
+            local currentStep = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+            if currentStep > 0 and GLV.CurrentDisplaySteps[currentStep] then
+                GuideNavigation:UpdateWaypointForStep(GLV.CurrentDisplaySteps[currentStep])
+            end
+        end
+        -- Check hearthstone arrival
+        if GLV.GossipTracker then
+            GLV.GossipTracker:CheckHearthstoneArrival()
+        end
+    end, 0.5)
+end
+
 -- Initializes the navigation system
 function GuideNavigation:Init()
     if not GLV.Settings:GetOption({"Navigation", "AutoShow"}) then
@@ -1058,6 +1080,11 @@ function GuideNavigation:Init()
 
     -- Create the navigation frame early so NavigationModes can use it
     self:CreateNavigationFrame()
+
+    -- Register zone change event
+    GLV.Ace:RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
+        GuideNavigation:OnZoneChanged()
+    end)
 
     -- Check if player is a ghost at login (disconnected while dead)
     if NavigationModes:CheckGhostState() then
