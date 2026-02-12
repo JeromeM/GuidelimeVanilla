@@ -40,7 +40,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `TaxiTracker` - Flight path tracking and automation (`[F]`/`[P]`)
 - `GossipTracker` - Gossip dialog, hearthstone bind/use detection (`[H]`/`[S]`)
 - `TalentTracker` - Talent suggestions, level-up toasts, talent frame highlighting. Centralized TALENT_FRAMES table for multi-frame support (TalentFrame, TWTalentFrame, PlayerTalentFrame).
-- `GuideNavigation` - **Orchestrator**: frame creation, arrow rendering, update loop, delegates to NavigationModes and WaypointResolver
+- `GuideNavigation` - **Orchestrator**: frame creation, arrow rendering, update loop, zone change handling (ZONE_CHANGED_NEW_AREA), delegates to NavigationModes and WaypointResolver
 - `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar, skill progress) + death/corpse navigation
 - `WaypointResolver` - Coordinate resolution (7-priority system), quest status, step descriptions
 - `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration. Uses `getglobal()` to reclaim existing named frames on `/reload` instead of creating orphans.
@@ -76,6 +76,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 
 **GuideNavigation.lua** (orchestrator):
 - Creates nav frame, manages arrow rendering at 50 FPS
+- Handles ZONE_CHANGED_NEW_AREA event for zone-based guide transitions
 - `UpdateWaypointForStep(stepData)` - Entry point: auto-skips impossible QT steps, then delegates to WaypointResolver/NavigationModes
 - `CheckAutoSkipTurnins(stepData)` - Auto-completes steps with `[QT]` when quest not in player's log
 - Multi-waypoint tracking: auto-advances when player reaches waypoint (5 yard threshold)
@@ -95,7 +96,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - 7-priority resolution: explicit [G] coords > ordered TAR+quest NPCs > legacy TAR > quest DB coords > line coords > step coords > quest objectives
 - Special modes: "SKILL" for `[SK]` profession requirements, "XP" for level requirements, "HEARTHSTONE", "NEXT_GUIDE", "USE_ITEM", "EQUIP_ITEM"
 - **Priority 1 (GOTO coords)**: Only collects `[G]` coordinates from main (non-OC) lines. OC line coords are preparatory hints and must not override quest NPC waypoints from Priority 2. OC coords remain available as fallback in Priority 6 (line coords).
-- **TAR extraction**: Skips `[TAR]` targets only on lines with `[QA]`/`[QT]` tags (where quest DB provides NPC coords). Keeps TARs on `[QC]` lines since QC has no quest NPC — the TAR IS the navigation target.
+- **TAR extraction**: Skips `[TAR]` targets on lines with any quest tags (`[QA]`/`[QT]`/`[QC]`). TARs on quest lines are informational context (which NPC/mob to interact with), not navigation targets. Quest DB provides better coordinates via start/end NPCs or objective locations.
 - `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching. Conservative return: when name scan fails but quest is tracked as accepted, returns true (assumes still in log) to prevent false auto-skip of turnin steps. Turnin/abandon hooks handle actual store cleanup.
 - `GetCurrentQuestAction(stepData)` - Returns first uncompleted action (QT > QA > QC priority)
 
@@ -211,18 +212,18 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 
 | File | Purpose |
 |------|---------|
-| `Core.lua` | Init, slash commands (`/glv`, `/glvminimap`), minimap button |
+| `Core.lua` | Addon initialization (~171 lines): LibStub setup, Ace2 initialization, slash commands (`/glv`, `/glvminimap`), minimap button, event registration |
 | `Settings.lua` | Settings manager with nested key access |
 | `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. |
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
 | `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing |
-| `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown |
+| `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel) |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
-| `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, auto-skip QT |
+| `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA), auto-skip QT |
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
-| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skip only on QA/QT lines), conservative GetQuestStatus. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
+| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on all quest tag lines QA/QT/QC), conservative GetQuestStatus. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
 | `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load). FindAcceptedIdByTitle() returns smallest matching ID. GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
