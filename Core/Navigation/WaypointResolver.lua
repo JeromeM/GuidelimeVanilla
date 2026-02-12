@@ -388,19 +388,20 @@ local function extractTARCoordinates(stepData)
     local visitedNPCs = getVisitedNPCs()
 
     for _, line in ipairs(stepData.lines) do
-        -- Skip TARs on lines with QA/QT tags (quest DB provides NPC coords).
-        -- Keep TARs on QC lines — QC has no quest NPC, the TAR IS the destination.
-        local hasAcceptOrTurnin = false
+        -- Skip TARs on lines with quest tags (QA/QT/QC).
+        -- QA/QT: quest DB provides NPC coords. QC: quest DB provides objective coords.
+        -- TARs on quest lines are informational context, not navigation targets.
+        local hasQuestTag = false
         if line.questTags then
             for _, qt in ipairs(line.questTags) do
-                if qt.tag == "ACCEPT" or qt.tag == "TURNIN" then
-                    hasAcceptOrTurnin = true
+                if qt.tag == "ACCEPT" or qt.tag == "TURNIN" or qt.tag == "COMPLETE" then
+                    hasQuestTag = true
                     break
                 end
             end
         end
 
-        if not hasAcceptOrTurnin and line.targetIds then
+        if not hasQuestTag and line.targetIds then
             for _, targetId in ipairs(line.targetIds) do
                 -- Skip visited NPCs
                 if not visitedNPCs[targetId] then
@@ -480,21 +481,21 @@ local function collectOrderedWaypoints(stepData)
     end
 
     -- First pass: collect TAR targets in order
-    -- Skip TARs on lines with QA/QT (quest DB provides NPC coords)
-    -- Keep TARs on QC lines (QC has no quest NPC, the TAR IS the destination)
+    -- Skip TARs on lines with quest tags (QA/QT/QC) — quest DB provides coords.
+    -- TARs on quest lines are informational context, not navigation targets.
     for _, line in ipairs(stepData.lines) do
         if line.targetIds then
-            local hasAcceptOrTurnin = false
+            local hasQuestTag = false
             if line.questTags then
                 for _, qt in ipairs(line.questTags) do
-                    if qt.tag == "ACCEPT" or qt.tag == "TURNIN" then
-                        hasAcceptOrTurnin = true
+                    if qt.tag == "ACCEPT" or qt.tag == "TURNIN" or qt.tag == "COMPLETE" then
+                        hasQuestTag = true
                         break
                     end
                 end
             end
 
-            if not hasAcceptOrTurnin then
+            if not hasQuestTag then
                 for _, targetId in ipairs(line.targetIds) do
                     -- Skip TAR if: NPC's quest action is done, OR already visited
                     if not completedQuestNPCs[targetId] and not visitedNPCs[targetId] then
