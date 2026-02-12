@@ -108,7 +108,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 - `VGDB.units.data[id]` - NPC data: `.coords[n] = {x, y, zoneId, ?}`
 - `VGDB.items.data[id]` - Item drop sources
 - `VGDB.zones[locale][id]` - Zone name translations
-- `GetNPCCoordinates(npcId)` prefers coordinates in player's current zone (multi-spawn NPCs)
+- `GetNPCCoordinates(npcId)` returns closest spawn: collects all NPC spawns in player's current zone, calculates distances using Astrolabe, returns nearest spawn. Prevents navigation to distant spawns when same mob has multiple locations in zone.
 
 **TurtleWoW Overrides**:
 - Base ShaguDB data is loaded first, then `*-turtle.lua` files override/extend with TurtleWoW-specific data
@@ -215,7 +215,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 |------|---------|
 | `Core.lua` | Addon initialization (~171 lines): LibStub setup, Ace2 initialization, slash commands (`/glv`, `/glvminimap`), minimap button, event registration |
 | `Settings.lua` | Settings manager with nested key access |
-| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. |
+| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. GetNPCCoordinates() uses Astrolabe distance calculation to return closest spawn in player's zone. |
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
