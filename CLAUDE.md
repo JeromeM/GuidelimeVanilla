@@ -70,7 +70,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - Quest accept/complete/turnin events call `HandleQuestAction()` directly (normal single-action flow).
 
 **Quest sync on guide load**:
-- `SyncQuestAcceptSteps()` auto-completes `[QA]` steps for quests already in the player's log (handles quests accepted before addon/guide was loaded). Called during `OnQuestLogUpdate` with early-out when no unmarked QA steps exist.
+- `SyncQuestAcceptSteps()` auto-completes `[QA]` steps for quests already in the player's log (handles quests accepted before addon/guide was loaded). Called during `OnQuestLogUpdate` with early-out when no unmarked QA steps exist. Stores `{title, timestamp}` format in store.Accepted (matches TrackAccepted format).
 
 ### Navigation System (3-file split)
 
@@ -186,9 +186,9 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
   1. Case-insensitive exact match
   2. Normalized match: strips trailing dots (WoW ellipsis "...") and whitespace only
   3. Does NOT strip all punctuation (prevents false positives like "Find It: Gold" vs "Find It - Gold")
-- **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity" or "The Balance of Nature" 456/457) are resolved deterministically:
+- **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity" or "Balance of Nature" 456/457) are resolved deterministically:
   - `GetQuestIDByName()` returns the smallest matching ID (first quest in chain)
-  - `FindAcceptedIdByTitle()` returns the smallest accepted ID matching the name
+  - `FindAcceptedIdByTitle()` returns the smallest accepted ID matching the name, **skips IDs in store.Completed** (ensures chain quests are processed in order: 456 first, then 457)
   - `GetExpectedQuestIdFromCurrentStep()` skips already-accepted IDs for ACCEPT actions, skips already-completed IDs for TURNIN actions
   - `GetQuestIdInCurrentStep()` checks current step + 2 steps ahead (lookahead for auto-accept/turnin when player is on preceding [G] step), skips already-accepted IDs for ACCEPT, skips already-completed IDs for TURNIN
   - `DoesQuestActionMatch()` uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests
@@ -227,7 +227,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on QA/QT lines only, keeps TARs on QC lines for mob navigation), conservative GetQuestStatus with quest log verification for store.Completed entries. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID. GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
