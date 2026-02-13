@@ -78,8 +78,9 @@ function QuestTracker:Init()
         end)
 
         -- Auto accept/turnin events
-        GLV.Ace:RegisterEvent("QUEST_DETAIL", function() self:OnQuestDetail() end)
-        GLV.Ace:RegisterEvent("QUEST_COMPLETE", function() self:OnQuestComplete() end)
+        -- DISABLED: Auto-accept/turnin causes timing issues with rapid QT→QA sequences
+        -- GLV.Ace:RegisterEvent("QUEST_DETAIL", function() self:OnQuestDetail() end)
+        -- GLV.Ace:RegisterEvent("QUEST_COMPLETE", function() self:OnQuestComplete() end)
     end
     
     self.previousQuestStates = {}
@@ -548,6 +549,12 @@ function QuestTracker:UpdateStepNavigation(stepMarked, multiActionStepFound, act
     -- This is more reliable than trying to update checkboxes manually
     -- RefreshGuide has built-in debounce to prevent multiple rapid rebuilds
     if stepMarked and GLV.RefreshGuide then
+        -- Cancel any pending TURNIN navigation update that captured stale stepData.
+        -- Without this, a QT→QA sequence (e.g., QT916 then QA917 on the same step)
+        -- would fire the stale TURNIN timer AFTER RefreshGuide advanced to the next step,
+        -- causing the arrow to jump back to the previous step's TAR.
+        GLV.Ace:CancelScheduledEvent("GLV_NavigationUpdate")
+
         GLV:RefreshGuide()
         -- Force navigation update after RefreshGuide completes
         GLV.Ace:ScheduleEvent("GLV_PostRefreshNavUpdate", function()
@@ -564,16 +571,16 @@ function QuestTracker:UpdateStepNavigation(stepMarked, multiActionStepFound, act
             -- Update navigation arrow
             -- For TURNIN actions, delay the update to allow quest log to be updated
             if GLV.GuideNavigation and GLV.CurrentDisplaySteps and GLV.CurrentDisplaySteps[firstUnchecked] then
-                local stepData = GLV.CurrentDisplaySteps[firstUnchecked]
-
                 if actionType == "TURNIN" then
-                    -- Delay navigation update for turnin to allow quest to be removed from log
+                    -- Re-read current step when timer fires instead of using captured stepData,
+                    -- in case the step advanced between scheduling and execution
                     GLV.Ace:ScheduleEvent("GLV_NavigationUpdate", function()
                         if GLV.GuideNavigation then
-                            GLV.GuideNavigation:OnStepChanged(stepData)
+                            self:ForceNavigationUpdate()
                         end
                     end, 0.5)
                 else
+                    local stepData = GLV.CurrentDisplaySteps[firstUnchecked]
                     GLV.GuideNavigation:OnStepChanged(stepData)
                 end
             end
@@ -722,64 +729,67 @@ end
 
 --[[ AUTO ACCEPT/TURNIN ]]--
 
+-- DISABLED: Auto-accept/turnin causes timing issues with rapid QT→QA sequences.
+-- Kept for potential future re-enable once timing is fully resolved.
+
 -- Called when quest detail frame is shown (NPC offers a quest)
-function QuestTracker:OnQuestDetail()
-    local autoAccept = GLV.Settings:GetOption({"Automation", "AutoAcceptQuests"})
-    if not autoAccept then return end
-
-    local questTitle = GetTitleText()
-    if not questTitle then return end
-
-    -- Check if the current step has a [QA] tag for this quest
-    local questId = self:GetQuestIdInCurrentStep(questTitle, "ACCEPT")
-    if questId then
-        if GLV.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Auto-accepting quest: " .. questTitle)
-        end
-        AcceptQuest()
-        -- Track the quest acceptance to update guide step
-        self:TrackAccepted(questId, questTitle)
-
-        -- Force navigation update after a delay (handles rapid QT+QA sequences)
-        GLV.Ace:ScheduleEvent("GLV_PostAcceptNavUpdate", function()
-            self:ForceNavigationUpdate()
-        end, 0.3)
-    end
-end
+-- function QuestTracker:OnQuestDetail()
+--     local autoAccept = GLV.Settings:GetOption({"Automation", "AutoAcceptQuests"})
+--     if not autoAccept then return end
+--
+--     local questTitle = GetTitleText()
+--     if not questTitle then return end
+--
+--     -- Check if the current step has a [QA] tag for this quest
+--     local questId = self:GetQuestIdInCurrentStep(questTitle, "ACCEPT")
+--     if questId then
+--         if GLV.Debug then
+--             DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Auto-accepting quest: " .. questTitle)
+--         end
+--         AcceptQuest()
+--         -- Track the quest acceptance to update guide step
+--         self:TrackAccepted(questId, questTitle)
+--
+--         -- Force navigation update after a delay (handles rapid QT+QA sequences)
+--         GLV.Ace:ScheduleEvent("GLV_PostAcceptNavUpdate", function()
+--             self:ForceNavigationUpdate()
+--         end, 0.3)
+--     end
+-- end
 
 -- Called when quest complete frame is shown (NPC ready to turn in)
-function QuestTracker:OnQuestComplete()
-    local autoTurnin = GLV.Settings:GetOption({"Automation", "AutoTurninQuests"})
-    if not autoTurnin then return end
-
-    local questTitle = GetTitleText()
-    if not questTitle then return end
-
-    -- Don't auto-turnin if there are multiple reward choices
-    local numChoices = GetNumQuestChoices()
-    if numChoices and numChoices > 1 then
-        if GLV.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[QuestTracker]|r Skipping auto-turnin (reward choice required): " .. questTitle)
-        end
-        return
-    end
-
-    -- Check if the current step has a [QT] tag for this quest
-    local questId = self:GetQuestIdInCurrentStep(questTitle, "TURNIN")
-    if questId then
-        if GLV.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Auto-turning in quest: " .. questTitle)
-        end
-        GetQuestReward()
-        -- Track the quest turnin to update guide step
-        self:HandleQuestAction(questId, questTitle, "TURNIN")
-
-        -- Force navigation update after a delay (handles rapid QT+QA sequences)
-        GLV.Ace:ScheduleEvent("GLV_PostTurninNavUpdate", function()
-            self:ForceNavigationUpdate()
-        end, 0.5)
-    end
-end
+-- function QuestTracker:OnQuestComplete()
+--     local autoTurnin = GLV.Settings:GetOption({"Automation", "AutoTurninQuests"})
+--     if not autoTurnin then return end
+--
+--     local questTitle = GetTitleText()
+--     if not questTitle then return end
+--
+--     -- Don't auto-turnin if there are multiple reward choices
+--     local numChoices = GetNumQuestChoices()
+--     if numChoices and numChoices > 1 then
+--         if GLV.Debug then
+--             DEFAULT_CHAT_FRAME:AddMessage("|cFFFFFF00[QuestTracker]|r Skipping auto-turnin (reward choice required): " .. questTitle)
+--         end
+--         return
+--     end
+--
+--     -- Check if the current step has a [QT] tag for this quest
+--     local questId = self:GetQuestIdInCurrentStep(questTitle, "TURNIN")
+--     if questId then
+--         if GLV.Debug then
+--             DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Auto-turning in quest: " .. questTitle)
+--         end
+--         GetQuestReward()
+--         -- Track the quest turnin to update guide step
+--         self:HandleQuestAction(questId, questTitle, "TURNIN")
+--
+--         -- Force navigation update after a delay (handles rapid QT+QA sequences)
+--         GLV.Ace:ScheduleEvent("GLV_PostTurninNavUpdate", function()
+--             self:ForceNavigationUpdate()
+--         end, 0.5)
+--     end
+-- end
 
 -- Get quest ID if quest is in the current or nearby steps with a specific action tag
 -- Returns questId if found, nil otherwise

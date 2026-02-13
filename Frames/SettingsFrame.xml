@@ -513,53 +513,30 @@
                                 </Layers>
 
                                 <Frames>
-                                    <!-- Auto Accept Quests Checkbox -->
-                                    <CheckButton name="GLV_SettingsGuidesPageAutoAcceptQuests" inherits="OptionsCheckButtonTemplate">
+                                    <!-- DISABLED: Auto Accept/Turnin causes timing issues with rapid QT→QA sequences -->
+                                    <!-- Auto Accept Quests Checkbox (hidden) -->
+                                    <CheckButton name="GLV_SettingsGuidesPageAutoAcceptQuests" inherits="OptionsCheckButtonTemplate" hidden="true">
                                         <Anchors>
                                             <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
                                                 <Offset x="6" y="-24"/>
                                             </Anchor>
                                         </Anchors>
-                                        <Scripts>
-                                            <OnLoad>
-                                                getglobal(this:GetName().."Text"):SetText("Auto Accept Quests");
-                                                GLV_InitCheckboxFont(this);
-                                            </OnLoad>
-                                            <OnShow>
-                                                GLV_InitAutomationCheckbox(this, {"Automation", "AutoAcceptQuests"});
-                                            </OnShow>
-                                            <OnClick>
-                                                GLV_OnAutomationCheckboxClick(this, {"Automation", "AutoAcceptQuests"});
-                                            </OnClick>
-                                        </Scripts>
                                     </CheckButton>
 
-                                    <!-- Auto Turnin Quests Checkbox -->
-                                    <CheckButton name="GLV_SettingsGuidesPageAutoTurninQuests" inherits="OptionsCheckButtonTemplate">
+                                    <!-- Auto Turnin Quests Checkbox (hidden) -->
+                                    <CheckButton name="GLV_SettingsGuidesPageAutoTurninQuests" inherits="OptionsCheckButtonTemplate" hidden="true">
                                         <Anchors>
                                             <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsGuidesPageAutoAcceptQuests" RelativePoint="BOTTOMLEFT">
                                                 <Offset x="0" y="-2"/>
                                             </Anchor>
                                         </Anchors>
-                                        <Scripts>
-                                            <OnLoad>
-                                                getglobal(this:GetName().."Text"):SetText("Auto Turnin Quests");
-                                                GLV_InitCheckboxFont(this);
-                                            </OnLoad>
-                                            <OnShow>
-                                                GLV_InitAutomationCheckbox(this, {"Automation", "AutoTurninQuests"});
-                                            </OnShow>
-                                            <OnClick>
-                                                GLV_OnAutomationCheckboxClick(this, {"Automation", "AutoTurninQuests"});
-                                            </OnClick>
-                                        </Scripts>
                                     </CheckButton>
 
                                     <!-- Auto Take Flight Checkbox -->
                                     <CheckButton name="GLV_SettingsGuidesPageAutoTakeFlight" inherits="OptionsCheckButtonTemplate">
                                         <Anchors>
-                                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsGuidesPageAutoTurninQuests" RelativePoint="BOTTOMLEFT">
-                                                <Offset x="0" y="-2"/>
+                                            <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                                <Offset x="6" y="-24"/>
                                             </Anchor>
                                         </Anchors>
                                         <Scripts>
