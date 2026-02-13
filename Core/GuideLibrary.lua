@@ -558,6 +558,12 @@ function GLV:LoadDefaultGuideForRace(race)
     end
 end
 
+-- TurtleWoW custom races mapped to their closest standard race
+-- Used as fallback when guide packs don't include TurtleWoW-specific mappings
+local RACE_ALIASES = {
+    ["HighElf"] = "NightElf",
+}
+
 -- Find starting guide based on player race for new characters
 function GLV:FindStartingGuideForRace(race, packName)
     local guides = self.loadedGuides[packName]
@@ -565,6 +571,12 @@ function GLV:FindStartingGuideForRace(race, packName)
 
     -- Get the starting guide name from the pack's registered mapping
     local targetGuideName = self:GetStartingGuideForRace(packName, race)
+
+    -- Try race alias if no direct mapping (TurtleWoW custom races)
+    if not targetGuideName and RACE_ALIASES[race] then
+        targetGuideName = self:GetStartingGuideForRace(packName, RACE_ALIASES[race])
+    end
+
     if not targetGuideName then return nil end
 
     for guideId, guideData in pairs(guides) do
@@ -584,28 +596,36 @@ function GLV:FindBestGuideForLevel(playerLevel, packName)
     local guides = self.loadedGuides[packName]
     if not guides then return nil end
 
-    local bestGuide = nil
-    local bestMatch = 999
-
+    -- Collect and sort guides for deterministic selection
+    local sorted = {}
     for guideId, guideData in pairs(guides) do
         if guideData.minLevel and guideData.maxLevel then
             local minLevel = tonumber(guideData.minLevel)
             local maxLevel = tonumber(guideData.maxLevel)
-
             if minLevel and maxLevel then
-                -- Check if player level fits in guide range
-                if playerLevel >= minLevel and playerLevel <= maxLevel then
-                    -- Perfect match - player level is in guide range
-                    bestGuide = {id = guideId, data = guideData}
-                    break
-                elseif minLevel <= playerLevel then
-                    -- Guide is below player level, but could be close
-                    local levelDiff = playerLevel - maxLevel
-                    if levelDiff < bestMatch then
-                        bestMatch = levelDiff
-                        bestGuide = {id = guideId, data = guideData}
-                    end
-                end
+                table.insert(sorted, {id = guideId, data = guideData, min = minLevel, max = maxLevel})
+            end
+        end
+    end
+    table.sort(sorted, function(a, b)
+        if a.min ~= b.min then return a.min < b.min end
+        return (a.data.name or "") < (b.data.name or "")
+    end)
+
+    local bestGuide = nil
+    local bestMatch = 999
+
+    for _, entry in ipairs(sorted) do
+        if playerLevel >= entry.min and playerLevel <= entry.max then
+            -- Perfect match - player level is in guide range, pick first sorted
+            bestGuide = {id = entry.id, data = entry.data}
+            break
+        elseif entry.min <= playerLevel then
+            -- Guide is below player level, but could be close
+            local levelDiff = playerLevel - entry.max
+            if levelDiff < bestMatch then
+                bestMatch = levelDiff
+                bestGuide = {id = entry.id, data = entry.data}
             end
         end
     end

@@ -399,7 +399,7 @@ function GLV_LoadSelectedGuidePack()
     else
         -- Load based on race/level
         local _, race = UnitRace("player")
-        GLV.Addon:LoadDefaultGuideForRace(race)
+        GLV:LoadDefaultGuideForRace(race)
     end
 
     -- Close settings
