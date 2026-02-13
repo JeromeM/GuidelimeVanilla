@@ -64,49 +64,34 @@ local function findClosestUnit(unitID, questZone)
     if not unitID then
         return nil, nil
     end
-    
-    local nearest = nil
-    local bestUnit = nil
 
-    -- Ensure we have player position
+    -- Use zone-aware GetNPCCoordinates (filters by player zone, returns closest spawn)
+    local npcCoords = GLV:GetNPCCoordinates(unitID)
+    if not npcCoords or not npcCoords.x or not npcCoords.y or not npcCoords.z then
+        return nil, nil
+    end
+
+    -- Calculate distance for sorting among multiple candidates
+    local nearest = nil
     local currentPlayerPos = nil
     if GLV.GuideNavigation and GLV.GuideNavigation.GetPlayerPosition then
         currentPlayerPos = GLV.GuideNavigation:GetPlayerPosition()
     end
-    
-    if not currentPlayerPos then
-        return nil, nil
+
+    if currentPlayerPos then
+        local dx = (currentPlayerPos.x * 100) - npcCoords.x
+        local dy = (currentPlayerPos.y * 100) - npcCoords.y
+        nearest = math.sqrt(dx * dx + dy * dy)
     end
 
-    local playerX, playerY = currentPlayerPos.x, currentPlayerPos.y
-
-    local unitData = getEntityData("units", unitID)
-    if unitData and unitData.coords then
-        for _, coordSet in ipairs(unitData.coords) do
-            if coordSet and coordSet[1] and coordSet[2] and coordSet[3] then
-                if not questZone or (coordSet[3] and questZone and coordSet[3] == questZone) then
-                    if playerX and playerY then
-                        local x, y = (playerX * 100) - coordSet[1], (playerY * 100) - coordSet[2]
-                        local distance = math.sqrt(x * x + y * y)
-
-                        if not nearest or distance < nearest then
-                            nearest = distance
-                            bestUnit = {
-                                type = "objective",
-                                npcId = unitID,
-                                x = coordSet[1],
-                                y = coordSet[2],
-                                z = coordSet[3],
-                                distance = distance
-                            }
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return bestUnit, nearest
+    return {
+        type = "objective",
+        npcId = unitID,
+        x = npcCoords.x,
+        y = npcCoords.y,
+        z = npcCoords.z,
+        distance = nearest or 0
+    }, nearest
 end
 
 -- Resolve coordinates for an item objective with fallback chain:
@@ -496,13 +481,23 @@ function GLV:GetQuestAllCoords(id, questPart, onlyObjective)
         end
     end
 
-    -- Quest objectives
+    -- Quest objectives (filtered by questPart/objectiveIndex when provided)
     if quest.obj then
         -- Unit objectives
         if quest.obj.U then
-            for _, npcID in ipairs(quest.obj.U) do
-                local bestUnit = findClosestUnit(npcID, nil)
-                if bestUnit then table.insert(allCoords, bestUnit) end
+            if questPart and questPart > 0 then
+                -- Specific objective: only check the unit at this index
+                local npcID = quest.obj.U[questPart]
+                if npcID then
+                    local bestUnit = findClosestUnit(npcID, nil)
+                    if bestUnit then table.insert(allCoords, bestUnit) end
+                end
+            else
+                -- No specific objective: return all unit objectives
+                for _, npcID in ipairs(quest.obj.U) do
+                    local bestUnit = findClosestUnit(npcID, nil)
+                    if bestUnit then table.insert(allCoords, bestUnit) end
+                end
             end
         end
         -- Item objectives (with fallback chain)
@@ -515,7 +510,15 @@ function GLV:GetQuestAllCoords(id, questPart, onlyObjective)
         end
         -- Object objectives
         if quest.obj.O then
-            for _, v in ipairs(collectEntityCoords("objects", quest.obj.O, "objective")) do table.insert(allCoords, v) end
+            if questPart and questPart > 0 then
+                -- Specific objective: only check the object at this index
+                local objID = quest.obj.O[questPart]
+                if objID then
+                    for _, v in ipairs(collectEntityCoords("objects", {objID}, "objective")) do table.insert(allCoords, v) end
+                end
+            else
+                for _, v in ipairs(collectEntityCoords("objects", quest.obj.O, "objective")) do table.insert(allCoords, v) end
+            end
         end
     end
 

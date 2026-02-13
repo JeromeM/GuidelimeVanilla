@@ -25,17 +25,11 @@ local lastQuestLogUpdate = 0
 local QUEST_LOG_UPDATE_THROTTLE = 0.5 -- Only process once per 0.5 seconds
 
 -- Check if a quest tag matches a given quest action (accept/complete/turnin)
--- Returns true if the tag matches the action type, quest ID (or name for COMPLETE), and objective index
+-- Returns true if the tag matches the action type, quest ID, and objective index
+-- Uses strict ID matching only — name matching caused false positives on same-name chain quests
 local function DoesQuestActionMatch(questTag, questId, title, actionType, objectiveIndex)
     if questTag.tag ~= actionType then return false end
-
-    local questIdMatches = tonumber(questTag.questId) == tonumber(questId)
-    local nameMatches = false
-    if actionType == "COMPLETE" and title then
-        local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
-        nameMatches = tagQuestName and GLV.QuestTracker:QuestNamesMatch(tagQuestName, title)
-    end
-    if not questIdMatches and not nameMatches then return false end
+    if tonumber(questTag.questId) ~= tonumber(questId) then return false end
 
     if questTag.objectiveIndex then
         return objectiveIndex and questTag.objectiveIndex == objectiveIndex
@@ -754,40 +748,38 @@ function QuestTracker:OnQuestComplete()
     end
 end
 
--- Get quest ID if quest is in the current step with a specific action tag
+-- Get quest ID if quest is in the current or nearby steps with a specific action tag
 -- Returns questId if found, nil otherwise
--- Only checks the current active step (not future steps)
+-- Checks current step and a few steps ahead (e.g., player on [G] step, [QA] is next)
 function QuestTracker:GetQuestIdInCurrentStep(questTitle, actionType)
     if not GLV.CurrentDisplaySteps then return nil end
 
     local currentGuideId = GLV.Settings:GetOption({"Guide", "CurrentGuide"}) or "Unknown"
     local currentStepIndex = GLV.Settings:GetOption({"Guide", "Guides", currentGuideId, "CurrentStep"}) or 0
+    local totalSteps = GLV.CurrentDisplayStepsCount or table.getn(GLV.CurrentDisplaySteps)
 
-    -- Only check the current step
-    if currentStepIndex <= 0 or currentStepIndex > table.getn(GLV.CurrentDisplaySteps) then
-        return nil
-    end
-
-    local step = GLV.CurrentDisplaySteps[currentStepIndex]
-    if not step or not step.questTags or table.getn(step.questTags) == 0 then
-        return nil
-    end
-
-    for _, questTag in ipairs(step.questTags) do
-        if questTag.tag == actionType then
-            -- Get quest name from database
-            local questName = GLV:GetQuestNameByID(questTag.questId)
-            if questName and self:QuestNamesMatch(questTitle, questName) then
-                local tagQuestId = tonumber(questTag.questId)
-                -- For same-name quest chains: skip IDs already processed
-                if actionType == "ACCEPT" and self.store and self.store.Accepted
-                   and self.store.Accepted[tagQuestId] then
-                    -- Quest already in log, likely a chain — check next match
-                elseif actionType == "TURNIN" and self.store and self.store.Completed
-                   and self.store.Completed[tagQuestId] then
-                    -- Quest already turned in, likely a chain — check next match
-                else
-                    return questTag.questId
+    for offset = 0, 2 do
+        local stepIndex = currentStepIndex + offset
+        if stepIndex > 0 and stepIndex <= totalSteps then
+            local step = GLV.CurrentDisplaySteps[stepIndex]
+            if step and step.questTags and table.getn(step.questTags) > 0 then
+                for _, questTag in ipairs(step.questTags) do
+                    if questTag.tag == actionType then
+                        local questName = GLV:GetQuestNameByID(questTag.questId)
+                        if questName and self:QuestNamesMatch(questTitle, questName) then
+                            local tagQuestId = tonumber(questTag.questId)
+                            -- For same-name quest chains: skip IDs already processed
+                            if actionType == "ACCEPT" and self.store and self.store.Accepted
+                               and self.store.Accepted[tagQuestId] then
+                                -- Quest already in log, likely a chain — check next match
+                            elseif actionType == "TURNIN" and self.store and self.store.Completed
+                               and self.store.Completed[tagQuestId] then
+                                -- Quest already turned in, likely a chain — check next match
+                            else
+                                return questTag.questId
+                            end
+                        end
+                    end
                 end
             end
         end

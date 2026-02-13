@@ -60,7 +60,20 @@ function WaypointResolver:GetQuestStatus(questId)
 
         -- Check if quest was already completed/turned in
         if store.Completed and store.Completed[numId] then
-            return false, true  -- Not in log, but was completed
+            -- For same-name chain quests (e.g., "The Balance of Nature" = quests 456, 457),
+            -- store.Completed may have incorrect ID from turnin hook resolution.
+            -- Verify quest is truly not in log before returning false.
+            local expectedName = GLV:GetQuestNameByID(questId)
+            if expectedName then
+                local numEntries = GetNumQuestLogEntries()
+                for i = 1, numEntries do
+                    local title, level, tag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
+                    if title and not isHeader and GLV.QuestTracker:QuestNamesMatch(title, expectedName) then
+                        return true, (isComplete == 1 or isComplete == true)
+                    end
+                end
+            end
+            return false, true  -- Not in log, was completed
         end
 
         -- Check if quest is tracked as accepted
@@ -388,20 +401,20 @@ local function extractTARCoordinates(stepData)
     local visitedNPCs = getVisitedNPCs()
 
     for _, line in ipairs(stepData.lines) do
-        -- Skip TARs on lines with quest tags (QA/QT/QC).
-        -- QA/QT: quest DB provides NPC coords. QC: quest DB provides objective coords.
-        -- TARs on quest lines are informational context, not navigation targets.
-        local hasQuestTag = false
+        -- Skip TARs on QA/QT lines — quest DB provides start/end NPC coords.
+        -- Keep TARs on QC lines — the TAR is the mob to kill, navigate to it.
+        -- If QC has no TAR, quest DB fallback handles it (Priority 3b/7).
+        local hasAcceptOrTurnin = false
         if line.questTags then
             for _, qt in ipairs(line.questTags) do
-                if qt.tag == "ACCEPT" or qt.tag == "TURNIN" or qt.tag == "COMPLETE" then
-                    hasQuestTag = true
+                if qt.tag == "ACCEPT" or qt.tag == "TURNIN" then
+                    hasAcceptOrTurnin = true
                     break
                 end
             end
         end
 
-        if not hasQuestTag and line.targetIds then
+        if not hasAcceptOrTurnin and line.targetIds then
             for _, targetId in ipairs(line.targetIds) do
                 -- Skip visited NPCs
                 if not visitedNPCs[targetId] then
@@ -481,21 +494,21 @@ local function collectOrderedWaypoints(stepData)
     end
 
     -- First pass: collect TAR targets in order
-    -- Skip TARs on lines with quest tags (QA/QT/QC) — quest DB provides coords.
-    -- TARs on quest lines are informational context, not navigation targets.
+    -- Skip TARs on QA/QT lines — quest DB provides start/end NPC coords.
+    -- Keep TARs on QC lines — the TAR is the mob to kill, navigate to it.
     for _, line in ipairs(stepData.lines) do
         if line.targetIds then
-            local hasQuestTag = false
+            local hasAcceptOrTurnin = false
             if line.questTags then
                 for _, qt in ipairs(line.questTags) do
-                    if qt.tag == "ACCEPT" or qt.tag == "TURNIN" or qt.tag == "COMPLETE" then
-                        hasQuestTag = true
+                    if qt.tag == "ACCEPT" or qt.tag == "TURNIN" then
+                        hasAcceptOrTurnin = true
                         break
                     end
                 end
             end
 
-            if not hasQuestTag then
+            if not hasAcceptOrTurnin then
                 for _, targetId in ipairs(line.targetIds) do
                     -- Skip TAR if: NPC's quest action is done, OR already visited
                     if not completedQuestNPCs[targetId] and not visitedNPCs[targetId] then
