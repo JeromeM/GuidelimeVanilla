@@ -76,6 +76,9 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 **Quest sync on guide load**:
 - `SyncQuestAcceptSteps()` auto-completes `[QA]` steps for quests already in the player's log (handles quests accepted before addon/guide was loaded). Called during `OnQuestLogUpdate` with early-out when no unmarked QA steps exist. Stores `{title, timestamp}` format in store.Accepted (matches TrackAccepted format).
 
+**Ongoing objectives rebuild**:
+- `OnQuestLogUpdate()` checks if ongoing steps have quest tags but no objective trackers (happens when quest wasn't in log during initial pinned section render). Triggers `RefreshGuide()` to rebuild UI with proper objective display. Prevents empty objectives on `[O][QC]` steps where quest is accepted after step is pinned.
+
 ### Navigation System (3-file split)
 
 **GuideNavigation.lua** (orchestrator):
@@ -84,7 +87,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `UpdateWaypointForStep(stepData)` - Entry point: auto-skips impossible QT steps, then delegates to WaypointResolver/NavigationModes
 - `CheckAutoSkipTurnins(stepData)` - Auto-completes steps with `[QT]` when quest not in player's log
 - Multi-waypoint tracking: auto-advances when player reaches waypoint (5 yard threshold)
-- GOTO-to-UseItem transition: After reaching GOTO waypoint (including last one), shows use-item button if step has `[UI]` tag. Custom click handler uses item then advances to remaining waypoints (skipping GOTO coords). State tracked via `useItemShownAfterGoto` flag. Displays OC line text as waypoint description (e.g., "Grind north to the moonwell") instead of quest name.
+- GOTO-to-UseItem transition: After reaching GOTO waypoint (including last one), shows use-item button if step has `[UI]` tag. Custom click handler uses item then advances to remaining waypoints (skipping GOTO coords). State tracked via `useItemShownAfterGoto` flag. Displays GOTO description from Parser (e.g., "Grind north to the moonwell") instead of quest name.
 - Zone mismatch handling: GOTO waypoints hide navigation when player in wrong zone (no use-item fallback), other waypoint types show use-item icon if available
 - Quest objective display: Uses `self.currentQuestId` (step-level quest context from WaypointResolver) to show progress for QC steps. Waypoint-level `currentWaypoint.questId` only exists for quest DB coordinates, not TAR waypoints.
 - Delegate methods maintain external API compatibility
@@ -100,7 +103,8 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `ResolveWaypoints(stepData)` returns `{waypoints, description, specialMode, specialModeData, questId, actionType, objectiveIndex, useItemId}`
 - 7-priority resolution: explicit [G] coords > ordered TAR+quest NPCs > legacy TAR > quest DB coords > line coords > step coords > quest objectives
 - Special modes: "SKILL" for `[SK]` profession requirements, "XP" for level requirements, "HEARTHSTONE", "NEXT_GUIDE", "USE_ITEM", "EQUIP_ITEM"
-- **Priority 1 (GOTO coords)**: Only collects `[G]` coordinates from main (non-OC) lines. OC line coords are preparatory hints and must not override quest NPC waypoints from Priority 2. OC coords remain available as fallback in Priority 6 (line coords). Attaches OC line text (stripped of color codes) as `description` field for display in navigation UI.
+- **Priority 1 (GOTO coords)**: Only collects `[G]` coordinates from main (non-OC) lines. Skips GOTO coords on lines that also have quest tags (QA/QT/QC) — quest DB provides better NPC coordinates. OC line coords are preparatory hints and must not override quest NPC waypoints from Priority 2. OC coords remain available as fallback in Priority 6 (line coords).
+- **GOTO descriptions**: Parser extracts text before `[G]` tag from raw guide text (stripped of all `[...]` tags) and stores in `coord.description`. Used for navigation display instead of quest names (e.g., "Grind north to the moonwell").
 - **TAR extraction**: Skips `[TAR]` targets on lines with `[QA]`/`[QT]` tags only. TARs on `[QC]` lines are navigation targets (the mob to kill), resolved via GetNPCCoordinates for closest spawn. Quest DB provides start/end NPC coords for QA/QT.
 - `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching. For store.Completed entries, verifies quest is truly not in log before returning false (prevents false auto-skip of same-name chain quest turnins where store has wrong ID). Conservative return when name scan fails but quest tracked as accepted.
 - `GetCurrentQuestAction(stepData)` - Returns first uncompleted action (QT > QA > QC priority)
@@ -160,7 +164,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 | `[SK skill level]` | Skill/profession requirement (auto-completes when reached) | `[SK First Aid 40]` |
 | `[CI id,count]` | Collect item (auto-completes on BAG_UPDATE) | `[CI1179,10]` |
 | `[UI id]` | Use item (fallback icon when no coords) | `[UI2746]` |
-| `[OC]` | Optional, completes with next. GOTO coords on OC lines are excluded from Priority 1 resolution (used only as fallback in Priority 6). | `[OC][G 50,60 Zone]Grind north` |
+| `[OC]` | Optional, completes with next. GOTO coords on OC lines are excluded from Priority 1 resolution (used only as fallback in Priority 6). Text before `[G]` tag is extracted as navigation description. | `[OC][G 50,60 Zone]Grind north` |
 | `[NX x-y Name]` | Next guide link | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
 | `[H]` | Use hearthstone (auto-completes on arrival) | `[H] to Stormwind` |
@@ -226,14 +230,14 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
-| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing |
+| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing. Extracts text before `[G]` tag (stripped of all `[...]` tags) as GOTO `coord.description` for navigation display. |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel). RACE_ALIASES table maps TurtleWoW custom races (HighElf→NightElf) to standard races for starting guide resolution. FindBestGuideForLevel uses deterministic selection (sorted by minLevel, then name) to ensure consistent guide picks. |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA), auto-skip QT |
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
-| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on QA/QT lines only, keeps TARs on QC lines for mob navigation), conservative GetQuestStatus with quest log verification for store.Completed entries. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. collectAllStepCoordinates attaches OC line text (color-stripped) as description field for GOTO coords. ResolveWaypoints uses GOTO's own description for first waypoint instead of quest-based description. |
+| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on QA/QT lines only, keeps TARs on QC lines for mob navigation), conservative GetQuestStatus with quest log verification for store.Completed entries. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. collectAllStepCoordinates skips GOTO coords on lines with any quest tags (QA/QT/QC) - quest DB provides better NPC locations. GOTO descriptions come from Parser (raw guide text before `[G]` tag, stripped of all tags). ResolveWaypoints uses GOTO's own description for first waypoint instead of quest-based description. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format). **Auto-accept/turnin functions (OnQuestDetail/OnQuestComplete) and event handlers are commented out** due to timing issues with rapid QT→QA sequences. Navigation timer cleanup: cancels pending "GLV_NavigationUpdate" on RefreshGuide, uses ForceNavigationUpdate for TURNIN delays. DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format). **Auto-accept/turnin functions (OnQuestDetail/OnQuestComplete) and event handlers are commented out** due to timing issues with rapid QT→QA sequences. Navigation timer cleanup: cancels pending "GLV_NavigationUpdate" on RefreshGuide, uses ForceNavigationUpdate for TURNIN delays. OnQuestLogUpdate checks for ongoing steps with quest tags but no objective trackers, triggers RefreshGuide to rebuild pinned section (fixes empty objectives on `[O][QC]` steps accepted after initial render). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
