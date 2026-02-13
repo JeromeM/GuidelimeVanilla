@@ -34,7 +34,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 **Core modules** (on GLV namespace):
 - `Settings` - Nested key access: `GetOption({"Guide", "CurrentGuide"})` / `SetOption(value, {...})`
 - `Parser` - Guide text parser
-- `QuestTracker` - Quest accept/complete/turnin tracking, auto-accept/turnin automation, quest sync via SyncQuestAcceptSteps
+- `QuestTracker` - Quest accept/complete/turnin tracking, quest sync via SyncQuestAcceptSteps. **Auto-accept/turnin currently disabled** (QUEST_DETAIL/QUEST_COMPLETE handlers commented out due to timing issues with rapid QT→QA sequences).
 - `ItemTracker` - `[CI]` item collection tracking (BAG_UPDATE), checks ongoing steps via OngoingStepsManager
 - `CharacterTracker` - XP/level tracking, spell/skill learning detection (`[LE]`), profession skill level tracking (`[SK]`)
 - `TaxiTracker` - Flight path tracking and automation (`[F]`/`[P]`)
@@ -68,6 +68,10 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 **Objective batching** (prevents redundant UI updates):
 - `CheckQuestObjectives()` batches multiple objective completions: loops through all objectives, calls `MarkQuestAction()` for each completed one, then calls `UpdateStepNavigation()` once with aggregated `anyStepMarked` and `anyMultiAction` flags.
 - Quest accept/complete/turnin events call `HandleQuestAction()` directly (normal single-action flow).
+
+**Navigation timer cleanup** (prevents stale navigation updates):
+- When `RefreshGuide()` is called (which advances steps), any pending "GLV_NavigationUpdate" scheduled event is cancelled to prevent stale step references.
+- For TURNIN actions, navigation update is delayed 0.5s and re-reads current step at execution time (via `ForceNavigationUpdate()`) instead of using captured stepData closure.
 
 **Quest sync on guide load**:
 - `SyncQuestAcceptSteps()` auto-completes `[QA]` steps for quests already in the player's log (handles quests accepted before addon/guide was loaded). Called during `OnQuestLogUpdate` with early-out when no unmarked QA steps exist. Stores `{title, timestamp}` format in store.Accepted (matches TrackAccepted format).
@@ -128,8 +132,8 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 {"Guide", "Guides", guideId, "StepState"}        -- Step completion table
 {"Guide", "Guides", guideId, "StepQuestState"}   -- Per-action completion tracking
 {"Guide", "Guides", guideId, "VisitedTARs", idx} -- Visited NPCs per step
-{"Automation", "AutoAcceptQuests"}               -- Auto-accept [QA] steps
-{"Automation", "AutoTurninQuests"}               -- Auto-turnin [QT] steps
+{"Automation", "AutoAcceptQuests"}               -- (UNUSED) Auto-accept setting, feature disabled
+{"Automation", "AutoTurninQuests"}               -- (UNUSED) Auto-turnin setting, feature disabled
 {"UI", "GuideTextScale"} / {"UI", "NavigationScale"} -- Scale multipliers
 {"UI", "MinimapPath"} / {"UI", "WorldMapPath"}  -- Path rendering toggles
 {"UI", "GuideHidden"}                            -- Window visibility state
@@ -181,6 +185,8 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 
 ## Quest Matching
 
+**IMPORTANT**: Auto-accept and auto-turnin features are currently **disabled** (QUEST_DETAIL/QUEST_COMPLETE event handlers commented out). The code remains for future re-enable once timing issues with rapid QT→QA sequences are resolved. Settings UI checkboxes are hidden.
+
 - **ACCEPT**: Matches by exact quest ID from QUEST_DETAIL event
 - **Name matching**: All functions use `QuestNamesMatch()` for consistent fuzzy matching:
   1. Case-insensitive exact match
@@ -227,7 +233,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on QA/QT lines only, keeps TARs on QC lines for mob navigation), conservative GetQuestStatus with quest log verification for store.Completed entries. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format). **Auto-accept/turnin functions (OnQuestDetail/OnQuestComplete) and event handlers are commented out** due to timing issues with rapid QT→QA sequences. Navigation timer cleanup: cancels pending "GLV_NavigationUpdate" on RefreshGuide, uses ForceNavigationUpdate for TURNIN delays. DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |

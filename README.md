@@ -57,7 +57,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **TurtleWoW database support**: built-in override system for TurtleWoW-specific quests, NPCs, and items
 
 ### ⚡ Automation & Smart Skip
-- Auto-accept / auto-turnin quests and auto-take flights on matching steps
+- **Auto-take flights** on matching steps
 - **Auto-skip impossible turnins**: steps with quest turnins for quests not in your log are automatically completed
 - All optional, all toggleable in Settings
 
