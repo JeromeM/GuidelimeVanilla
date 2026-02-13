@@ -2,7 +2,7 @@
 ## Title: Guidelime Vanilla
 ## Notes: Guidelime, adapted for Vanilla
 ## Author: Grommey
-## Version: 0.9.9
+## Version: 0.9.10
 ## DefaultState: enabled
 ## SavedVariablesPerCharacter: GuidelimeVanillaDB
 
