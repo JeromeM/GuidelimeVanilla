@@ -443,6 +443,16 @@ local function collectAllStepCoordinates(stepData)
         for _, line in ipairs(stepData.lines) do
             if line.coords and table.getn(line.coords) > 0 then
                 for _, coord in ipairs(line.coords) do
+                    -- Attach line text as description for GOTO coords (used in nav display)
+                    if coord.type == "goto" and line.text then
+                        -- Strip color codes and trim for a clean description
+                        local cleanText = string.gsub(line.text, "|c%x%x%x%x%x%x%x%x", "")
+                        cleanText = string.gsub(cleanText, "|r", "")
+                        cleanText = trim(cleanText)
+                        if cleanText and cleanText ~= "" then
+                            coord.description = cleanText
+                        end
+                    end
                     table.insert(allCoords, coord)
                 end
             end
@@ -797,7 +807,13 @@ function WaypointResolver:ResolveWaypoints(stepData)
         for _, wp in ipairs(orderedWaypoints) do
             table.insert(gotoCoords, wp)
         end
-        local description, descQuestId = self:GetStepDescription(stepData, gotoCoords[1], currentAction)
+        -- Use GOTO's own description (from OC line text) if available,
+        -- otherwise fall back to quest-based description
+        local description = gotoCoords[1].description
+        local descQuestId = nil
+        if not description then
+            description, descQuestId = self:GetStepDescription(stepData, gotoCoords[1], currentAction)
+        end
         result.questId = result.questId or descQuestId
         result.waypoints = gotoCoords
         result.description = description

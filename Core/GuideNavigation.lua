@@ -760,6 +760,17 @@ function GuideNavigation:UpdateNavigation()
                         end
                     end
                 end
+            elseif currentWaypoint.type == "goto" and self.currentUseItemId and not self.useItemShownAfterGoto then
+                -- Reached last GOTO waypoint with no more waypoints — show use-item
+                self.useItemShownAfterGoto = true
+                hasTriggeredTransition = true
+                self:ClearWaypoint()
+                local navResult = NavigationModes:ShowUseItem(self.currentUseItemId, currentStepData, self.currentQuestId)
+                if navResult ~= nil then isNavigationActive = navResult end
+                self.useItemProgressTimer = 0
+                if GLV.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Last GOTO reached, showing USE_ITEM " .. tostring(self.currentUseItemId))
+                end
             elseif currentWaypoint.type == "target" then
                 -- Reached last ordered waypoint (TAR) - recalculate to find QC/other objectives
                 hasTriggeredTransition = true  -- Prevent repeated recalculations
