@@ -78,7 +78,7 @@ local function findClosestUnit(unitID, questZone)
         currentPlayerPos = GLV.GuideNavigation:GetPlayerPosition()
     end
 
-    if currentPlayerPos then
+    if currentPlayerPos and currentPlayerPos.x and currentPlayerPos.y then
         local dx = (currentPlayerPos.x * 100) - npcCoords.x
         local dy = (currentPlayerPos.y * 100) - npcCoords.y
         nearest = math.sqrt(dx * dx + dy * dy)

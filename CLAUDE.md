@@ -97,8 +97,8 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - 7-priority resolution: explicit [G] coords > ordered TAR+quest NPCs > legacy TAR > quest DB coords > line coords > step coords > quest objectives
 - Special modes: "SKILL" for `[SK]` profession requirements, "XP" for level requirements, "HEARTHSTONE", "NEXT_GUIDE", "USE_ITEM", "EQUIP_ITEM"
 - **Priority 1 (GOTO coords)**: Only collects `[G]` coordinates from main (non-OC) lines. OC line coords are preparatory hints and must not override quest NPC waypoints from Priority 2. OC coords remain available as fallback in Priority 6 (line coords).
-- **TAR extraction**: Skips `[TAR]` targets on lines with any quest tags (`[QA]`/`[QT]`/`[QC]`). TARs on quest lines are informational context (which NPC/mob to interact with), not navigation targets. Quest DB provides better coordinates via start/end NPCs or objective locations.
-- `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching. Conservative return: when name scan fails but quest is tracked as accepted, returns true (assumes still in log) to prevent false auto-skip of turnin steps. Turnin/abandon hooks handle actual store cleanup.
+- **TAR extraction**: Skips `[TAR]` targets on lines with `[QA]`/`[QT]` tags only. TARs on `[QC]` lines are navigation targets (the mob to kill), resolved via GetNPCCoordinates for closest spawn. Quest DB provides start/end NPC coords for QA/QT.
+- `GetQuestStatus(questId)` - Checks QuestTracker store first, falls back to quest log name matching. For store.Completed entries, verifies quest is truly not in log before returning false (prevents false auto-skip of same-name chain quest turnins where store has wrong ID). Conservative return when name scan fails but quest tracked as accepted.
 - `GetCurrentQuestAction(stepData)` - Returns first uncompleted action (QT > QA > QC priority)
 
 ### Database (VGDB)
@@ -186,11 +186,12 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
   1. Case-insensitive exact match
   2. Normalized match: strips trailing dots (WoW ellipsis "...") and whitespace only
   3. Does NOT strip all punctuation (prevents false positives like "Find It: Gold" vs "Find It - Gold")
-- **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity") are resolved deterministically:
+- **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity" or "The Balance of Nature" 456/457) are resolved deterministically:
   - `GetQuestIDByName()` returns the smallest matching ID (first quest in chain)
   - `FindAcceptedIdByTitle()` returns the smallest accepted ID matching the name
   - `GetExpectedQuestIdFromCurrentStep()` skips already-accepted IDs for ACCEPT actions, skips already-completed IDs for TURNIN actions
-  - `GetQuestIdInCurrentStep()` skips already-accepted IDs for ACCEPT actions, skips already-completed IDs for TURNIN actions
+  - `GetQuestIdInCurrentStep()` checks current step + 2 steps ahead (lookahead for auto-accept/turnin when player is on preceding [G] step), skips already-accepted IDs for ACCEPT, skips already-completed IDs for TURNIN
+  - `DoesQuestActionMatch()` uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests
   - `HookQuestAbandon()` checks store.Accepted first for consistent chain quest handling
   - Ensures correct quest is matched when accepting/turning in same-name chain quests
 - **`GetQuestStatus()`**: Checks QuestTracker.store first, falls back to quest log with `QuestNamesMatch()`
@@ -215,7 +216,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 |------|---------|
 | `Core.lua` | Addon initialization (~171 lines): LibStub setup, Ace2 initialization, slash commands (`/glv`, `/glvminimap`), minimap button, event registration |
 | `Settings.lua` | Settings manager with nested key access |
-| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. GetNPCCoordinates() uses Astrolabe distance calculation to return closest spawn in player's zone. |
+| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. GetNPCCoordinates() uses Astrolabe distance calculation to return closest spawn in player's zone. GetQuestAllCoords() filters unit/object objectives by questPart index when provided (so [QC id,3] only returns coords for objective 3). findClosestUnit() delegates to GetNPCCoordinates for zone-aware spawn resolution. |
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
@@ -224,9 +225,9 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA), auto-skip QT |
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
-| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on all quest tag lines QA/QT/QC), conservative GetQuestStatus. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
+| `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on QA/QT lines only, keeps TARs on QC lines for mob navigation), conservative GetQuestStatus with quest log verification for store.Completed entries. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load). FindAcceptedIdByTitle() returns smallest matching ID. GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), auto-accept/turnin, batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID. GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |

@@ -25,11 +25,17 @@ local lastQuestLogUpdate = 0
 local QUEST_LOG_UPDATE_THROTTLE = 0.5 -- Only process once per 0.5 seconds
 
 -- Check if a quest tag matches a given quest action (accept/complete/turnin)
--- Returns true if the tag matches the action type, quest ID, and objective index
--- Uses strict ID matching only — name matching caused false positives on same-name chain quests
+-- Returns true if the tag matches the action type, quest ID (or name for COMPLETE), and objective index
 local function DoesQuestActionMatch(questTag, questId, title, actionType, objectiveIndex)
     if questTag.tag ~= actionType then return false end
-    if tonumber(questTag.questId) ~= tonumber(questId) then return false end
+
+    local questIdMatches = tonumber(questTag.questId) == tonumber(questId)
+    local nameMatches = false
+    if actionType == "COMPLETE" and title then
+        local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
+        nameMatches = tagQuestName and GLV.QuestTracker:QuestNamesMatch(tagQuestName, title)
+    end
+    if not questIdMatches and not nameMatches then return false end
 
     if questTag.objectiveIndex then
         return objectiveIndex and questTag.objectiveIndex == objectiveIndex
@@ -235,16 +241,24 @@ function QuestTracker:SyncQuestAcceptSteps()
         end
     end
 
-    -- Mark QA steps for quests already in log
+    -- Mark QA steps for quests already in log and populate store.Accepted
+    -- so FindAcceptedIdByTitle returns the correct ID for QC/QT matching later
     local anyStepMarked = false
     local anyMultiAction = false
     for numId, info in pairs(needsCheck) do
         if inLogIds[numId] then
+            -- Ensure store.Accepted has the correct ID for this quest
+            if not self.store.Accepted then self.store.Accepted = {} end
+            if not self.store.Accepted[numId] then
+                self.store.Accepted[numId] = true
+                GLV.Settings:SetOption(self.store, {"QuestTracker"})
+            end
+
             local marked, multi = self:MarkQuestAction(numId, inLogIds[numId], "ACCEPT")
             anyStepMarked = anyStepMarked or marked
             anyMultiAction = anyMultiAction or multi
             if GLV.Debug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Sync: QA" .. numId .. " already in log, marked")
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Sync: QA" .. numId .. " already in log, marked + stored in Accepted")
             end
         end
     end
@@ -299,12 +313,24 @@ function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isCo
         end
     end
 
+    -- Fallback: check if all objectives are complete (isComplete flag not always reliable)
+    local allObjectivesComplete = numObjectives > 0
+    for i = 1, numObjectives do
+        local currObj = currentObjectivesState[i]
+        if not currObj or not currObj.isCompleted then
+            allObjectivesComplete = false
+            break
+        end
+    end
+
     -- Whole quest completion (no objectiveIndex)
-    if isComplete and (isComplete == 1 or isComplete == true) then
+    -- Fires on isComplete flag OR when all individual objectives are done
+    local questDone = (isComplete and (isComplete == 1 or isComplete == true)) or allObjectivesComplete
+    if questDone then
         local wasComplete = previousState and previousState.wasComplete
         if not wasComplete then
             if GLV.Debug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Quest complete detected: " .. questTitle .. " (ID: " .. tostring(questId) .. ")")
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Quest complete detected: " .. questTitle .. " (ID: " .. tostring(questId) .. ") isComplete=" .. tostring(isComplete) .. " allObj=" .. tostring(allObjectivesComplete))
             end
             local marked, multi = self:MarkQuestAction(questId, questTitle, "COMPLETE", nil)
             anyStepMarked = anyStepMarked or marked
@@ -314,7 +340,7 @@ function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isCo
 
     -- Always update previousQuestStates for next comparison
     self.previousQuestStates[questId] = {
-        wasComplete = isComplete and (isComplete == 1 or isComplete == true) or false,
+        wasComplete = questDone or false,
         lastObjectives = questObjectives,
         objectivesState = currentObjectivesState
     }
