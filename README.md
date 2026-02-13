@@ -162,6 +162,7 @@ Turn in quest step
 - `packName`: The guide pack name (must match the groupName used in RegisterGuide)
 - `raceMapping`: Table mapping race names to starting guide names
 - Race names: `Human`, `Dwarf`, `Gnome`, `NightElf`, `Orc`, `Troll`, `Tauren`, `Undead`
+- TurtleWoW custom races (like `HighElf`) are automatically aliased to standard races if not explicitly mapped
 - Guide names must match the guide name defined in your guide files
 
 ### Guide Formatting Tips

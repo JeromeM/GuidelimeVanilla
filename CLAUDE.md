@@ -220,7 +220,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
 | `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing |
-| `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel) |
+| `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel). RACE_ALIASES table maps TurtleWoW custom races (HighElf→NightElf) to standard races for starting guide resolution. FindBestGuideForLevel uses deterministic selection (sorted by minLevel, then name) to ensure consistent guide picks. |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA), auto-skip QT |
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
@@ -244,11 +244,13 @@ string.gfind(s, pat)    -- NOT string.gmatch
 string.find(s, pat)     -- NOT string.match (use captures)
 getglobal("name")       -- For dynamic frame access
 this                    -- Inside XML handlers, NOT self
+pairs(t)                -- Non-deterministic iteration order, use explicit sorting
 ```
 
 - No inline textures (`|T...|t`) in FontStrings - only `|cAARRGGBB` and `|r` work
 - `IsShown()` may fail in scheduled events - use frame existence checks instead
 - **Named frames persist through `/reload`**: The Lua state resets but `CreateFrame("...", "FrameName", ...)` frames remain visible. Always use `getglobal("FrameName") or CreateFrame(...)` pattern to reuse existing frames instead of creating orphans.
+- **`pairs()` iteration order is non-deterministic**: When order matters (e.g., guide selection), collect into array and use `table.sort()` before processing
 - New TOC entries require full game restart (not just `/reload`)
 
 ## Guide Pack API
@@ -267,3 +269,5 @@ GLV:RegisterTalentTemplate(class, name, "leveling", {[10]={tree,row,col}, ...}, 
 ```
 
 Guide packs declare `## Dependencies: GuidelimeVanilla` in their .toc. Users must select and load packs via Settings > Guides. Dropdown auto-groups into submenus when >30 guides. Guides filtered by player faction/race via `[GA]` tag.
+
+**TurtleWoW custom races**: RACE_ALIASES table in GuideLibrary.lua maps custom races to standard races for starting guide resolution (e.g., HighElf → NightElf). Guide packs can register custom race mappings directly, or fall back to the alias system if no direct mapping exists.
