@@ -139,6 +139,26 @@ function QuestTracker:OnQuestLogUpdate(forceCheck)
     if GLV.UpdateOngoingObjectivesDisplay then
         GLV:UpdateOngoingObjectivesDisplay()
     end
+
+    -- Check if ongoing steps with quest tags need their objectives rebuilt.
+    -- This handles the case where the quest wasn't in the log yet when the
+    -- pinned section was first rendered (no trackers were created).
+    if GLV.OngoingStepsManager and GLV.OngoingObjectivesTrackers
+       and table.getn(GLV.OngoingObjectivesTrackers) == 0 then
+        local ongoingIndices = GLV.OngoingStepsManager:GetActiveIndices()
+        if ongoingIndices and table.getn(ongoingIndices) > 0 then
+            for _, idx in ipairs(ongoingIndices) do
+                local step = GLV.CurrentDisplaySteps and GLV.CurrentDisplaySteps[idx]
+                if step and step.questTags and table.getn(step.questTags) > 0 then
+                    -- An ongoing step has quest tags but no trackers — rebuild UI
+                    if GLV.RefreshGuide then
+                        GLV:RefreshGuide()
+                    end
+                    break
+                end
+            end
+        end
+    end
 end
 
 

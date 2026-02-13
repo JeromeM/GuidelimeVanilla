@@ -442,18 +442,24 @@ local function collectAllStepCoordinates(stepData)
     if stepData and stepData.lines then
         for _, line in ipairs(stepData.lines) do
             if line.coords and table.getn(line.coords) > 0 then
-                for _, coord in ipairs(line.coords) do
-                    -- Attach line text as description for GOTO coords (used in nav display)
-                    if coord.type == "goto" and line.text then
-                        -- Strip color codes and trim for a clean description
-                        local cleanText = string.gsub(line.text, "|c%x%x%x%x%x%x%x%x", "")
-                        cleanText = string.gsub(cleanText, "|r", "")
-                        cleanText = trim(cleanText)
-                        if cleanText and cleanText ~= "" then
-                            coord.description = cleanText
+                -- Check if this line has quest tags (QA/QT/QC)
+                local hasQuestTags = false
+                if line.questTags then
+                    for _, qt in ipairs(line.questTags) do
+                        if qt.tag == "ACCEPT" or qt.tag == "TURNIN" or qt.tag == "COMPLETE" then
+                            hasQuestTags = true
+                            break
                         end
                     end
-                    table.insert(allCoords, coord)
+                end
+                for _, coord in ipairs(line.coords) do
+                    -- Skip GOTO coords on lines with quest tags —
+                    -- quest DB provides better navigation (NPC location)
+                    if coord.type == "goto" and hasQuestTags then
+                        -- Skip: [G] on same line as [QA]/[QT]/[QC] is just a visual hint
+                    else
+                        table.insert(allCoords, coord)
+                    end
                 end
             end
         end
