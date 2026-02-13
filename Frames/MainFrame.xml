@@ -94,8 +94,8 @@
                         <Offset x="10" y="-8"/>
                     </Anchor>
                 </Anchors>
-                <NormalTexture file="Interface\AddOns\GuideLimeVanilla\Textures\closed_lock"/>
-                <PushedTexture file="Interface\AddOns\GuideLimeVanilla\Textures\closed_lock_down"/>
+                <NormalTexture file="Interface\AddOns\GuidelimeVanilla\Textures\closed_lock"/>
+                <PushedTexture file="Interface\AddOns\GuidelimeVanilla\Textures\closed_lock_down"/>
                 <Scripts>
                     <OnLoad>GLV_MainLock_OnLoad()</OnLoad>
                     <OnClick>GLV_MainLock_OnClick()</OnClick>
@@ -207,8 +207,8 @@
                         <Offset x="-15" y="17"/>
                     </Anchor>
                 </Anchors>
-                <NormalTexture file="Interface\AddOns\GuideLimeVanilla\Textures\Settings"/>
-                <PushedTexture file="Interface\AddOns\GuideLimeVanilla\Textures\Settings"/>
+                <NormalTexture file="Interface\AddOns\GuidelimeVanilla\Textures\Settings"/>
+                <PushedTexture file="Interface\AddOns\GuidelimeVanilla\Textures\Settings"/>
                 <Scripts>
                     <OnClick>GLV_ToggleSettings()</OnClick>
                 </Scripts>

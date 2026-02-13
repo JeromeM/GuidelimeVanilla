@@ -267,7 +267,7 @@ function GLV_MainLock_OnLoad()
     -- Wait for addon to be completely initialized
     this:RegisterEvent("ADDON_LOADED");
     this:SetScript("OnEvent", function()
-        if event == "ADDON_LOADED" and arg1 == "GuideLimeVanilla" then
+        if event == "ADDON_LOADED" and arg1 == "GuidelimeVanilla" then
             -- Now GLV is available
             local locked = GLV and GLV.Settings and GLV.Settings:GetOption({"UI", "Locked"}) or false;
             
@@ -276,14 +276,14 @@ function GLV_MainLock_OnLoad()
             
             if locked then
                 -- Locked state
-                GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\closed_lock")
-                GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\closed_lock_down")
+                GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\closed_lock")
+                GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\closed_lock_down")
                 GLV_Main:SetMovable(false)
                 GLV_Main:RegisterForDrag()
             else
                 -- Unlocked state
-                GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\opened_lock")
-                GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\opened_lock_down")
+                GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\opened_lock")
+                GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\opened_lock_down")
                 GLV_Main:SetMovable(true)
                 GLV_Main:RegisterForDrag("LeftButton")
             end
@@ -578,8 +578,8 @@ function GLV_MainLock_OnClick()
 
     if locked then
         -- Unlock
-        GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\opened_lock")
-        GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\opened_lock_down")
+        GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\opened_lock")
+        GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\opened_lock_down")
         GLV_Main:SetMovable(true)
         GLV_Main:RegisterForDrag("LeftButton")
 
@@ -590,8 +590,8 @@ function GLV_MainLock_OnClick()
         -- Lock - Save current position BEFORE locking
         GLV_SaveFramePosition()
 
-        GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\closed_lock")
-        GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuideLimeVanilla\\Textures\\closed_lock_down")
+        GLV_MainLock:SetNormalTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\closed_lock")
+        GLV_MainLock:SetPushedTexture("Interface\\AddOns\\GuidelimeVanilla\\Textures\\closed_lock_down")
         GLV_Main:SetMovable(false)
         GLV_Main:RegisterForDrag("")
 
