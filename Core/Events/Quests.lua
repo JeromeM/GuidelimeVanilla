@@ -247,10 +247,13 @@ function QuestTracker:SyncQuestAcceptSteps()
     local anyMultiAction = false
     for numId, info in pairs(needsCheck) do
         if inLogIds[numId] then
-            -- Ensure store.Accepted has the correct ID for this quest
+            -- Ensure store.Accepted has the correct ID (same format as TrackAccepted)
             if not self.store.Accepted then self.store.Accepted = {} end
             if not self.store.Accepted[numId] then
-                self.store.Accepted[numId] = true
+                self.store.Accepted[numId] = {
+                    title = inLogIds[numId],
+                    timestamp = time()
+                }
                 GLV.Settings:SetOption(self.store, {"QuestTracker"})
             end
 
@@ -356,18 +359,22 @@ end
 
 
 -- Find quest ID from store.Accepted by title match.
--- Handles same-name quest chains (e.g., "The Tome of Divinity") where
--- GetQuestIDByName would return the wrong (first/cached) ID.
--- Returns the smallest matching ID (first in the chain).
+-- Handles same-name quest chains (e.g., "The Tome of Divinity", "Balance of Nature")
+-- where GetQuestIDByName would return the wrong (first/cached) ID.
+-- Returns the smallest matching ID that is NOT already completed (skips store.Completed).
+-- This ensures chain quests are processed in order: 456 first, then 457.
 function QuestTracker:FindAcceptedIdByTitle(questTitle)
     if not questTitle or not self.store or not self.store.Accepted then
         return nil
     end
     local smallestId = nil
     for numId, data in pairs(self.store.Accepted) do
-        if data and data.title and self:QuestNamesMatch(data.title, questTitle) then
-            if not smallestId or numId < smallestId then
-                smallestId = numId
+        -- Skip quests already completed (chain quest support)
+        if not (self.store.Completed and self.store.Completed[numId]) then
+            if data and data.title and self:QuestNamesMatch(data.title, questTitle) then
+                if not smallestId or numId < smallestId then
+                    smallestId = numId
+                end
             end
         end
     end
