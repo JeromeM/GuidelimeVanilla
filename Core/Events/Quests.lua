@@ -29,13 +29,13 @@ local QUEST_LOG_UPDATE_THROTTLE = 0.5 -- Only process once per 0.5 seconds
 local function DoesQuestActionMatch(questTag, questId, title, actionType, objectiveIndex)
     if questTag.tag ~= actionType then return false end
 
+    -- Strict ID matching only. Name matching was removed because same-name quest chains
+    -- (e.g., "Crown of the Earth" = quests 928, 929, 933, 935, 7383) caused false positives:
+    -- completing one quest marked ALL QC steps with the same name as done.
+    -- The ID resolution in OnQuestLogUpdate handles same-name chains correctly via
+    -- FindAcceptedIdByTitle (skips completed) and ResolveQuestIdFromLog (skips completed in DB).
     local questIdMatches = tonumber(questTag.questId) == tonumber(questId)
-    local nameMatches = false
-    if actionType == "COMPLETE" and title then
-        local tagQuestName = GLV:GetQuestNameByID(questTag.questId)
-        nameMatches = tagQuestName and GLV.QuestTracker:QuestNamesMatch(tagQuestName, title)
-    end
-    if not questIdMatches and not nameMatches then return false end
+    if not questIdMatches then return false end
 
     if questTag.objectiveIndex then
         return objectiveIndex and questTag.objectiveIndex == objectiveIndex
@@ -118,12 +118,8 @@ function QuestTracker:OnQuestLogUpdate(forceCheck)
         local questLogTitleText, level, questTag, isHeader, isCollapsed, isComplete = GetQuestLogTitle(questIndex)
 
         if questLogTitleText and not isHeader then
-            -- Use store.Accepted first: correct for same-name quest chains
-            -- (e.g., "The Tome of Divinity" has 10+ quests with the same name)
-            local questId = self:FindAcceptedIdByTitle(questLogTitleText)
-            if not questId then
-                questId = GLV:GetQuestIDByName(questLogTitleText)
-            end
+            -- Resolve quest ID: store.Accepted first, then DB (skips completed for same-name chains)
+            local questId = self:ResolveQuestIdFromLog(questLogTitleText)
             local numId = tonumber(questId)
 
             if numId then
@@ -252,10 +248,7 @@ function QuestTracker:SyncQuestAcceptSteps()
     for i = 1, numEntries do
         local title, level, tag, isHeader = GetQuestLogTitle(i)
         if title and not isHeader then
-            local qid = tonumber(self:FindAcceptedIdByTitle(title))
-            if not qid then
-                qid = tonumber(GLV:GetQuestIDByName(title))
-            end
+            local qid = tonumber(self:ResolveQuestIdFromLog(title))
             if qid then
                 inLogIds[qid] = title
             end
@@ -275,6 +268,9 @@ function QuestTracker:SyncQuestAcceptSteps()
                     title = inLogIds[numId],
                     timestamp = time()
                 }
+                if self.store.Completed and self.store.Completed[numId] then
+                    self.store.Completed[numId] = nil
+                end
                 GLV.Settings:SetOption(self.store, {"QuestTracker"})
             end
 
@@ -348,13 +344,24 @@ function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isCo
     end
 
     -- Whole quest completion (no objectiveIndex)
-    -- Fires on isComplete flag OR when all individual objectives are done
-    local questDone = (isComplete and (isComplete == 1 or isComplete == true)) or allObjectivesComplete
+    local isCompleteFlag = isComplete and (isComplete == 1 or isComplete == true)
+    local questDone = false
+    if numObjectives > 0 then
+        -- Quests WITH leaderboard objectives: trust isComplete flag or all-objectives check
+        questDone = isCompleteFlag or allObjectivesComplete
+    else
+        -- Quests with NO leaderboard objectives (e.g., item turn-in quests):
+        -- isComplete can be 1 from the moment of acceptance, causing false auto-completion.
+        -- Only mark complete via state TRANSITION: isComplete was nil/false, now is 1.
+        if previousState and isCompleteFlag and not previousState.isCompleteFlag then
+            questDone = true
+        end
+    end
     if questDone then
         local wasComplete = previousState and previousState.wasComplete
         if not wasComplete then
             if GLV.Debug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Quest complete detected: " .. questTitle .. " (ID: " .. tostring(questId) .. ") isComplete=" .. tostring(isComplete) .. " allObj=" .. tostring(allObjectivesComplete))
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF00FF00[QuestTracker]|r Quest complete detected: " .. questTitle .. " (ID: " .. tostring(questId) .. ") isComplete=" .. tostring(isComplete) .. " allObj=" .. tostring(allObjectivesComplete) .. " numObj=" .. tostring(numObjectives))
             end
             local marked, multi = self:MarkQuestAction(questId, questTitle, "COMPLETE", nil)
             anyStepMarked = anyStepMarked or marked
@@ -365,6 +372,7 @@ function QuestTracker:CheckQuestObjectives(questIndex, questId, questTitle, isCo
     -- Always update previousQuestStates for next comparison
     self.previousQuestStates[questId] = {
         wasComplete = questDone or false,
+        isCompleteFlag = isCompleteFlag or false,
         lastObjectives = questObjectives,
         objectivesState = currentObjectivesState
     }
@@ -402,6 +410,43 @@ function QuestTracker:FindAcceptedIdByTitle(questTitle)
     return smallestId
 end
 
+-- Resolve quest ID for a quest log entry title.
+-- Checks store.Accepted first (most reliable), then falls back to DB lookup
+-- that skips store.Completed entries (same-name chain quest support).
+-- This prevents "Crown of the Earth" (quests 928, 929, 933, 935, 7383) from
+-- being mapped to the wrong (already-completed) ID.
+function QuestTracker:ResolveQuestIdFromLog(questTitle)
+    -- Best: use store.Accepted (tracked, skips completed)
+    local id = self:FindAcceptedIdByTitle(questTitle)
+    if id then return id end
+
+    -- Fallback: DB lookup, but skip completed IDs for same-name chains
+    local dbId = GLV:GetQuestIDByName(questTitle)
+    if dbId then
+        local numDbId = tonumber(dbId)
+        if numDbId and self.store and self.store.Completed and self.store.Completed[numDbId] then
+            -- Smallest matching ID is already completed — scan DB for next uncompleted
+            if VGDB and VGDB.quests and VGDB.quests.enUS then
+                local bestId = nil
+                for qid, data in pairs(VGDB.quests.enUS) do
+                    if data and data.T and self:QuestNamesMatch(data.T, questTitle) then
+                        local numQid = tonumber(qid)
+                        if numQid and not (self.store.Completed[numQid]) then
+                            if not bestId or numQid < bestId then
+                                bestId = numQid
+                            end
+                        end
+                    end
+                end
+                if bestId then return bestId end
+            end
+        end
+        return dbId  -- No completed conflict, use as-is
+    end
+
+    return nil
+end
+
 -- Track when a quest is accepted and handle related actions
 function QuestTracker:TrackAccepted(id, title)
     if not id or type(id) ~= "number" then
@@ -416,8 +461,15 @@ function QuestTracker:TrackAccepted(id, title)
             title = title,
             timestamp = time()
         }
+        -- Clear from Completed: quest is being (re-)accepted.
+        -- Without this, GetQuestStatus checks Completed first and returns inLog=false
+        -- (hook fires before WoW adds quest to log), causing CheckAutoSkipTurnins
+        -- to falsely auto-skip QT actions on the same step.
+        if store.Completed and store.Completed[id] then
+            store.Completed[id] = nil
+        end
         GLV.Settings:SetOption(store, {"QuestTracker"})
-        
+
         self:HandleQuestAction(id, title, "ACCEPT")
     end
 end

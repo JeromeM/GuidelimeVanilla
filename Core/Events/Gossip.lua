@@ -85,6 +85,10 @@ function GossipTracker:CheckHearthstoneArrival()
                 stepState[originalIndex] = true
                 GLV.Settings:SetOption(stepState, {"Guide", "Guides", currentGuideId, "StepState"})
 
+                -- Cancel the click-handler timer to prevent double-completion
+                -- (the 12s timer from ShowHearthstone would complete the NEXT step)
+                GLV.Ace:CancelScheduledEvent("GLV_HearthstoneComplete")
+
                 if GLV.Debug then
                     DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[GuideLime]|r Hearthstone arrived at " .. line.hearthDestination)
                 end

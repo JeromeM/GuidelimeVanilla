@@ -542,28 +542,20 @@ function NavigationModes:OnPlayerAlive()
         navFrame.objective:SetTextColor(1, 1, 1)
     end
 
-    if savedWaypointState then
-        -- Restore saved navigation state
-        GuideNavigation:RestoreNavigationState(savedWaypointState)
+    savedWaypointState = nil
 
-        -- If there was an XP requirement active, re-show it
-        if savedWaypointState.currentXPRequirement then
-            self:ShowXPProgress(savedWaypointState.currentXPRequirement)
+    -- Schedule recalculation after resurrection.
+    -- Astrolabe needs SetMapToCurrentZone() to return correct zone data,
+    -- and the game needs a moment to update the player's position/zone state.
+    GLV.Ace:ScheduleEvent("GLV_PostResurrection", function()
+        if not WorldMapFrame:IsVisible() then
+            SetMapToCurrentZone()
         end
-
-        -- If there was a skill requirement active, re-show it
-        if savedWaypointState.currentSkillRequirement then
-            self:ShowSkillProgress(savedWaypointState.currentSkillRequirement)
-        end
-
-        savedWaypointState = nil
-    else
-        -- No saved state, try to recalculate from current step
         GuideNavigation:RecalculateFromCurrentStep()
-    end
+    end, 0.5)
 
     if GLV.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Player resurrected - navigation restored")
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF00FFFF[Nav]|r Player resurrected - navigation will restore in 0.5s")
     end
 end
 

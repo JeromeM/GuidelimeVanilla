@@ -692,6 +692,7 @@ function GuideNavigation:UpdateNavigation()
     end
 
     local distance, xDelta, yDelta = self:CalculateDistance(playerPos, currentWaypoint)
+    if not distance then return end
 
     local distanceText = self:FormatDistance(distance)
     navigationFrame.distance:SetText("Distance: " .. distanceText)
@@ -716,8 +717,11 @@ function GuideNavigation:UpdateNavigation()
 
             -- Check if there's a next waypoint to advance to
             if table.getn(allWaypoints) > currentWaypointIndex then
-                -- After reaching GOTO, show use-item if step has one
-                if currentWaypoint.type == "goto" and self.currentUseItemId and not self.useItemShownAfterGoto then
+                -- After reaching the last GOTO in a sequence, show use-item if step has one
+                -- (skip intermediate GOTOs — just advance to the next GOTO normally)
+                local nextWp = allWaypoints[currentWaypointIndex + 1]
+                local isLastGoto = currentWaypoint.type == "goto" and (not nextWp or nextWp.type ~= "goto")
+                if isLastGoto and self.currentUseItemId and not self.useItemShownAfterGoto then
                     self.useItemShownAfterGoto = true
                     hasTriggeredTransition = true
                     self:ClearWaypoint()
@@ -1065,6 +1069,12 @@ function GuideNavigation:OnZoneChanged()
         -- Force map to update to current zone before getting position
         if not WorldMapFrame:IsVisible() then
             SetMapToCurrentZone()
+        end
+        -- Death navigation: re-activate to handle zone transitions
+        -- (frame may have been hidden while in the graveyard zone)
+        if NavigationModes:IsDeathNavigationActive() then
+            NavigationModes:ActivateCorpseNavigation()
+            return
         end
         -- Refresh navigation for current step
         if GLV.CurrentDisplaySteps then
