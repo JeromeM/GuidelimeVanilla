@@ -67,14 +67,20 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 
 **Objective batching** (prevents redundant UI updates):
 - `CheckQuestObjectives()` batches multiple objective completions: loops through all objectives, calls `MarkQuestAction()` for each completed one, then calls `UpdateStepNavigation()` once with aggregated `anyStepMarked` and `anyMultiAction` flags.
+- **0-objective quest handling**: Quests with no leaderboard objectives (e.g., item turn-in quests) use state transition detection. Only marks complete when `isComplete` flag changes from nil/false to 1 (prevents false auto-completion on quest accept).
 - Quest accept/complete/turnin events call `HandleQuestAction()` directly (normal single-action flow).
 
 **Navigation timer cleanup** (prevents stale navigation updates):
 - When `RefreshGuide()` is called (which advances steps), any pending "GLV_NavigationUpdate" scheduled event is cancelled to prevent stale step references.
 - For TURNIN actions, navigation update is delayed 0.5s and re-reads current step at execution time (via `ForceNavigationUpdate()`) instead of using captured stepData closure.
 
+**Quest ID resolution** (same-name chain quest support):
+- `ResolveQuestIdFromLog(questTitle)` - Centralized method for resolving quest IDs from quest log entries. Checks `store.Accepted` first (most reliable), then falls back to DB lookup that skips `store.Completed` entries. Prevents "Crown of the Earth" (928/929/933/935/7383) from being mapped to wrong (already-completed) ID.
+- `DoesQuestActionMatch()` - Uses strict ID matching only (no name fallback). Prevents false positives where completing one quest in a same-name chain marks all QC steps as done.
+
 **Quest sync on guide load**:
-- `SyncQuestAcceptSteps()` auto-completes `[QA]` steps for quests already in the player's log (handles quests accepted before addon/guide was loaded). Called during `OnQuestLogUpdate` with early-out when no unmarked QA steps exist. Stores `{title, timestamp}` format in store.Accepted (matches TrackAccepted format).
+- `SyncQuestAcceptSteps()` auto-completes `[QA]` steps for quests already in the player's log (handles quests accepted before addon/guide was loaded). Called during `OnQuestLogUpdate` with early-out when no unmarked QA steps exist. Stores `{title, timestamp}` format in store.Accepted (matches TrackAccepted format). Clears `store.Completed` entries when accepting to prevent false auto-skip of turnin steps.
+- `TrackAccepted()` - Clears `store.Completed` entry on quest accept (handles quest re-acceptance). Without this, `GetQuestStatus()` returns false (checks Completed first) before WoW adds quest to log, causing false auto-skip of QT actions on same step.
 
 **Ongoing objectives rebuild**:
 - `OnQuestLogUpdate()` checks if ongoing steps have quest tags but no objective trackers (happens when quest wasn't in log during initial pinned section render). Triggers `RefreshGuide()` to rebuild UI with proper objective display. Prevents empty objectives on `[O][QC]` steps where quest is accepted after step is pinned.
@@ -83,20 +89,21 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 
 **GuideNavigation.lua** (orchestrator):
 - Creates nav frame, manages arrow rendering at 50 FPS
-- Handles ZONE_CHANGED_NEW_AREA event for zone-based guide transitions
+- Handles ZONE_CHANGED_NEW_AREA event for zone-based guide transitions and corpse navigation reactivation
 - `UpdateWaypointForStep(stepData)` - Entry point: auto-skips impossible QT steps, then delegates to WaypointResolver/NavigationModes
 - `CheckAutoSkipTurnins(stepData)` - Auto-completes steps with `[QT]` when quest not in player's log
 - Multi-waypoint tracking: auto-advances when player reaches waypoint (5 yard threshold)
-- GOTO-to-UseItem transition: After reaching GOTO waypoint (including last one), shows use-item button if step has `[UI]` tag. Custom click handler uses item then advances to remaining waypoints (skipping GOTO coords). State tracked via `useItemShownAfterGoto` flag. Displays GOTO description from Parser (e.g., "Grind north to the moonwell" or "Grind southeast to Npc Name" with resolved TAR tags) instead of quest name.
+- GOTO-to-UseItem transition: After reaching the LAST GOTO in a sequence, shows use-item button if step has `[UI]` tag (skips intermediate GOTOs). Custom click handler uses item then advances to remaining waypoints (skipping GOTO coords). State tracked via `useItemShownAfterGoto` flag. Displays GOTO description from Parser (e.g., "Grind north to the moonwell" or "Grind southeast to Npc Name" with resolved TAR tags) instead of quest name.
 - Zone mismatch handling: GOTO waypoints hide navigation when player in wrong zone (no use-item fallback), other waypoint types show use-item icon if available
 - Quest objective display: Uses `self.currentQuestId` (step-level quest context from WaypointResolver) to show progress for QC steps. Waypoint-level `currentWaypoint.questId` only exists for quest DB coordinates, not TAR waypoints.
+- Distance safety: Nil check for `ComputeDistance()` result prevents errors when Astrolabe returns invalid data
 - Delegate methods maintain external API compatibility
 
 **NavigationModes.lua** (display modes):
 - Show/Hide methods for: EquipItem, UseItem, Hearthstone, NextGuide, XPProgress, SkillProgress
 - Skill progress: reuses XP bar for skill level tracking (green color, current/target display), updates on SKILL_LINES_CHANGED
 - XP progress: blue progress bar for level requirements
-- Death navigation: captures corpse position on death, blue-tinted arrow to body, restores state on resurrection (preserves XP/skill requirements)
+- Death navigation: captures corpse position on death, blue-tinted arrow to body. On resurrection, schedules recalculation after 0.5s delay (waits for `SetMapToCurrentZone()` and game state update). Zone changes during corpse navigation re-activate the corpse arrow (handles graveyard zone transitions).
 - Receives nav frame via `SetNavigationFrame(frame)`
 
 **WaypointResolver.lua** (pure logic, no UI):
@@ -196,12 +203,14 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
   1. Case-insensitive exact match
   2. Normalized match: strips trailing dots (WoW ellipsis "...") and whitespace only
   3. Does NOT strip all punctuation (prevents false positives like "Find It: Gold" vs "Find It - Gold")
-- **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity" or "Balance of Nature" 456/457) are resolved deterministically:
+- **Quest chain handling**: Same-name quests (repeatable/chain quests like "The Tome of Divinity", "Crown of the Earth" 928/929/933/935/7383) are resolved deterministically:
   - `GetQuestIDByName()` returns the smallest matching ID (first quest in chain)
+  - `ResolveQuestIdFromLog()` centralizes quest log entry resolution: checks `store.Accepted` first, then DB lookup that skips `store.Completed` entries (prevents mapping to wrong/completed ID in same-name chains)
   - `FindAcceptedIdByTitle()` returns the smallest accepted ID matching the name, **skips IDs in store.Completed** (ensures chain quests are processed in order: 456 first, then 457)
   - `GetExpectedQuestIdFromCurrentStep()` skips already-accepted IDs for ACCEPT actions, skips already-completed IDs for TURNIN actions
   - `GetQuestIdInCurrentStep()` checks current step + 2 steps ahead (lookahead for auto-accept/turnin when player is on preceding [G] step), skips already-accepted IDs for ACCEPT, skips already-completed IDs for TURNIN
-  - `DoesQuestActionMatch()` uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests
+  - `DoesQuestActionMatch()` uses strict ID matching only (no name fallback) to prevent false positives where completing one quest marks all QC steps with same name as done
+  - `TrackAccepted()` clears `store.Completed` entry on quest accept to prevent false auto-skip of turnin steps on rapid QT→QA sequences
   - `HookQuestAbandon()` checks store.Accepted first for consistent chain quest handling
   - Ensures correct quest is matched when accepting/turning in same-name chain quests
 - **`GetQuestStatus()`**: Checks QuestTracker.store first, falls back to quest log with `QuestNamesMatch()`
@@ -233,14 +242,14 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing. Extracts text before `[G]` tag as GOTO `coord.description`: resolves `[TAR xxxx]` tags to NPC names via GLV:getTargetName(), then strips remaining `[...]` tags. Navigation displays resolved names (e.g., "Grind southeast to Npc Name"). |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel). RACE_ALIASES table maps TurtleWoW custom races (HighElf→NightElf) to standard races for starting guide resolution. FindBestGuideForLevel uses deterministic selection (sorted by minLevel, then name) to ensure consistent guide picks. |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
-| `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA), auto-skip QT |
-| `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with state preservation |
+| `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA for zone transitions and corpse nav reactivation), auto-skip QT. GOTO-to-UseItem only fires after LAST GOTO in sequence (skips intermediate GOTOs). Distance nil check for ComputeDistance safety. |
+| `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with scheduled resurrection recalculation (0.5s delay for SetMapToCurrentZone + game state update). Zone changes during corpse nav re-activate corpse arrow. |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on QA/QT lines only, keeps TARs on QC lines for mob navigation), conservative GetQuestStatus with quest log verification for store.Completed entries. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. collectAllStepCoordinates skips GOTO coords on lines with any quest tags (QA/QT/QC) - quest DB provides better NPC locations. GOTO descriptions come from Parser (raw guide text before `[G]` tag, stripped of all tags). ResolveWaypoints uses GOTO's own description for first waypoint instead of quest-based description. |
 | `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
-| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format). **Auto-accept/turnin functions (OnQuestDetail/OnQuestComplete) and event handlers are commented out** due to timing issues with rapid QT→QA sequences. Navigation timer cleanup: cancels pending "GLV_NavigationUpdate" on RefreshGuide, uses ForceNavigationUpdate for TURNIN delays. OnQuestLogUpdate checks for ongoing steps with quest tags but no objective trackers, triggers RefreshGuide to rebuild pinned section (fixes empty objectives on `[O][QC]` steps accepted after initial render). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives on same-name chain quests. FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
+| `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format, clears store.Completed entries). TrackAccepted() clears store.Completed on quest accept (prevents false auto-skip of QT on rapid QT→QA). **Auto-accept/turnin functions (OnQuestDetail/OnQuestComplete) and event handlers are commented out** due to timing issues with rapid QT→QA sequences. Navigation timer cleanup: cancels pending "GLV_NavigationUpdate" on RefreshGuide, uses ForceNavigationUpdate for TURNIN delays. OnQuestLogUpdate checks for ongoing steps with quest tags but no objective trackers, triggers RefreshGuide to rebuild pinned section (fixes empty objectives on `[O][QC]` steps accepted after initial render). ResolveQuestIdFromLog() centralizes quest log ID resolution (store.Accepted first, then DB lookup skipping store.Completed). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives where completing one quest in same-name chain marks all QC steps. CheckQuestObjectives() uses state transition detection for 0-objective quests (only marks complete when isComplete flag changes from nil/false to 1). FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
-| `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection |
+| `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection. CheckHearthstoneArrival() cancels the 12s timer from ShowHearthstone on arrival detection to prevent double-completion of next step. |
 | `Core/Events/Taxi.lua` | Flight path tracking |
 | `Core/Events/Talents.lua` | Talent suggestions, toast notifications, TALENT_FRAMES centralized table |
 | `Frames/Frames.lua` | UI functions, settings handlers, minimap button, URL copy popup (GLV:ShowURLPopup) |
