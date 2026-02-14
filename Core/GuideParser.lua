@@ -217,10 +217,15 @@ function Parser:parseGuide(guide, group)
                                 if zoneId then
                                     if not parsedLine.coords then parsedLine.coords = {} end
                                     -- Extract text before the [G] tag for nav description
-                                    -- e.g., "[OC]Grind north to the moonwell [G ...]" → "Grind north to the moonwell"
+                                    -- e.g., "[OC]Grind southeast to [TAR2080] [G ...]" → "Grind southeast to Npc Name"
                                     local beforeGoto = string.match(line, "^(.-)%[G[%s%d]")
                                     if beforeGoto then
-                                        -- Strip all [...] tags from the prefix text
+                                        -- Resolve [TAR xxxx] tags to NPC names before stripping
+                                        beforeGoto = string.gsub(beforeGoto, "%[TAR(%d+)%]", function(tarId)
+                                            local name = GLV:getTargetName(tonumber(tarId))
+                                            return name or ""
+                                        end)
+                                        -- Strip remaining [...] tags
                                         beforeGoto = string.gsub(beforeGoto, "%[.-%]", "")
                                         beforeGoto = string.gsub(beforeGoto, "^%s*(.-)%s*$", "%1")
                                         -- Remove trailing commas/punctuation
