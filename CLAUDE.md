@@ -87,7 +87,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `UpdateWaypointForStep(stepData)` - Entry point: auto-skips impossible QT steps, then delegates to WaypointResolver/NavigationModes
 - `CheckAutoSkipTurnins(stepData)` - Auto-completes steps with `[QT]` when quest not in player's log
 - Multi-waypoint tracking: auto-advances when player reaches waypoint (5 yard threshold)
-- GOTO-to-UseItem transition: After reaching GOTO waypoint (including last one), shows use-item button if step has `[UI]` tag. Custom click handler uses item then advances to remaining waypoints (skipping GOTO coords). State tracked via `useItemShownAfterGoto` flag. Displays GOTO description from Parser (e.g., "Grind north to the moonwell") instead of quest name.
+- GOTO-to-UseItem transition: After reaching GOTO waypoint (including last one), shows use-item button if step has `[UI]` tag. Custom click handler uses item then advances to remaining waypoints (skipping GOTO coords). State tracked via `useItemShownAfterGoto` flag. Displays GOTO description from Parser (e.g., "Grind north to the moonwell" or "Grind southeast to Npc Name" with resolved TAR tags) instead of quest name.
 - Zone mismatch handling: GOTO waypoints hide navigation when player in wrong zone (no use-item fallback), other waypoint types show use-item icon if available
 - Quest objective display: Uses `self.currentQuestId` (step-level quest context from WaypointResolver) to show progress for QC steps. Waypoint-level `currentWaypoint.questId` only exists for quest DB coordinates, not TAR waypoints.
 - Delegate methods maintain external API compatibility
@@ -164,7 +164,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 | `[SK skill level]` | Skill/profession requirement (auto-completes when reached) | `[SK First Aid 40]` |
 | `[CI id,count]` | Collect item (auto-completes on BAG_UPDATE) | `[CI1179,10]` |
 | `[UI id]` | Use item (fallback icon when no coords) | `[UI2746]` |
-| `[OC]` | Optional, completes with next. GOTO coords on OC lines are excluded from Priority 1 resolution (used only as fallback in Priority 6). Text before `[G]` tag is extracted as navigation description. | `[OC][G 50,60 Zone]Grind north` |
+| `[OC]` | Optional, completes with next. GOTO coords on OC lines are excluded from Priority 1 resolution (used only as fallback in Priority 6). Text before `[G]` tag is extracted as navigation description, with `[TAR]` tags resolved to NPC names. | `[OC]Grind to [TAR823] [G 50,60 Zone]` → displays "Grind to Npc Name" |
 | `[NX x-y Name]` | Next guide link | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
 | `[H]` | Use hearthstone (auto-completes on arrival) | `[H] to Stormwind` |
@@ -230,7 +230,7 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
 | `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
-| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing. Extracts text before `[G]` tag (stripped of all `[...]` tags) as GOTO `coord.description` for navigation display. |
+| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing. Extracts text before `[G]` tag as GOTO `coord.description`: resolves `[TAR xxxx]` tags to NPC names via GLV:getTargetName(), then strips remaining `[...]` tags. Navigation displays resolved names (e.g., "Grind southeast to Npc Name"). |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel). RACE_ALIASES table maps TurtleWoW custom races (HighElf→NightElf) to standard races for starting guide resolution. FindBestGuideForLevel uses deterministic selection (sorted by minLevel, then name) to ensure consistent guide picks. |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA), auto-skip QT |
