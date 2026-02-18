@@ -1,4 +1,4 @@
-pfDB["quests"]["enUS-turtle"] = {
+VGDB["quests"]["enUS-turtle"] = {
   [1] = "_",
   [73] = "_",
   [105] = {

@@ -1,4 +1,4 @@
-pfDB["areatrigger"]["data-turtle"] = {
+VGDB["areatrigger"]["data-turtle"] = {
   [1] = {
     ["coords"] = {
       [1] = { 35.8, 62.1, 11 },

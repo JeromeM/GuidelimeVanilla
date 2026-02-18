@@ -1,8 +1,7 @@
--- Initialize pfDB global for TurtleWoW override files
-pfDB = pfDB or {}
-pfDB["quests"] = pfDB["quests"] or {}
-pfDB["units"] = pfDB["units"] or {}
-pfDB["items"] = pfDB["items"] or {}
-pfDB["objects"] = pfDB["objects"] or {}
-pfDB["zones"] = pfDB["zones"] or {}
-pfDB["areatrigger"] = pfDB["areatrigger"] or {}
+-- Ensure VGDB sub-tables exist for TurtleWoW override files
+VGDB["quests"] = VGDB["quests"] or {}
+VGDB["units"] = VGDB["units"] or {}
+VGDB["items"] = VGDB["items"] or {}
+VGDB["objects"] = VGDB["objects"] or {}
+VGDB["zones"] = VGDB["zones"] or {}
+VGDB["areatrigger"] = VGDB["areatrigger"] or {}

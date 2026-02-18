@@ -119,13 +119,21 @@ local function restorePfQuestNodes()
     GLV.Settings:SetOption(nil, {"Integration", "pfQuestSaved"})
 end
 
--- Refresh pfQuest state based on current toggles
+-- Refresh pfQuest state based on current toggles and setting
 local function updatePfQuestState()
-    if isMinimapEnabled or isWorldMapEnabled then
+    local hidePfQuest = GLV.Settings:GetOption({"Integration", "HidePfQuestNodes"})
+    if hidePfQuest == nil then hidePfQuest = false end
+
+    if hidePfQuest and (isMinimapEnabled or isWorldMapEnabled) then
         disablePfQuestNodes()
     else
         restorePfQuestNodes()
     end
+end
+
+-- Public wrapper so settings UI can trigger pfQuest state refresh
+function MinimapPath:RefreshPfQuestState()
+    updatePfQuestState()
 end
 
 -- ============================================================================

@@ -1,7 +1,7 @@
 --[[
-Merge TurtleWoW override data (pfDB) into VGDB.
+Merge TurtleWoW override data into VGDB.
 
-Turtle files store data in pfDB[category][key.."-turtle"].
+Turtle files store data in VGDB[category][key.."-turtle"].
 This script copies each entry into VGDB[category][key],
 replacing existing entries and removing those marked with "_".
 ]]--
@@ -21,25 +21,22 @@ local function mergeInto(dst, src)
     end
 end
 
--- Data tables: pfDB[cat]["data-turtle"] -> VGDB[cat]["data"]
+-- Data tables: VGDB[cat]["data-turtle"] -> VGDB[cat]["data"]
 local dataCategories = { "quests", "units", "items", "objects", "areatrigger" }
 for _, cat in ipairs(dataCategories) do
-    if pfDB[cat] and pfDB[cat]["data-turtle"] then
-        VGDB[cat] = VGDB[cat] or {}
+    if VGDB[cat] and VGDB[cat]["data-turtle"] then
         VGDB[cat]["data"] = VGDB[cat]["data"] or {}
-        mergeInto(VGDB[cat]["data"], pfDB[cat]["data-turtle"])
+        mergeInto(VGDB[cat]["data"], VGDB[cat]["data-turtle"])
+        VGDB[cat]["data-turtle"] = nil
     end
 end
 
--- Locale tables: pfDB[cat]["enUS-turtle"] -> VGDB[cat]["enUS"]
+-- Locale tables: VGDB[cat]["enUS-turtle"] -> VGDB[cat]["enUS"]
 local localeCategories = { "quests", "units", "items", "zones" }
 for _, cat in ipairs(localeCategories) do
-    if pfDB[cat] and pfDB[cat]["enUS-turtle"] then
-        VGDB[cat] = VGDB[cat] or {}
+    if VGDB[cat] and VGDB[cat]["enUS-turtle"] then
         VGDB[cat]["enUS"] = VGDB[cat]["enUS"] or {}
-        mergeInto(VGDB[cat]["enUS"], pfDB[cat]["enUS-turtle"])
+        mergeInto(VGDB[cat]["enUS"], VGDB[cat]["enUS-turtle"])
+        VGDB[cat]["enUS-turtle"] = nil
     end
 end
-
--- Free pfDB memory after merge
-pfDB = nil

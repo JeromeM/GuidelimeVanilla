@@ -11,7 +11,7 @@
     <Include file="quests.lua"/>
     <Include file="units.lua"/>
 
-    <!-- TurtleWoW overrides (pfDB -> VGDB merge) -->
+    <!-- TurtleWoW overrides (written to VGDB with -turtle keys, then merged) -->
     <Script file="initpfdb.lua"/>
 
     <Include file="enUS\quests-turtle.lua"/>

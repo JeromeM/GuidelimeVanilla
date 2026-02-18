@@ -679,7 +679,7 @@
                             <!-- Navigation Path Card -->
                             <Frame name="$parentMinimapCard">
                                 <Size>
-                                    <AbsDimension x="430" y="115"/>
+                                    <AbsDimension x="430" y="80"/>
                                 </Size>
                                 <Anchors>
                                     <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageScalesCard" RelativePoint="BOTTOMLEFT">
@@ -713,6 +713,7 @@
                                 </Layers>
 
                                 <Frames>
+                                    <!-- Left column -->
                                     <!-- Show Path on Minimap Checkbox -->
                                     <CheckButton name="GLV_SettingsDisplayPageMinimapPath" inherits="OptionsCheckButtonTemplate">
                                         <Anchors>
@@ -755,11 +756,12 @@
                                         </Scripts>
                                     </CheckButton>
 
+                                    <!-- Right column -->
                                     <!-- Show Minimap Button Checkbox -->
                                     <CheckButton name="GLV_SettingsDisplayPageMinimapButton" inherits="OptionsCheckButtonTemplate">
                                         <Anchors>
-                                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageWorldMapPath" RelativePoint="BOTTOMLEFT">
-                                                <Offset x="0" y="-2"/>
+                                            <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOP">
+                                                <Offset x="6" y="-22"/>
                                             </Anchor>
                                         </Anchors>
                                         <Scripts>
@@ -772,6 +774,27 @@
                                             </OnShow>
                                             <OnClick>
                                                 GLV_OnMinimapButtonCheckboxClick(this);
+                                            </OnClick>
+                                        </Scripts>
+                                    </CheckButton>
+
+                                    <!-- Hide pfQuest Nodes Checkbox -->
+                                    <CheckButton name="GLV_SettingsDisplayPageHidePfQuest" inherits="OptionsCheckButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageMinimapButton" RelativePoint="BOTTOMLEFT">
+                                                <Offset x="0" y="-2"/>
+                                            </Anchor>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                getglobal(this:GetName().."Text"):SetText("Hide pfQuest Nodes");
+                                                GLV_InitCheckboxFont(this);
+                                            </OnLoad>
+                                            <OnShow>
+                                                GLV_InitHidePfQuestCheckbox(this);
+                                            </OnShow>
+                                            <OnClick>
+                                                GLV_OnHidePfQuestCheckboxClick(this);
                                             </OnClick>
                                         </Scripts>
                                     </CheckButton>

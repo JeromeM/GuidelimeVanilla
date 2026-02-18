@@ -1,4 +1,4 @@
-pfDB["zones"]["enUS-turtle"] = {
+VGDB["zones"]["enUS-turtle"] = {
   [65] = "_",
   [296] = "South Seas",
   [409] = "Lapidis Isle",

@@ -502,6 +502,31 @@ function GLV_OnMinimapPathCheckboxClick(checkbox)
     end
 end
 
+-- Initialize hide pfQuest nodes checkbox from settings
+function GLV_InitHidePfQuestCheckbox(checkbox)
+    if not pfQuest_config then
+        checkbox:SetChecked(false)
+        checkbox:Disable()
+        getglobal(checkbox:GetName().."Text"):SetTextColor(0.5, 0.5, 0.5)
+        return
+    end
+    checkbox:Enable()
+    getglobal(checkbox:GetName().."Text"):SetTextColor(1, 1, 1)
+    local value = GLV.Settings:GetOption({"Integration", "HidePfQuestNodes"})
+    if value == nil then value = false end
+    checkbox:SetChecked(value)
+end
+
+-- Handle hide pfQuest nodes checkbox click
+function GLV_OnHidePfQuestCheckboxClick(checkbox)
+    local checked = checkbox:GetChecked()
+    local isChecked = (checked == 1 or checked == true)
+    GLV.Settings:SetOption(isChecked, {"Integration", "HidePfQuestNodes"})
+    if GLV.MinimapPath then
+        GLV.MinimapPath:RefreshPfQuestState()
+    end
+end
+
 -- Initialize world map path checkbox from settings
 function GLV_InitWorldMapPathCheckbox(checkbox)
     local value = GLV.Settings:GetOption({"UI", "WorldMapPath"})

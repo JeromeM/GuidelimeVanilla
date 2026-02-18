@@ -1,4 +1,4 @@
-pfDB["items"]["enUS-turtle"] = {
+VGDB["items"]["enUS-turtle"] = {
   [7] = "The Greatest Wizzard Hat",
   [8] = "The Greatest Wizzard Hat",
   [10] = "Gamemaster\'s Broom of Doom",
