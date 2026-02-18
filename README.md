@@ -39,7 +39,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Built-in arrow** pointing to your next objective — no TomTom needed
 - **Multi-waypoint sequences** that auto-advance as you reach each destination (5 yard threshold)
 - **Dotted path** on minimap and world map showing the way
-- **pfQuest integration**: automatically hides pfQuest nodes when paths are enabled to avoid clutter
+- **pfQuest integration**: optional "Hide pfQuest Nodes" setting (off by default) suppresses pfQuest map pins when paths are active to avoid clutter — greyed out when pfQuest is not installed
 - **Live quest progress** (kill/collect counters) displayed on the navigation frame
 - **Clickable action icons**: hearthstone, equip item, use item, next guide — one click does it all
 - **Corpse navigation**: die and the arrow guides you back with a ghostly blue tint
@@ -54,7 +54,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Skill/profession tracking**: progress bars for skill levels (First Aid, Cooking, weapon skills, etc.) with auto-completion
 - **Clickable URLs**: URLs in guide text appear as blue [Link] placeholders — click to open a popup with the full URL for easy copying
 - **Guide packs** as separate addons — install what you need, or create your own
-- **TurtleWoW database support**: built-in override system for TurtleWoW-specific quests, NPCs, and items
+- **TurtleWoW database support**: built-in override system for TurtleWoW-specific quests, NPCs, and items — fully compatible with pfQuest (no shared globals)
 
 ### ⚡ Automation & Smart Skip
 - **Auto-take flights** on matching steps

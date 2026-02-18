@@ -43,7 +43,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `GuideNavigation` - **Orchestrator**: frame creation, arrow rendering, update loop, zone change handling (ZONE_CHANGED_NEW_AREA), delegates to NavigationModes and WaypointResolver
 - `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar, skill progress) + death/corpse navigation
 - `WaypointResolver` - Coordinate resolution (7-priority system), quest status, step descriptions
-- `MinimapPath` - Minimap/world map dotted path rendering, pfQuest integration. Uses `getglobal()` to reclaim existing named frames on `/reload` instead of creating orphans.
+- `MinimapPath` - Minimap/world map dotted path rendering, optional pfQuest node hiding (controlled by `{"Integration", "HidePfQuestNodes"}` setting, off by default). Uses `getglobal()` to reclaim existing named frames on `/reload` instead of creating orphans. `RefreshPfQuestState()` public method for settings UI to trigger pfQuest state refresh.
 
 **Data objects**:
 - `GLV.CurrentGuide` - Loaded guide (`.next` for chaining, `.clickToNext`)
@@ -127,11 +127,10 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 
 **TurtleWoW Overrides**:
 - Base ShaguDB data is loaded first, then `*-turtle.lua` files override/extend with TurtleWoW-specific data
-- Turtle files use `pfDB` global (pfQuest TurtleDB format) with "-turtle" suffixed keys: `pfDB[category]["data-turtle"]`, `pfDB[category]["enUS-turtle"]`
-- `mergedb.lua` script copies pfDB entries into VGDB, replacing existing records. Entries with value "_" are deleted (removal marker).
+- Turtle files write directly into VGDB using "-turtle" suffixed keys: `VGDB[category]["data-turtle"]`, `VGDB[category]["enUS-turtle"]`. No conflict with the pfQuest addon's `pfDB` global.
+- `mergedb.lua` reads from `VGDB[cat]["data-turtle"]` / `VGDB[cat]["enUS-turtle"]`, merges into `VGDB[cat]["data"]` / `VGDB[cat]["enUS"]`, then clears the "-turtle" keys. Entries with value "_" are deleted (removal marker).
 - Covers: quests, units, items, objects, areatrigger (both data and enUS locale tables)
-- `pfDB` is freed after merge to save memory
-- **Loading order**: ShaguDB files → `initpfdb.lua` (creates pfDB) → Turtle override files → `mergedb.lua` (merges pfDB into VGDB, frees pfDB)
+- **Loading order**: ShaguDB files → `initpfdb.lua` (ensures VGDB sub-tables exist) → Turtle override files → `mergedb.lua` (merges -turtle keys into base VGDB, clears -turtle keys)
 - **Requires full game restart** when Turtle override files are added/modified (new TOC entries)
 
 ### Settings Keys (commonly used)
@@ -150,6 +149,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 {"UI", "GuideHidden"}                            -- Window visibility state
 {"Navigation", "CorpsePosition"}                 -- Persisted corpse pos {c,z,x,y}
 {"Integration", "pfQuestSaved"}                  -- pfQuest config snapshot (survives /reload)
+{"Integration", "HidePfQuestNodes"}             -- Hide pfQuest nodes when path active (default false, disabled when pfQuest not installed)
 {"Talents", "ActiveTemplate", class}             -- Active talent template
 ```
 
@@ -237,22 +237,22 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Settings.lua` | Settings manager with nested key access |
 | `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. GetNPCCoordinates() uses Astrolabe distance calculation to return closest spawn in player's zone. GetQuestAllCoords() filters unit/object objectives by questPart index when provided (so [QC id,3] only returns coords for objective 3). findClosestUnit() delegates to GetNPCCoordinates for zone-aware spawn resolution. |
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
-| `Assets/db/initpfdb.lua` | Initializes pfDB global for TurtleWoW override files |
-| `Assets/db/mergedb.lua` | Merges pfDB (Turtle overrides) into VGDB, handles "_" deletion marker, frees pfDB |
+| `Assets/db/initpfdb.lua` | Ensures VGDB sub-tables exist before Turtle override files write into them |
+| `Assets/db/mergedb.lua` | Reads VGDB[cat]["data-turtle"] / ["enUS-turtle"] keys, merges into base VGDB keys, then clears -turtle keys. Handles "_" deletion marker. |
 | `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing. Extracts text before `[G]` tag as GOTO `coord.description`: resolves `[TAR xxxx]` tags to NPC names via GLV:getTargetName(), then strips remaining `[...]` tags. Navigation displays resolved names (e.g., "Grind southeast to Npc Name"). |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel). RACE_ALIASES table maps TurtleWoW custom races (HighElf→NightElf) to standard races for starting guide resolution. FindBestGuideForLevel uses deterministic selection (sorted by minLevel, then name) to ensure consistent guide picks. |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA for zone transitions and corpse nav reactivation), auto-skip QT. GOTO-to-UseItem only fires after LAST GOTO in sequence (skips intermediate GOTOs). Distance nil check for ComputeDistance safety. |
 | `Core/Navigation/NavigationModes.lua` | Display modes (equip, use item, hearthstone, next guide, XP bar [blue], skill progress [green]) + death navigation with scheduled resurrection recalculation (0.5s delay for SetMapToCurrentZone + game state update). Zone changes during corpse nav re-activate corpse arrow. |
 | `Core/Navigation/WaypointResolver.lua` | 7-priority waypoint resolution, TAR extraction logic (skips TARs on QA/QT lines only, keeps TARs on QC lines for mob navigation), conservative GetQuestStatus with quest log verification for store.Completed entries. Returns specialMode for SKILL/XP/HEARTHSTONE/etc. collectAllStepCoordinates skips GOTO coords on lines with any quest tags (QA/QT/QC) - quest DB provides better NPC locations. GOTO descriptions come from Parser (raw guide text before `[G]` tag, stripped of all tags). ResolveWaypoints uses GOTO's own description for first waypoint instead of quest-based description. |
-| `Core/MinimapPath.lua` | Minimap/world map dotted paths, pfQuest integration, frame reuse pattern with getglobal() |
+| `Core/MinimapPath.lua` | Minimap/world map dotted paths, optional pfQuest node hiding via `{"Integration", "HidePfQuestNodes"}` setting (default false, checkbox disabled when pfQuest not installed). `updatePfQuestState()` checks setting before hiding/restoring. `RefreshPfQuestState()` public method for settings UI. Frame reuse pattern with getglobal(). |
 | `Core/Events/Quests.lua` | Quest hooks, MarkQuestAction (pure marking), HandleQuestAction (+ UI update), batched objective completions, SyncQuestAcceptSteps (auto-complete QA on load, stores {title, timestamp} format, clears store.Completed entries). TrackAccepted() clears store.Completed on quest accept (prevents false auto-skip of QT on rapid QT→QA). **Auto-accept/turnin functions (OnQuestDetail/OnQuestComplete) and event handlers are commented out** due to timing issues with rapid QT→QA sequences. Navigation timer cleanup: cancels pending "GLV_NavigationUpdate" on RefreshGuide, uses ForceNavigationUpdate for TURNIN delays. OnQuestLogUpdate checks for ongoing steps with quest tags but no objective trackers, triggers RefreshGuide to rebuild pinned section (fixes empty objectives on `[O][QC]` steps accepted after initial render). ResolveQuestIdFromLog() centralizes quest log ID resolution (store.Accepted first, then DB lookup skipping store.Completed). DoesQuestActionMatch() uses strict ID matching only (no name fallback) to prevent false positives where completing one quest in same-name chain marks all QC steps. CheckQuestObjectives() uses state transition detection for 0-objective quests (only marks complete when isComplete flag changes from nil/false to 1). FindAcceptedIdByTitle() returns smallest matching ID that is NOT in store.Completed (enables ordered chain quest processing: 456 before 457). GetExpectedQuestIdFromCurrentStep() and GetQuestIdInCurrentStep() check current + 2 steps ahead (lookahead), skip already-processed IDs (Accepted for QA, Completed for QT) for same-name chain quests. HookQuestAbandon() checks store.Accepted first. |
 | `Core/Events/Character.lua` | XP tracking, spell learning detection (`[LE]`), skill level tracking (`[SK]`). Spellbook fallback for profession recipes. |
 | `Core/Events/Items.lua` | [CI] item collection tracking, checks ongoing steps via OngoingStepsManager |
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection. CheckHearthstoneArrival() cancels the 12s timer from ShowHearthstone on arrival detection to prevent double-completion of next step. |
 | `Core/Events/Taxi.lua` | Flight path tracking |
 | `Core/Events/Talents.lua` | Talent suggestions, toast notifications, TALENT_FRAMES centralized table |
-| `Frames/Frames.lua` | UI functions, settings handlers, minimap button, URL copy popup (GLV:ShowURLPopup) |
+| `Frames/Frames.lua` | UI functions, settings handlers, minimap button, URL copy popup (GLV:ShowURLPopup). `GLV_InitHidePfQuestCheckbox` / `GLV_OnHidePfQuestCheckboxClick` handlers: checkbox is disabled+greyed when pfQuest not installed (pfQuest_config == nil). |
 | `Frames/*.xml` | Frame definitions (MainFrame, Settings, TalentPopup) |
 | `TalentTemplates/*.lua` | Class talent builds (9 classes) |
 
