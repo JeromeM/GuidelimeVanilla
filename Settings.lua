@@ -63,6 +63,15 @@ local defaults = {
 }
 
 
+-- Global storage defaults (account-wide, shared across all characters)
+local globalDefaults = {
+    GuideEditor = {
+        Guides = {},
+        LastOpenGuide = nil,
+    },
+}
+
+
 --[[ OBJECTS FUNCTIONS ]]--
 
 -- Get default settings configuration
@@ -105,6 +114,111 @@ function Settings:InitializeDB()
             end
         end
     end
+end
+
+-- Initialize global (account-wide) database
+function Settings:InitializeGlobalDB()
+    -- GuidelimeVanillaGlobalDB is a SavedVariables global, persisted by WoW
+    if not GuidelimeVanillaGlobalDB then
+        GuidelimeVanillaGlobalDB = {}
+    end
+
+    -- Apply defaults
+    for key, value in pairs(globalDefaults) do
+        if GuidelimeVanillaGlobalDB[key] == nil then
+            if type(value) == "table" then
+                GuidelimeVanillaGlobalDB[key] = {}
+                for subKey, subValue in pairs(value) do
+                    GuidelimeVanillaGlobalDB[key][subKey] = subValue
+                end
+            else
+                GuidelimeVanillaGlobalDB[key] = value
+            end
+        elseif type(value) == "table" and type(GuidelimeVanillaGlobalDB[key]) == "table" then
+            for subKey, subValue in pairs(value) do
+                if GuidelimeVanillaGlobalDB[key][subKey] == nil then
+                    GuidelimeVanillaGlobalDB[key][subKey] = subValue
+                end
+            end
+        end
+    end
+
+    self.globalDB = GuidelimeVanillaGlobalDB
+end
+
+-- Get global option value using nested key array
+function Settings:GetGlobalOption(keys)
+    if not self.globalDB then
+        self:InitializeGlobalDB()
+    end
+
+    local node = self.globalDB
+    if type(keys) ~= "table" then return nil end
+
+    for i = 1, safe_tablelen(keys) do
+        if node == nil then return nil end
+        node = node[keys[i]]
+    end
+
+    return node
+end
+
+-- Set global option value using nested key array
+function Settings:SetGlobalOption(value, keys)
+    if not self.globalDB then
+        self:InitializeGlobalDB()
+    end
+
+    local node = self.globalDB
+    if type(keys) ~= "table" then return end
+
+    local len = safe_tablelen(keys)
+    local lastKey = keys[len]
+
+    for i = 1, len - 1 do
+        local key = keys[i]
+        if node[key] == nil then
+            node[key] = {}
+        end
+        node = node[key]
+    end
+
+    node[lastKey] = value
+end
+
+-- Migrate per-character GuideEditor data to global storage (one-time)
+function Settings:MigrateEditorToGlobal()
+    if not self.globalDB then
+        self:InitializeGlobalDB()
+    end
+
+    -- Check if per-character has guides to migrate
+    local charGuides = self:GetOption({"GuideEditor", "Guides"})
+    if not charGuides then return end
+
+    local hasEntries = false
+    for _ in pairs(charGuides) do hasEntries = true; break end
+    if not hasEntries then return end
+
+    -- Merge into global (don't overwrite existing global entries)
+    local globalGuides = self.globalDB.GuideEditor.Guides
+    for name, entry in pairs(charGuides) do
+        if not globalGuides[name] then
+            globalGuides[name] = entry
+        end
+    end
+
+    -- Migrate LastOpenGuide if global doesn't have one
+    if not self.globalDB.GuideEditor.LastOpenGuide then
+        local lastOpen = self:GetOption({"GuideEditor", "LastOpenGuide"})
+        if lastOpen then
+            self.globalDB.GuideEditor.LastOpenGuide = lastOpen
+        end
+    end
+
+    -- Clear per-character data
+    self:SetOption({}, {"GuideEditor", "Guides"})
+    self:SetOption(nil, {"GuideEditor", "LastOpenGuide"})
 end
 
 -- Get current profile from database

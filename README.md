@@ -33,6 +33,9 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 #### Arrow :
 ![Arrow](Assets/images/screen3.png) ![Hearthstone](Assets/images/screen3b.png) ![Nextguide](Assets/images/screen3c.png)
 
+#### Guide Editor :
+![Editor](Assets/images/editor.png)
+
 ## Features
 
 - **Built-in navigation arrow** with multi-waypoint sequences, minimap/world map dotted paths, and corpse navigation
@@ -40,6 +43,7 @@ Install GuidelimeVanilla + a guide pack addon, then select your guide pack in **
 - **Item & skill tracking** — collection, equipment, profession progress bars
 - **Talent suggestions** — level-up popup, talent frame highlighting, templates for all 9 classes
 - **Smart automation** — auto-take flights, auto-skip impossible turnins, quest sync on guide load, optional pfQuest node hiding when a path is active
+- **In-game guide editor** — three-panel layout, tag toolbar, metadata form, import from packs, account-wide storage
 - **Clean UI** — minimap button, adjustable scaling, clickable URLs, dark theme
 
 For the full feature list, see the **[Wiki - Features](https://github.com/JeromeM/GuidelimeVanilla/wiki/Features)**.
@@ -60,6 +64,7 @@ For the full feature list, see the **[Wiki - Features](https://github.com/Jerome
 
 - `/glv show` / `/glv hide` — Toggle the guide window
 - `/glv settings` — Open settings
+- `/glv editor` — Open the in-game guide editor
 
 ## Documentation
 

@@ -272,7 +272,8 @@ function GLV:getSpellName(id)
     -- Get raw spell name from available APIs
     local rawName, rawRank
     if GetSpellNameAndRankForId then
-        rawName, rawRank = GetSpellNameAndRankForId(numId)
+        local ok, n, r = pcall(GetSpellNameAndRankForId, numId)
+        if ok then rawName, rawRank = n, r end
     end
     if not rawName and GetSpellRec then
         local spellRec = GetSpellRec(numId)

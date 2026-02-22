@@ -32,7 +32,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 ```
 
 **Core modules** (on GLV namespace):
-- `Settings` - Nested key access: `GetOption({"Guide", "CurrentGuide"})` / `SetOption(value, {...})`
+- `Settings` - Nested key access: `GetOption({"Guide", "CurrentGuide"})` / `SetOption(value, {...})`. Also manages account-wide global DB (`GuidelimeVanillaGlobalDB`) via `GetGlobalOption(keys)` / `SetGlobalOption(value, keys)` / `InitializeGlobalDB()`. Migration: `MigrateEditorToGlobal()` runs on `OnEnable` to move legacy per-character editor data into global storage.
 - `Parser` - Guide text parser
 - `QuestTracker` - Quest accept/complete/turnin tracking, quest sync via SyncQuestAcceptSteps. **Auto-accept/turnin currently disabled** (QUEST_DETAIL/QUEST_COMPLETE handlers commented out due to timing issues with rapid QT→QA sequences).
 - `ItemTracker` - `[CI]` item collection tracking (BAG_UPDATE), checks ongoing steps via OngoingStepsManager
@@ -44,6 +44,7 @@ GLV.Addon = AceAddon instance      -- Ace2 addon with events, hooks, console, DB
 - `NavigationModes` - Display modes (equip, use item, hearthstone, next guide, XP bar, skill progress) + death/corpse navigation
 - `WaypointResolver` - Coordinate resolution (7-priority system), quest status, step descriptions
 - `MinimapPath` - Minimap/world map dotted path rendering, optional pfQuest node hiding (controlled by `{"Integration", "HidePfQuestNodes"}` setting, off by default). Uses `getglobal()` to reclaim existing named frames on `/reload` instead of creating orphans. `RefreshPfQuestState()` public method for settings UI to trigger pfQuest state refresh.
+- `GuideEditor` - In-game custom guide authoring tool. Saves/loads guides account-wide via `GetGlobalOption`/`SetGlobalOption` (stored in `GuidelimeVanillaGlobalDB`). Methods: `Init()`, `SaveGuide(name, text, packName)`, `LoadGuide(name)`, `DeleteGuide(name)`, `GetSavedGuideNames()`, `GetLastOpenGuide()`, `ExtractMetadata(text)`, `BuildHeaderFromMetadata(...)`, `BuildNextGuideLine(nextGuide)`. Raw guide text stored directly (not round-tripped through EditBox) to preserve `|c` color codes.
 
 **Data objects**:
 - `GLV.CurrentGuide` - Loaded guide (`.next` for chaining, `.clickToNext`)
@@ -135,6 +136,8 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 
 ### Settings Keys (commonly used)
 
+Per-character keys (accessed via `Settings:GetOption` / `Settings:SetOption`, stored in `GuidelimeVanillaDB`):
+
 ```lua
 {"Guide", "ActivePack"}                          -- Selected guide pack
 {"Guide", "CurrentGuide"}                        -- Current guide ID
@@ -153,11 +156,19 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 {"Talents", "ActiveTemplate", class}             -- Active talent template
 ```
 
+Account-wide keys (accessed via `Settings:GetGlobalOption` / `Settings:SetGlobalOption`, stored in `GuidelimeVanillaGlobalDB`):
+
+```lua
+{"GuideEditor", "Guides", name}   -- Saved custom guide entries {text, packName}
+{"GuideEditor", "LastOpenGuide"}  -- Name of last opened guide in editor
+```
+
 ## Guide Syntax
 
 | Tag | Meaning | Example |
 |-----|---------|---------|
 | `[N x-y Name]` | Guide name and level range | `[N 1-11 Elwynn Forest]` |
+| `[D text]` | Guide description (shown in guide list). Newlines encoded as `\\` in source. | `[D Leveling guide for Alliance]` |
 | `[GA faction]` | Faction/race filter (comma-separated) | `[GA Alliance]` or `[GA Horde,Undead]` |
 | `[QA id]` | Accept quest | `[QA783]` |
 | `[QC id]` or `[QC id,objIdx]` | Complete quest (or specific objective, 1-based) | `[QC33,2]` |
@@ -172,7 +183,7 @@ Quest/NPC/Item data from ShaguDB in `Assets/db/`:
 | `[CI id,count]` | Collect item (auto-completes on BAG_UPDATE) | `[CI1179,10]` |
 | `[UI id]` | Use item (fallback icon when no coords) | `[UI2746]` |
 | `[OC]` | Optional, completes with next. GOTO coords on OC lines are excluded from Priority 1 resolution (used only as fallback in Priority 6). Text before `[G]` tag is extracted as navigation description, with `[TAR]` tags resolved to NPC names. | `[OC]Grind to [TAR823] [G 50,60 Zone]` → displays "Grind to Npc Name" |
-| `[NX x-y Name]` | Next guide link | `[NX 11-13 Westfall]` |
+| `[NX x-y Name]` | Next guide link. Parser auto-injects a "Check this box to proceed" checkbox step immediately before this tag (skipped for EditorPreview group). | `[NX 11-13 Westfall]` |
 | `[P name]` | Get flight path | `[P Stormwind]` |
 | `[H]` | Use hearthstone (auto-completes on arrival) | `[H] to Stormwind` |
 | `[S location]` | Bind hearthstone (auto-completes on ConfirmBinder) | `[S Goldshire]` |
@@ -234,12 +245,12 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | File | Purpose |
 |------|---------|
 | `Core.lua` | Addon initialization (~171 lines): LibStub setup, Ace2 initialization, slash commands (`/glv`, `/glvminimap`), minimap button, event registration |
-| `Settings.lua` | Settings manager with nested key access |
-| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. GetNPCCoordinates() uses Astrolabe distance calculation to return closest spawn in player's zone. GetQuestAllCoords() filters unit/object objectives by questPart index when provided (so [QC id,3] only returns coords for objective 3). findClosestUnit() delegates to GetNPCCoordinates for zone-aware spawn resolution. |
+| `Settings.lua` | Settings manager with nested key access (per-character `GuidelimeVanillaDB`). Also manages account-wide `GuidelimeVanillaGlobalDB` via `InitializeGlobalDB()`, `GetGlobalOption(keys)`, `SetGlobalOption(value, keys)`, `MigrateEditorToGlobal()`. |
+| `Helpers/DBTools.lua` | DB queries (quest/NPC/item), spell name resolution. GetQuestIDByName() returns smallest matching ID for deterministic quest chain handling. GetNPCCoordinates() uses Astrolabe distance calculation to return closest spawn in player's zone. GetQuestAllCoords() filters unit/object objectives by questPart index when provided (so [QC id,3] only returns coords for objective 3). findClosestUnit() delegates to GetNPCCoordinates for zone-aware spawn resolution. `getSpellName()` uses `pcall` around `GetSpellNameAndRankForId` to guard against errors on unknown IDs. |
 | `Assets/db/initdb.xml` | Database loading order: ShaguDB → initpfdb.lua → Turtle overrides → mergedb.lua |
 | `Assets/db/initpfdb.lua` | Ensures VGDB sub-tables exist before Turtle override files write into them |
 | `Assets/db/mergedb.lua` | Reads VGDB[cat]["data-turtle"] / ["enUS-turtle"] keys, merges into base VGDB keys, then clears -turtle keys. Handles "_" deletion marker. |
-| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing. Extracts text before `[G]` tag as GOTO `coord.description`: resolves `[TAR xxxx]` tags to NPC names via GLV:getTargetName(), then strips remaining `[...]` tags. Navigation displays resolved names (e.g., "Grind southeast to Npc Name"). |
+| `Core/GuideParser.lua` | Tag parsing, step extraction, [A] tag filtering (KNOWN_CLASSES table for race/class separation), [SK] skill requirement parsing. Extracts text before `[G]` tag as GOTO `coord.description`: resolves `[TAR xxxx]` tags to NPC names via GLV:getTargetName(), then strips remaining `[...]` tags. Navigation displays resolved names (e.g., "Grind southeast to Npc Name"). Injects a `{text="Check this box to proceed", hasCheckbox=true}` step before `[NX]` tag when `parsedGuide.next` is set (skipped for group "EditorPreview"). |
 | `Core/GuideLibrary.lua` | Guide registration, pack management, multi-level dropdown, guide selection logic (LoadDefaultGuideForRace, FindStartingGuideForRace, FindBestGuideForLevel). RACE_ALIASES table maps TurtleWoW custom races (HighElf→NightElf) to standard races for starting guide resolution. FindBestGuideForLevel uses deterministic selection (sorted by minLevel, then name) to ensure consistent guide picks. |
 | `Core/GuideWriter.lua` | UI creation, checkbox handling, step highlighting, XP display, URL detection/replacement (processURLs function) |
 | `Core/GuideNavigation.lua` | Navigation orchestrator, arrow rendering, zone change event handling (ZONE_CHANGED_NEW_AREA for zone transitions and corpse nav reactivation), auto-skip QT. GOTO-to-UseItem only fires after LAST GOTO in sequence (skips intermediate GOTOs). Distance nil check for ComputeDistance safety. |
@@ -252,6 +263,8 @@ The `[A]` tag supports mixed race and class filtering with AND logic:
 | `Core/Events/Gossip.lua` | [H]/[S] hearthstone detection. CheckHearthstoneArrival() cancels the 12s timer from ShowHearthstone on arrival detection to prevent double-completion of next step. |
 | `Core/Events/Taxi.lua` | Flight path tracking |
 | `Core/Events/Talents.lua` | Talent suggestions, toast notifications, TALENT_FRAMES centralized table |
+| `Core/GuideEditor.lua` | Custom guide authoring module. Stores guides account-wide in `GuidelimeVanillaGlobalDB` via `GetGlobalOption`/`SetGlobalOption`. `Init()` re-registers saved guides on load. `ExtractMetadata(text)` parses guide headers (`[N]`, `[D]`, `[GA]`, `[NX]`). `BuildHeaderFromMetadata(name, minLevel, maxLevel, faction, description)` builds header lines including `[D]` tag (newlines encoded as `\\`). `BuildNextGuideLine(nextGuide)` accepts already-formatted "11-19 Zone" strings. |
+| `Frames/EditorFrame.lua` | Guide editor UI (~900 lines). Redesigned metadata panel: three section boxes (Guide Info, Faction & Races, Next Guide) with backdrop panels and colored titles. Toolbar buttons use custom backdrop (red `SetBackdropColor(0.5, 0.1, 0.1)`) instead of `UIPanelButtonTemplate` to prevent side-clipping on narrow buttons. Raw `rawText` variable holds guide text to avoid `|c` color code stripping by SetText/GetText round-trip. Spell name cache (`BuildSpellCache`) built lazily via `GetSpellRec` for `[LE]` tag search. Race checkboxes (`EDITOR_RACES` table, 10 races) for `[GA]` filtering. Avoids Lua 5.0 closure capture bug with `createFactionCallback` helper. |
 | `Frames/Frames.lua` | UI functions, settings handlers, minimap button, URL copy popup (GLV:ShowURLPopup). `GLV_InitHidePfQuestCheckbox` / `GLV_OnHidePfQuestCheckboxClick` handlers: checkbox is disabled+greyed when pfQuest not installed (pfQuest_config == nil). |
 | `Frames/*.xml` | Frame definitions (MainFrame, Settings, TalentPopup) |
 | `TalentTemplates/*.lua` | Class talent builds (9 classes) |

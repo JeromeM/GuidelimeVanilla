@@ -198,6 +198,34 @@
                 </Scripts>
             </Frame>
 
+            <Button name="$parentEditor" inherits="UIPanelButtonTemplate">
+                <Size>
+                    <AbsDimension x="16" y="16"/>
+                </Size>
+                <Anchors>
+                    <Anchor point="BOTTOMRIGHT">
+                        <Offset x="-35" y="17"/>
+                    </Anchor>
+                </Anchors>
+                <NormalTexture file="Interface\Icons\INV_Misc_Note_01"/>
+                <PushedTexture file="Interface\Icons\INV_Misc_Note_01"/>
+                <Scripts>
+                    <OnClick>
+                        if GLV and GLV.GuideEditor then
+                            GLV.GuideEditor:Toggle()
+                        end
+                    </OnClick>
+                    <OnEnter>
+                        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                        GameTooltip:AddLine("Guide Editor", 0.42, 0.55, 0.83)
+                        GameTooltip:Show()
+                    </OnEnter>
+                    <OnLeave>
+                        GameTooltip:Hide()
+                    </OnLeave>
+                </Scripts>
+            </Button>
+
             <Button name="$parentSettings" inherits="UIPanelButtonTemplate">
                 <Size>
                     <AbsDimension x="16" y="16"/>

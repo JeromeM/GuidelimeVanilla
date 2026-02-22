@@ -159,7 +159,7 @@ function Parser:parseGuide(guide, group)
             isFirstLine = false
         else
             isFirstLine = false
-            if self:filterClassRace(line) then
+            if group == "EditorPreview" or self:filterClassRace(line) then
                 if line ~= "" then
                     local count = 0
                     stepText, count = string.gsub(line, "%[(.-)%]", function(code)
@@ -452,6 +452,14 @@ function Parser:parseGuide(guide, group)
             end
         end
         lineIndex = lineIndex + 1
+    end
+
+    -- Inject a "proceed" step before next guide transition
+    if parsedGuide.next and group ~= "EditorPreview" then
+        table.insert(parsedGuide.steps, {
+            text = "Check this box to proceed",
+            hasCheckbox = true,
+        })
     end
 
     return parsedGuide

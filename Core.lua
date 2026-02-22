@@ -71,6 +71,16 @@ function addon:OnInitialize()
                 desc = "Open settings window",
                 func = function() GLV_ToggleSettings() end,
             },
+            editor = {
+                type = "execute",
+                name = "Editor",
+                desc = "Toggle guide editor",
+                func = function()
+                    if GLV.GuideEditor then
+                        GLV.GuideEditor:Toggle()
+                    end
+                end,
+            },
         },
     })
 
@@ -137,6 +147,15 @@ function addon:OnEnable()
             GLV.MinimapPath:Init()
         end
     end, 2.5)
+
+    -- Initialize global DB and migrate per-character editor data
+    Settings:InitializeGlobalDB()
+    Settings:MigrateEditorToGlobal()
+
+    -- Initialize Guide Editor (re-registers saved custom guides)
+    if GLV.GuideEditor then
+        GLV.GuideEditor:Init()
+    end
 end
 
 
