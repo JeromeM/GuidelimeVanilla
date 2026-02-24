@@ -2,3 +2,4 @@
 backup_*
 .planning/
 .claude/
+.vscode/
