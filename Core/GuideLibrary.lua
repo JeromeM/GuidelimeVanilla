@@ -515,7 +515,14 @@ function GLV:LoadGuide(group, guideId)
             UIDropDownMenu_SetText(displayName, dropdown)
         end
     end
-    
+
+    -- Run quest sync only on guide load (initial load or switching guide); not on every quest log update
+    if GLV.QuestTracker then
+        GLV.QuestTracker:SyncQuestAcceptSteps()
+        GLV.QuestTracker:SyncTurninStepsFromCompleted()
+        GLV.QuestTracker:SyncCompleteStepsFromCompleted()
+    end
+
     -- CreateGuideSteps already handles highlighting via updateStepColors
 end
 
@@ -534,7 +541,6 @@ function GLV:LoadDefaultGuideForRace(race)
     local savedGuideId = self.Settings:GetOption({"Guide", "CurrentGuide"})
     if savedGuideId and savedGuideId ~= "Unknown" and guides[savedGuideId] then
         self:LoadGuide(activePack, savedGuideId)
-        GLV.QuestTracker:SyncQuestAcceptSteps()
         return
     end
 
@@ -554,7 +560,6 @@ function GLV:LoadDefaultGuideForRace(race)
 
     if bestGuide then
         self:LoadGuide(activePack, bestGuide.id)
-        GLV.QuestTracker:SyncQuestAcceptSteps()
     end
 end
 

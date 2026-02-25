@@ -32,7 +32,7 @@ function addon:OnInitialize()
     -- Set AddonName
     GLV.AddonName = _ADDON_NAME
 
-    -- Set debug mode for testing
+    -- Set debug mode for testing (e.g. /script GLV.Debug = true then accept/turn in a quest to see QuestTracker messages)
     GLV.Debug = false
 
     -- Set GLV.Ace first so other modules can access it
