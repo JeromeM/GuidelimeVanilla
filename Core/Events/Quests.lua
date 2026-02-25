@@ -344,7 +344,7 @@ function QuestTracker:SyncQuestAcceptSteps()
 end
 
 -- Bulk-mark [QT] steps for quests that are not in log but are completed
--- (store.Completed or pfQuest_history). Called on guide load and OnQuestLogUpdate.
+-- (store.Completed or pfQuest_history). Called only on guide load.
 function QuestTracker:SyncTurninStepsFromCompleted()
     if not GLV.CurrentDisplaySteps then return end
 
