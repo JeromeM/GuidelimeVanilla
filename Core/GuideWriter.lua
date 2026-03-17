@@ -143,31 +143,71 @@ local function cleanupFrameChildren(frame)
     end
 end
 
--- Adjust scroll frame position based on pinned section height
+-- Maximum scroll area height when showing "all" steps (matches MainFrame.xml)
+local MaxScrollHeight = 285
+
+-- Approximate height per step (two lines + spacing + padding) for visible-steps cap
+local function getApproxStepHeight()
+    return (2 * getScaledFontLineHeight()) + CONFIG.lineSpacing + 6
+end
+
+-- Layout constants for main frame height (header to scroll top, gap, footer)
+local MainHeaderHeight = 65
+local MainPinnedGap = 5
+local MainFooterHeight = 50
+local MainMinHeight = 200
+
+-- Adjust scroll frame position based on pinned section height and GuideVisibleSteps setting.
+-- Also sets main frame height so the window shrinks when visible steps is capped.
 local function AdjustScrollFramePosition(pinnedHeight)
     local scrollFrame = getglobal("GLV_MainScrollFrame")
     local pinnedFrame = getglobal("GLV_MainPinnedSteps")
+    local mainFrame = getglobal("GLV_Main")
 
     if not scrollFrame then return end
+
+    -- Guide frame size: 0 = Big (full height), 3 = Small, 6 = Medium
+    local visibleSteps = (GLV.Settings and GLV.Settings.GetOption and GLV.Settings:GetOption({"UI", "GuideVisibleSteps"}))
+    if visibleSteps == nil then
+        visibleSteps = 0
+    end
+    local maxScrollHeight = MaxScrollHeight
+    if visibleSteps > 0 then
+        local approxStep = getApproxStepHeight()
+        local stepsBasedHeight = visibleSteps * approxStep
+        if stepsBasedHeight < MaxScrollHeight then
+            maxScrollHeight = stepsBasedHeight
+        end
+    end
 
     -- Base offset is -65 from top of GLV_Main
     local baseYOffset = -65
 
+    local scrollHeightSet
     if pinnedHeight > 0 and pinnedFrame then
         pinnedFrame:SetHeight(pinnedHeight)
         pinnedFrame:Show()
         -- Adjust Y offset to account for pinned section
-        local newYOffset = baseYOffset - pinnedHeight - 5
+        local newYOffset = baseYOffset - pinnedHeight - MainPinnedGap
+        local availableHeight = MaxScrollHeight - pinnedHeight - MainPinnedGap
+        scrollHeightSet = visibleSteps > 0 and (maxScrollHeight < availableHeight and maxScrollHeight or availableHeight) or availableHeight
         scrollFrame:ClearAllPoints()
         scrollFrame:SetPoint("TOPLEFT", GLV_Main, "TOPLEFT", 15, newYOffset)
-        scrollFrame:SetHeight(285 - pinnedHeight - 5)
+        scrollFrame:SetHeight(scrollHeightSet)
     else
         if pinnedFrame then
             pinnedFrame:Hide()
         end
+        scrollHeightSet = maxScrollHeight
         scrollFrame:ClearAllPoints()
         scrollFrame:SetPoint("TOPLEFT", GLV_Main, "TOPLEFT", 15, baseYOffset)
-        scrollFrame:SetHeight(285)
+        scrollFrame:SetHeight(scrollHeightSet)
+    end
+
+    -- Resize main frame to fit content (no empty space when visible steps is capped)
+    if mainFrame then
+        local mainHeight = MainHeaderHeight + (pinnedHeight > 0 and (pinnedHeight + MainPinnedGap) or 0) + scrollHeightSet + MainFooterHeight
+        mainFrame:SetHeight(math.max(MainMinHeight, mainHeight))
     end
 end
 

@@ -22,6 +22,7 @@ local defaults = {
             Layer = "HIGH",
             GuideTextScale = 1,
             NavigationScale = 1,
+            GuideVisibleSteps = 0,  -- 0=Big (full), 3=Small, 6=Medium (guide frame size)
         },
         CharInfo = {
             Realm = "Unknown",

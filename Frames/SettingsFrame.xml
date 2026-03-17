@@ -575,7 +575,7 @@
                             <!-- Scales Card -->
                             <Frame name="$parentScalesCard">
                                 <Size>
-                                    <AbsDimension x="430" y="165"/>
+                                    <AbsDimension x="430" y="200"/>
                                 </Size>
                                 <Anchors>
                                     <Anchor point="TOPLEFT">
@@ -612,6 +612,16 @@
                                             <Anchors>
                                                 <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
                                                     <Offset x="10" y="-85"/>
+                                                </Anchor>
+                                            </Anchors>
+                                            <Color r="0.42" g="0.55" b="0.83"/>
+                                        </FontString>
+                                        <!-- Guide frame size Label -->
+                                        <FontString name="GLV_SettingsDisplayPageVisibleStepsTitle" font="Fonts\FRIZQT__.TTF" text="Guide frame size" justifyH="LEFT">
+                                            <FontHeight><AbsValue val="11"/></FontHeight>
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT" RelativeTo="$parent" RelativePoint="TOPLEFT">
+                                                    <Offset x="10" y="-145"/>
                                                 </Anchor>
                                             </Anchors>
                                             <Color r="0.42" g="0.55" b="0.83"/>
@@ -673,6 +683,23 @@
                                             </OnValueChanged>
                                         </Scripts>
                                     </Slider>
+
+                                    <!-- Visible Steps Dropdown -->
+                                    <Frame name="GLV_SettingsDisplayPageVisibleStepsDropdown" inherits="UIDropDownMenuTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" RelativeTo="GLV_SettingsDisplayPageVisibleStepsTitle" RelativePoint="BOTTOMLEFT">
+                                                <Offset x="-6" y="-8"/>
+                                            </Anchor>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                UIDropDownMenu_SetWidth(120, this);
+                                            </OnLoad>
+                                            <OnShow>
+                                                GLV_InitVisibleStepsDropdown(this);
+                                            </OnShow>
+                                        </Scripts>
+                                    </Frame>
                                 </Frames>
                             </Frame>
 

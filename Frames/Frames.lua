@@ -583,6 +583,53 @@ function GLV_ApplyFrameStrata(strata)
     end
 end
 
+-- Guide frame size: value = step-cap (0 = full height), label = Small/Medium/Big
+local FRAME_SIZE_OPTIONS = { {3, "Small"}, {6, "Medium"}, {0, "Big"} }
+
+local function frameSizeValueToLabel(val)
+    if val == 0 then return "Big" end
+    if val == 3 then return "Small" end
+    if val == 6 then return "Medium" end
+    -- Legacy: 5 or 10 from old setting -> show as Medium
+    return "Medium"
+end
+
+-- Initialize guide frame size dropdown (scroll area height: Small/Medium/Big)
+function GLV_InitVisibleStepsDropdown(dropdown)
+    local current = GLV.Settings:GetOption({"UI", "GuideVisibleSteps"})
+    if current == nil then
+        current = 0
+        GLV.Settings:SetOption(0, {"UI", "GuideVisibleSteps"})
+    end
+    -- Migrate legacy numbers to our three options: 5 or 10 -> Medium (6)
+    if current == 5 or current == 10 then
+        current = 6
+        GLV.Settings:SetOption(6, {"UI", "GuideVisibleSteps"})
+    end
+
+    UIDropDownMenu_Initialize(dropdown, function()
+        for _, opt in ipairs(FRAME_SIZE_OPTIONS) do
+            local val, text = opt[1], opt[2]
+            local info = {}
+            info.text = text
+            info.value = val
+            info.func = function()
+                local chosen = this.value
+                UIDropDownMenu_SetSelectedValue(dropdown, chosen)
+                UIDropDownMenu_SetText(frameSizeValueToLabel(chosen), dropdown)
+                GLV.Settings:SetOption(chosen, {"UI", "GuideVisibleSteps"})
+                if GLV.RefreshGuide then
+                    GLV:RefreshGuide()
+                end
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    UIDropDownMenu_SetSelectedValue(dropdown, current)
+    UIDropDownMenu_SetText(frameSizeValueToLabel(current), dropdown)
+end
+
 -- Handle navigation scale slider change
 function GLV_OnNavScaleSliderChanged(slider, settingKeys)
     local value = slider:GetValue()
